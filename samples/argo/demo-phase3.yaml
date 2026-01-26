@@ -1,0 +1,149 @@
+# ============================================================================
+# Phase 3実装デモ - 動作確認用ワークフロー
+# ============================================================================
+#
+# 【実装済み機能】
+# ✅ Phase 3.1: Hover Provider - テンプレート参照のホバー情報表示
+# ✅ Phase 3.6: ローカルテンプレート参照 - 同一ファイル内の定義ジャンプ
+# ✅ Phase 2: Definition Provider - WorkflowTemplate参照の定義ジャンプ
+#
+# 【動作確認方法】
+# 1. F5でExtension Development Hostを起動
+# 2. このファイルを開く
+# 3. 各確認ポイントで操作を実施
+#
+# 【VSCode】
+# - F12: 定義へジャンプ (Go to Definition)
+# - ホバー: マウスをテキストに乗せると情報表示
+#
+# 【Neovim】
+# - gd: 定義へジャンプ
+# - K: ホバー情報表示
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: phase3-demo-
+  namespace: argo
+spec:
+  entrypoint: main
+
+  templates:
+    # =========================================================================
+    # 【確認ポイント1】ローカルテンプレート参照 (Phase 3.6)
+    # 操作: 以下の "template: greet-user" にカーソルを置く
+    # - F12でジャンプ → 68行目の "- name: greet-user" へジャンプ
+    # - ホバー → テンプレート情報が表示される
+    # =========================================================================
+    - name: main
+      steps:
+        # ローカルテンプレート参照
+        - - name: greet
+            template: greet-user
+            arguments:
+              parameters:
+                - name: user
+                  value: "Alice"
+
+        # =========================================================================
+        # 【確認ポイント2】WorkflowTemplate参照 (Phase 2 + 3.1)
+        # 操作: 以下の "template: hello" にカーソルを置く
+        # - F12でジャンプ → workflow-template.yaml の hello テンプレートへジャンプ
+        # - ホバー → WorkflowTemplate情報が表示される
+        #   - Template名、WorkflowTemplate名、コメントが表示される
+        # =========================================================================
+        - - name: use-workflow-template
+            templateRef:
+              name: hello-world-template
+              template: hello
+
+        # =========================================================================
+        # 【確認ポイント3】ClusterWorkflowTemplate参照 (Phase 2 + 3.1)
+        # 操作: 以下の "template: cluster-hello" にカーソルを置く
+        # - F12でジャンプ → cluster-workflow-template.yaml へジャンプ
+        # - ホバー → ClusterWorkflowTemplate情報が表示される
+        # =========================================================================
+        - - name: use-cluster-template
+            templateRef:
+              name: cluster-hello-template
+              template: cluster-hello
+              clusterScope: true
+
+    # =========================================================================
+    # 【確認ポイント4】ローカルテンプレート定義 (Phase 3.6)
+    # 操作: 以下の "greet-user" テンプレート名にカーソルを置く
+    # - 45行目からF12でジャンプすると、ここに来る
+    # - ホバーでこのテンプレートの説明が表示される
+    # =========================================================================
+    # User greeting template
+    - name: greet-user  # Prints a personalized greeting
+      inputs:
+        parameters:
+          - name: user
+            value: "World"
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'Hello, {{inputs.parameters.user}}!'"]
+
+    # =========================================================================
+    # 【確認ポイント5】複数のローカルテンプレート (Phase 3.6)
+    # 操作: 各テンプレート名にカーソルを置いてホバー
+    # - コメント付きテンプレートの情報が表示される
+    # =========================================================================
+    # Data processing template
+    - name: process-data  # Processes input data
+      inputs:
+        parameters:
+          - name: data
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'Processing: {{inputs.parameters.data}}'"]
+
+    # Result aggregation template
+    - name: aggregate-results  # Aggregates multiple results
+      inputs:
+        parameters:
+          - name: results
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'Results: {{inputs.parameters.results}}'"]
+
+    # =========================================================================
+    # 【確認ポイント6】入れ子になったステップ (Phase 3.6)
+    # 操作: 以下の "template: process-data" や "template: aggregate-results" で
+    # - F12で各テンプレート定義へジャンプ
+    # - ホバーで情報を確認
+    # =========================================================================
+    - name: data-pipeline
+      steps:
+        - - name: process-step
+            template: process-data
+            arguments:
+              parameters:
+                - name: data
+                  value: "sample-data"
+
+        - - name: aggregate-step
+            template: aggregate-results
+            arguments:
+              parameters:
+                - name: results
+                  value: "processed-results"
+
+# =============================================================================
+# 【注意事項】
+# =============================================================================
+# - WorkflowTemplate参照を使用するには、以下のリソースが必要です:
+#   - WorkflowTemplate "hello-world-template" (workflow-template.yaml)
+#   - ClusterWorkflowTemplate "cluster-hello-template" (cluster-workflow-template.yaml)
+# - これらのファイルは samples/argo/ ディレクトリに含まれています
+#
+# 【実装予定機能（Phase 3未完了部分）】
+# - パラメータ参照のジャンプとホバー ({{inputs.parameters.xxx}})
+# - Completion Provider (入力補完)
+# - Diagnostics (エラー検出)
+# =============================================================================

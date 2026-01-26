@@ -5,9 +5,9 @@
       "name": "Launch Extension",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/packages/client"],
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-client"],
       "outFiles": [
-        "${workspaceFolder}/packages/client/dist/**/*.js",
+        "${workspaceFolder}/packages/vscode-client/dist/**/*.js",
         "${workspaceFolder}/packages/server/dist/**/*.js"
       ],
       "preLaunchTask": "watch"

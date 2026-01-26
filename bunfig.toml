@@ -1,5 +1,6 @@
+# Bun configuration
 [install]
-# Install dependencies
+# Bunのインストール設定
 peer = true
 
 [install.cache]

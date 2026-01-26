@@ -228,8 +228,8 @@ spec:
 			expect(hover).toBeNull();
 		});
 
-		it('should return null for direct template reference (phase 3.6)', async () => {
-			// 直接参照は Phase 3.6 で実装予定
+		it('should provide hover for local template reference (phase 3.6)', async () => {
+			// ローカルテンプレート参照のホバー
 			const workflowContent = `apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
@@ -241,9 +241,38 @@ spec:
       steps:
         - - name: step1
             template: local-template
-    - name: local-template
+    # Local template definition
+    - name: local-template  # Runs on Alpine
       container:
         image: alpine
+`;
+			const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+			const position = Position.create(10, 25);
+
+			const hover = await provider.provideHover(doc, position);
+			expect(hover).not.toBeNull();
+
+			if (hover?.contents && typeof hover.contents === 'object' && 'value' in hover.contents) {
+				const markdown = hover.contents.value;
+				expect(markdown).toContain('**Template**: `local-template`');
+				expect(markdown).toContain('Local template');
+				expect(markdown).toContain('Local template definition');
+				expect(markdown).toContain('Runs on Alpine');
+			}
+		});
+
+		it('should return null for non-existent local template', async () => {
+			const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            template: non-existent
 `;
 			const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
 			const position = Position.create(10, 25);

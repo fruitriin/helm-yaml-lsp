@@ -5,10 +5,13 @@
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { Location, Position } from 'vscode-languageserver-types';
+import { Location, type Position } from 'vscode-languageserver-types';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
-import { findTemplateReferenceAtPosition } from '@/features/templateFeatures';
+import {
+	findTemplateDefinitions,
+	findTemplateReferenceAtPosition,
+} from '@/features/templateFeatures';
 
 /**
  * Definition Provider
@@ -50,8 +53,13 @@ export class DefinitionProvider {
 		// 直接参照 (template: xxx)
 		if (templateRef.type === 'direct') {
 			// 同じファイル内のローカルテンプレートを検索
-			// （この場合、インデックスは使わずにドキュメント内を検索する必要がある）
-			// 今回の実装では、WorkflowTemplate/ClusterWorkflowTemplateのみをサポート
+			const localTemplates = findTemplateDefinitions(document);
+			const template = localTemplates.find((t) => t.name === templateRef.templateName);
+
+			if (template) {
+				return Location.create(document.uri, template.range);
+			}
+
 			return null;
 		}
 

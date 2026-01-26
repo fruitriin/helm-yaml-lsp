@@ -1,0 +1,40 @@
+{{- if .Values.workflow.enabled }}
+# ============================================================================
+# templateRef - WorkflowTemplate参照（Helm版）
+# ============================================================================
+#
+# 【テスト目的】
+# - WorkflowTemplateへの参照のジャンプ機能
+# - Helm includeによる名前解決
+# - templateRef解決とホバー表示
+#
+# 【動作確認方法】
+# 1. F5でExtension Development Hostを起動
+# 2. このファイルを開く
+# 3. template: hello (35行目) にカーソルを置いてF12
+#
+# 【期待動作】
+# ✅ 35行目: workflow-template.yaml の "- name: hello" にジャンプ
+# ✅ Helm構文（include）を含むnameフィールドでも正しく解決される
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.fullname" . }}-templateref-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        # ---------------------------------------------------------------------
+        # 【確認ポイント】WorkflowTemplate参照のジャンプ（Helm構文含む）
+        # name: Helm include で解決される
+        # template: hello → workflow-template.yaml へジャンプ
+        # ---------------------------------------------------------------------
+        - - name: step-from-template
+            templateRef:
+              name: {{ include "argo-workflow-sample.fullname" . }}
+              template: hello
+{{- end }}

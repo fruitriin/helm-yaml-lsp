@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: argo
+data:
+  database-url: "postgresql://localhost:5432/mydb"
+  api-endpoint: "https://api.example.com"
+  config.yaml: |
+    server:
+      port: 8080
+      host: 0.0.0.0
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: argo
+type: Opaque
+data:
+  db-password: cGFzc3dvcmQxMjM=  # base64: password123

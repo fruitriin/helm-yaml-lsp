@@ -1,0 +1,78 @@
+{{- if .Values.workflow.enabled }}
+{{/*
+============================================================================
+item変数 - withItems/withParamによるループ処理（Helm版）
+============================================================================
+
+【テスト目的】
+- item変数のホバー表示
+- item.propertyの参照解決
+- Helm変数とArgo item変数の混在
+
+【動作確認方法】
+1. F5でExtension Development Hostを起動
+2. このファイルを開く
+3. item にカーソルを置いてホバー
+4. item.name の "name" にカーソルを置いてF12
+
+【期待動作】
+✅ item: ホバーで "現在のループアイテム" の説明が表示される
+✅ item.name: withItemsオブジェクト定義にジャンプ
+============================================================================
+*/}}
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.fullname" . }}-item-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: process-strings
+            template: echo-item
+            arguments:
+              parameters:
+                - name: message
+                  value: "{{`{{item}}`}}"
+            withItems:
+              - "apple"
+              - "banana"
+              - "cherry"
+
+        - - name: process-objects
+            template: echo-props
+            arguments:
+              parameters:
+                - name: name
+                  value: "{{`{{item.name}}`}}"
+                - name: count
+                  value: "{{`{{item.count}}`}}"
+            withItems:
+              - { name: "item-a", count: 1 }
+              - { name: "item-b", count: 2 }
+
+    - name: echo-item
+      inputs:
+        parameters:
+          - name: message
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["{{`{{inputs.parameters.message}}`}}"]
+
+    - name: echo-props
+      inputs:
+        parameters:
+          - name: name
+          - name: count
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [sh, -c]
+        args:
+          - |
+            echo "Name: {{`{{inputs.parameters.name}}`}}"
+            echo "Count: {{`{{inputs.parameters.count}}`}}"
+{{- end }}

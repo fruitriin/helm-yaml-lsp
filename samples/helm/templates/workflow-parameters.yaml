@@ -1,0 +1,66 @@
+{{- if .Values.workflow.enabled }}
+{{/*
+============================================================================
+inputs/outputs.parameters - パラメータの受け渡し（Helm版）
+============================================================================
+
+【テスト目的】
+- inputs.parametersの定義へのジャンプ機能
+- outputs.parametersの定義へのジャンプ機能
+- Helm変数とArgo変数の混在
+
+【動作確認方法】
+1. F5でExtension Development Hostを起動
+2. このファイルを開く
+3. inputs.parameters.data の "data" にカーソルを置いてF12
+4. outputs.parameters.result の "result" にカーソルを置いてF12
+
+【期待動作】
+✅ inputs.parameters.data → inputs.parameters定義にジャンプ
+✅ outputs.parameters.result → outputs.parameters定義にジャンプ
+============================================================================
+*/}}
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.fullname" . }}-parameters-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: generate
+            template: generate-output
+
+        - - name: consume
+            template: consume-output
+            arguments:
+              parameters:
+                - name: data
+                  value: {{ print `"` `{{steps.generate.outputs.parameters.result}}` `"` }}
+
+    - name: generate-output
+      outputs:
+        parameters:
+          - name: result
+            valueFrom:
+              path: "/tmp/result.txt"
+      script:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [sh]
+        source: |
+          echo "42" > /tmp/result.txt
+
+    - name: consume-output
+      inputs:
+        parameters:
+          - name: data
+            value: "default-data"
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [sh, -c]
+        args:
+          - |
+            echo "Data: {{ print `{{inputs.parameters.data}}` }}"
+{{- end }}

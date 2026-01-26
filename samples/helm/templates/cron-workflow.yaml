@@ -1,0 +1,44 @@
+{{- if .Values.workflow.enabled }}
+# ============================================================================
+# CronWorkflow - スケジュール実行されるワークフロー（Helm版）
+# ============================================================================
+#
+# 【説明】
+# - CronWorkflowは定期的にWorkflowを実行する
+# - cron形式でスケジュールを指定（Helm変数から取得）
+# - workflow.scheduledTimeで予定実行時刻を取得可能
+#
+# 【詳細なテスト】
+# - workflow.scheduledTimeのテストは workflow-variables.yaml を参照
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: {{ include "argo-workflow-sample.fullname" . }}-cron
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "argo-workflow-sample.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.workflow.schedule | quote }}
+  concurrencyPolicy: {{ .Values.workflow.concurrencyPolicy }}
+  workflowSpec:
+    entrypoint: main
+    templates:
+      - name: main
+        steps:
+          - - name: scheduled-hello
+              template: scheduled-task
+
+          # WorkflowTemplateの参照も可能
+          - - name: call-template
+              templateRef:
+                name: {{ include "argo-workflow-sample.fullname" . }}
+                template: hello
+
+      - name: scheduled-task
+        container:
+          image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+          command: [sh, -c]
+          args: ["echo 'Scheduled run at $(date)'"]
+{{- end }}

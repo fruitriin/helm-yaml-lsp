@@ -1,6 +1,6 @@
 {
   "name": "helm-yaml-lsp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Argo Workflows Language Server Protocol implementation for Helm and YAML",
   "private": true,
   "repository": {
@@ -26,7 +26,7 @@
     "format:write": "biome format --write .",
     "check": "bun run typecheck && biome check .",
     "check:write": "biome check --write .",
-    "test": "bun test --preload ./test/**/*.test.ts ./packages/*/test/**/*.test.ts",
+    "test": "bun test ./test/**/*.test.ts ./packages/*/test/**/*.test.ts",
     "test:packages": "bun run --filter '*' test",
     "test:all": "bun run test && bun run test:packages",
     "package": "cd packages/vscode-client && bun run package"

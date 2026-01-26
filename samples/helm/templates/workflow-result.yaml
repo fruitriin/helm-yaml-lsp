@@ -1,0 +1,59 @@
+{{- if .Values.workflow.enabled }}
+{{/*
+============================================================================
+outputs.result - スクリプト実行結果の取得（Helm版）
+============================================================================
+
+【テスト目的】
+- outputs.resultの参照解決（script/scriptorテンプレート）
+- steps.outputs.resultの参照
+- Argoスクリプト変数のエスケープ
+
+【動作確認方法】
+1. F5でExtension Development Hostを起動
+2. このファイルを開く
+3. steps.run-script.outputs.result の "result" にカーソルを置いてF12
+
+【期待動作】
+✅ steps.run-script.outputs.result → script-runnerテンプレートにジャンプ
+============================================================================
+*/}}
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.fullname" . }}-result-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: run-script
+            template: script-runner
+
+        - - name: use-result
+            template: print-result
+            arguments:
+              parameters:
+                - name: data
+                  value: "{{`{{steps.run-script.outputs.result}}`}}"
+
+    - name: script-runner
+      script:
+        image: python:3.9
+        command: [python]
+        source: |
+          import json
+          result = {"status": "success", "count": 42}
+          print(json.dumps(result))
+
+    - name: print-result
+      inputs:
+        parameters:
+          - name: data
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["Result: {{`{{inputs.parameters.data}}`}}"]
+{{- end }}

@@ -1,0 +1,60 @@
+{{- if .Values.workflow.enabled }}
+# ============================================================================
+# 基本的なWorkflow - ローカルテンプレートとsteps構造（Helm版）
+# ============================================================================
+#
+# 【テスト目的】
+# - ローカルテンプレートの定義と参照のジャンプ機能
+# - steps構造での順次実行
+# - template参照の解決
+# - Helm変数(.Values)の使用
+# - Argoパラメータのエスケープ
+#
+# 【動作確認方法】
+# 1. F5でExtension Development Hostを起動
+# 2. このファイルを開く
+# 3. template: local-hello (39行目) にカーソルを置いてF12
+#
+# 【期待動作】
+# ✅ 39行目: 47行目の "- name: local-hello" にジャンプ
+# ✅ ホバーで "container: alpine:latest, command: echo" などの情報が表示される
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.fullname" . }}-basic-
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "argo-workflow-sample.labels" . | nindent 4 }}
+spec:
+  entrypoint: main
+  templates:
+    # ---------------------------------------------------------------------
+    # 【確認ポイント】ローカルテンプレート参照のジャンプ
+    # 操作: template: local-hello にカーソルを置いてF12
+    # 期待: 47行目の "- name: local-hello" にジャンプ
+    # ---------------------------------------------------------------------
+    - name: main
+      steps:
+        - - name: step-hello
+            template: local-hello
+        - - name: step-goodbye
+            template: local-goodbye
+
+    # ---------------------------------------------------------------------
+    # 【定義】ローカルテンプレート（Helm変数使用）
+    # 上の "template: local-hello" からジャンプされる先
+    # ---------------------------------------------------------------------
+    - name: local-hello
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["Hello from Helm template!"]
+
+    - name: local-goodbye
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["Goodbye!"]
+{{- end }}

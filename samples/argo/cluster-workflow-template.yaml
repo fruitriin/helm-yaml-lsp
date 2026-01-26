@@ -1,0 +1,35 @@
+# ============================================================================
+# ClusterWorkflowTemplate定義 - クラスタスコープの再利用可能なテンプレート
+# ============================================================================
+#
+# 【説明】
+# - ClusterWorkflowTemplateはクラスタ全体で利用可能なテンプレート定義
+# - namespace指定なしで全namespaceから参照可能
+# - 他のWorkflowからtemplateRef + clusterScope: trueで参照される
+#
+# 【WorkflowTemplateとの違い】
+# - WorkflowTemplate: namespace内でのみ利用可能
+# - ClusterWorkflowTemplate: クラスタ全体で利用可能
+#
+# 【参照元】
+# - workflow-templateref.yaml
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: cluster-hello-template
+spec:
+  templates:
+    # workflow-templateref.yamlから参照される
+    - name: cluster-hello
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Hello from ClusterWorkflowTemplate!"]
+
+    - name: cluster-job
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'Running cluster job' && sleep 5"]

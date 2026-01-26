@@ -1,22 +1,18 @@
 # ============================================================================
-# 包括的なテストワークフロー（テストフィクスチャー - エラーケース含む）
+# 包括的なワークフローサンプル
 # ============================================================================
-# このファイルは統合テストで使用され、以下の機能をすべて含みます:
+# このファイルは以下の機能をすべて含む参照用サンプルです:
 # - ローカルテンプレート参照
 # - パラメータ定義と参照（inputs/outputs）
 # - Workflow変数
 # - コメント付き定義
 # - 複数のテンプレート
-# - 意図的なエラーケース（診断機能のテスト用）
-#
-# 注意: このファイルには意図的なエラーが含まれています（error-case-template）
-# 正常なサンプルは samples/argo/comprehensive-workflow.yaml を参照してください
 # ============================================================================
 
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  generateName: comprehensive-test-
+  generateName: comprehensive-workflow-
   namespace: argo
 spec:
   entrypoint: main
@@ -143,13 +139,3 @@ spec:
         image: alpine:latest
         command: [echo]
         args: ["{{inputs.parameters.message}}"]
-
-    # =========================================================================
-    # エラーケース - 存在しないパラメータ参照（診断テスト用）
-    # =========================================================================
-    - name: error-case-template
-      container:
-        image: alpine:latest
-        command: [echo]
-        # この行は意図的なエラー: non-existent-param は定義されていない
-        args: ["{{inputs.parameters.non-existent-param}}"]

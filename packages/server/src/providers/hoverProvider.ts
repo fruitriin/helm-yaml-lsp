@@ -5,7 +5,7 @@
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { MarkupKind, type Hover, type Position } from 'vscode-languageserver-types';
+import { MarkupKind, type Hover, type Position, type Range } from 'vscode-languageserver-types';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
 import {
@@ -16,6 +16,7 @@ import {
 	findParameterDefinitions,
 	findParameterReferenceAtPosition,
 } from '@/features/parameterFeatures';
+import { findWorkflowVariableAtPosition } from '@/features/workflowVariables';
 
 /**
  * Hover Provider
@@ -55,6 +56,12 @@ export class HoverProvider {
 		const parameterRef = findParameterReferenceAtPosition(document, position);
 		if (parameterRef) {
 			return this.handleParameterHover(document, parameterRef);
+		}
+
+		// Workflow変数を検出
+		const workflowVar = findWorkflowVariableAtPosition(document, position);
+		if (workflowVar) {
+			return this.handleWorkflowVariableHover(workflowVar);
 		}
 
 		return null;
@@ -268,6 +275,37 @@ export class HoverProvider {
 		}
 
 		return parts.join('\n');
+	}
+
+	/**
+	 * Workflow変数のホバーを処理
+	 */
+	private handleWorkflowVariableHover(workflowVar: {
+		variable: { name: string; description: string; example?: string };
+		range: Range;
+	}): Hover {
+		const parts: string[] = [];
+
+		// 変数名
+		parts.push(`**Workflow Variable**: \`${workflowVar.variable.name}\``);
+
+		// 説明
+		parts.push('');
+		parts.push(workflowVar.variable.description);
+
+		// 例
+		if (workflowVar.variable.example) {
+			parts.push('');
+			parts.push(`**Example**: \`${workflowVar.variable.example}\``);
+		}
+
+		return {
+			contents: {
+				kind: MarkupKind.Markdown,
+				value: parts.join('\n'),
+			},
+			range: workflowVar.range,
+		};
 	}
 
 	/**

@@ -198,5 +198,87 @@ spec:
 			const location = await provider.provideDefinition(doc, position);
 			expect(location).toBeNull();
 		});
+
+		it('should find local template definition (Phase 3.6)', async () => {
+			// 同一ファイル内のテンプレート参照
+			const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    # Main template
+    - name: main
+      steps:
+        - - name: step1
+            template: hello
+    # Hello template
+    - name: hello
+      container:
+        image: alpine
+`;
+			const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+			// "template: hello" の位置
+			const position = Position.create(11, 25);
+
+			const location = await provider.provideDefinition(doc, position);
+			expect(location).not.toBeNull();
+
+			if (location && 'uri' in location) {
+				expect(location.uri).toBe('file:///workflow.yaml');
+				expect(location.range.start.line).toBe(13); // "- name: hello" の行
+			}
+		});
+
+		it('should return null for non-existent local template', async () => {
+			const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            template: non-existent
+`;
+			const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+			const position = Position.create(10, 25);
+
+			const location = await provider.provideDefinition(doc, position);
+			expect(location).toBeNull();
+		});
+
+		it('should handle local template with comments', async () => {
+			const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            template: greeting
+    # Greeting template with message
+    - name: greeting  # Say hello
+      container:
+        image: alpine
+`;
+			const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+			const position = Position.create(10, 25);
+
+			const location = await provider.provideDefinition(doc, position);
+			expect(location).not.toBeNull();
+
+			if (location && 'uri' in location) {
+				expect(location.uri).toBe('file:///workflow.yaml');
+				expect(location.range.start.line).toBe(12); // "- name: greeting" の行
+			}
+		});
 	});
 });

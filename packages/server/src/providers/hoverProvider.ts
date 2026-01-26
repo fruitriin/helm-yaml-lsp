@@ -8,7 +8,10 @@ import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { MarkupKind, type Hover, type Position } from 'vscode-languageserver-types';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
-import { findTemplateReferenceAtPosition } from '@/features/templateFeatures';
+import {
+	findTemplateDefinitions,
+	findTemplateReferenceAtPosition,
+} from '@/features/templateFeatures';
 
 /**
  * Hover Provider
@@ -46,7 +49,21 @@ export class HoverProvider {
 
 		// 直接参照 (template: xxx)
 		if (templateRef.type === 'direct') {
-			// ローカルテンプレート参照のホバーは Phase 3.6 で実装
+			// 同じファイル内のローカルテンプレートを検索
+			const localTemplates = findTemplateDefinitions(document);
+			const template = localTemplates.find((t) => t.name === templateRef.templateName);
+
+			if (template) {
+				const markdown = this.buildLocalTemplateHover(template);
+				return {
+					contents: {
+						kind: MarkupKind.Markdown,
+						value: markdown,
+					},
+					range: templateRef.range,
+				};
+			}
+
 			return null;
 		}
 
@@ -97,6 +114,36 @@ export class HoverProvider {
 				template.kind === 'ClusterWorkflowTemplate' ? 'ClusterWorkflowTemplate' : 'WorkflowTemplate';
 			parts.push(`**${scope}**: \`${template.workflowName}\``);
 		}
+
+		// 説明（コメントから生成）
+		const description = this.buildDescription(template.aboveComment, template.inlineComment);
+		if (description) {
+			parts.push('');
+			parts.push(description);
+		}
+
+		return parts.join('\n');
+	}
+
+	/**
+	 * ローカルテンプレート定義のホバー情報をマークダウン形式で構築
+	 *
+	 * @param template - テンプレート定義
+	 * @returns マークダウン文字列
+	 */
+	private buildLocalTemplateHover(template: {
+		name: string;
+		kind: string;
+		aboveComment?: string;
+		inlineComment?: string;
+	}): string {
+		const parts: string[] = [];
+
+		// テンプレート名
+		parts.push(`**Template**: \`${template.name}\``);
+
+		// ローカルテンプレート（同一ファイル内）
+		parts.push(`**Location**: Local template in current ${template.kind}`);
 
 		// 説明（コメントから生成）
 		const description = this.buildDescription(template.aboveComment, template.inlineComment);

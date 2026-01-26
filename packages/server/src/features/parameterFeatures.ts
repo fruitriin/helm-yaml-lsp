@@ -23,11 +23,10 @@ function extractParameterComments(
 		const trimmed = lines[i].trim();
 		if (trimmed.startsWith('#')) {
 			aboveComments.unshift(trimmed.substring(1).trim());
-		} else if (trimmed === '') {
-			continue; // 空行はスキップ
-		} else {
+		} else if (trimmed !== '') {
 			break; // コメント以外が出現したら終了
 		}
+		// 空行はスキップ（continueは不要）
 	}
 	if (aboveComments.length > 0) {
 		result.aboveComment = aboveComments.join('\n');
@@ -242,7 +241,7 @@ export function findParameterReferenceAtPosition(
 		const matches = [...line.matchAll(pattern.regex)];
 		for (const match of matches) {
 			const fullMatch = match[0];
-			const matchStart = match.index!;
+			const matchStart = match.index ?? 0;
 			const matchEnd = matchStart + fullMatch.length;
 
 			// カーソルがマッチ範囲内にあるかチェック

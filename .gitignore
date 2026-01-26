@@ -19,3 +19,4 @@ dist
 .bun-cache
 
 # 注意: bun.lock はコミットすべきファイルです（依存関係のバージョン固定のため）
+vscode-kubernetes-tools-argo/

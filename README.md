@@ -80,7 +80,7 @@ bun run watch
 
 ✅ モノレポ構造の作成（bun workspaces）
 ✅ packages/server のセットアップ（LSPサーバー）
-✅ packages/client のセットアップ（VSCode拡張）
+✅ packages/vscode-client のセットアップ（VSCode拡張）
 ✅ ビルドシステムの構築（TypeScript、bun build）
 ✅ 開発・デバッグ環境の構築（.vscode/launch.json）
 

@@ -1,0 +1,6 @@
+{
+  "name": "test",
+  "description": "プロジェクトのテストを実行し、結果を報告する",
+  "prompt": "prompt.md",
+  "tags": ["testing", "quality", "verification"]
+}

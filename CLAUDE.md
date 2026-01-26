@@ -139,25 +139,41 @@ bun run clean               # ビルド成果物を削除
 個別パッケージのビルド：
 ```bash
 cd packages/server && bun run build
-cd packages/client && bun run build
+cd packages/vscode-client && bun run build
 ```
 
-### Linter & Formatter (Biome)
+### コード品質チェック
 
 ```bash
-bun run lint                # コードをlint
+# 完全なチェック（型チェック + Biome）
+bun run check               # TypeScript型チェック + Biome lint/format
+
+# 個別チェック
+bun run typecheck           # TypeScript型チェック（IDE diagnosticsと同等）
+bun run lint                # Biome lint
+bun run format              # Biome formatチェック
+
+# 自動修正
+bun run check:write         # Biomeで自動修正（safe fix）
 bun run lint:fix            # lintエラーを自動修正
-bun run format              # フォーマットチェック
 bun run format:write        # コードをフォーマット
-bun run check               # lintとformatの両方をチェック
-bun run check:write         # すべてのエラーを自動修正（safe fix）
 bunx biome check --write --unsafe .  # unsafe fixも適用
 ```
 
-### その他
+### テスト
 
 ```bash
-bun run test                # テスト実行
+bun run test                # テスト実行（推奨）
+bun run test:packages       # 各パッケージのテスト実行
+bun run test:all            # 統合 + パッケージテスト
+```
+
+**重要**: `bun run test` を使用してください（`bun test` ではなく）。
+直接 `bun test` を実行すると、サブモジュールのテストも検索されてしまいます。
+
+### パッケージング
+
+```bash
 bun run package             # VSIXパッケージ作成
 ```
 
@@ -177,7 +193,7 @@ bun run package             # VSIXパッケージ作成
 ### Phase 1: プロジェクト構造のセットアップ ✅
 
 - モノレポ構造（bun workspaces）
-- packages/server と packages/client のセットアップ
+- packages/server と packages/vscode-client のセットアップ
 - ビルドシステム（bun build）
 - デバッグ環境（.vscode/launch.json）
 - パスエイリアス（"@/"）の設定

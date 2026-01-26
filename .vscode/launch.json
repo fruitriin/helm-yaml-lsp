@@ -5,18 +5,22 @@
       "name": "Launch Extension",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-client"],
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-client",
+        "${workspaceFolder}/samples"
+      ],
       "outFiles": [
         "${workspaceFolder}/packages/vscode-client/dist/**/*.js",
         "${workspaceFolder}/packages/server/dist/**/*.js"
       ],
-      "preLaunchTask": "watch"
+      "preLaunchTask": "watch-with-cleanup",
+      "stopOnEntry": false
     },
     {
       "name": "Attach to Server",
       "type": "node",
       "request": "attach",
-      "port": 6009,
+      "port": "${env:LSP_DEBUG_PORT:6009}",
       "restart": true,
       "outFiles": ["${workspaceFolder}/packages/server/dist/**/*.js"]
     }

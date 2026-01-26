@@ -1,13 +1,12 @@
 # Dependencies
-node_modules
+node_modules/
 
 # Build outputs
-out
-dist
+dist/
 *.vsix
 
 # Test
-.vscode-test
+.vscode-test/
 
 # Logs
 *.log
@@ -16,7 +15,9 @@ dist
 .DS_Store
 
 # Bun
-.bun-cache
+.bun-cache/
 
-# 注意: bun.lock はコミットすべきファイルです（依存関係のバージョン固定のため）
+# Git submodule (managed separately)
 vscode-kubernetes-tools-argo/
+
+# Note: bun.lockb should be committed for dependency version locking

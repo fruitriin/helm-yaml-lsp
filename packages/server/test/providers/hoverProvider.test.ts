@@ -327,5 +327,98 @@ spec:
         expect(markdown).toContain('Inline comment here');
       }
     });
+
+    it('should provide hover for inputs.parameters reference (Phase 3.2)', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      inputs:
+        parameters:
+          # Message to display
+          - name: message  # User message
+            value: "Hello World"
+      container:
+        image: alpine
+        args: ["echo", "{{inputs.parameters.message}}"]
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{inputs.parameters.message}}" の "message" 部分
+      const position = Position.create(15, 47);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Parameter**: `message`');
+        expect(markdown).toContain('**Type**: Input Parameter');
+        expect(markdown).toContain('**Default**: `Hello World`');
+        expect(markdown).toContain('Message to display');
+        expect(markdown).toContain('User message');
+      }
+    });
+
+    it('should provide hover for outputs.parameters reference (Phase 3.2)', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: generate
+      outputs:
+        parameters:
+          # Generated result
+          - name: result
+            valueFrom:
+              path: /tmp/result.txt
+      script:
+        image: alpine
+        source: |
+          echo "test" > /tmp/result.txt
+          echo {{outputs.parameters.result}}
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{outputs.parameters.result}}" の "result" 部分
+      const position = Position.create(18, 38);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Parameter**: `result`');
+        expect(markdown).toContain('**Type**: Output Parameter');
+        expect(markdown).toContain('Generated result');
+      }
+    });
+
+    it('should return null for non-existent parameter hover', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: alpine
+        args: ["{{inputs.parameters.nonexistent}}"]
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+      const position = Position.create(10, 40);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).toBeNull();
+    });
   });
 });

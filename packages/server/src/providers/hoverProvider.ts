@@ -12,6 +12,10 @@ import {
 	findTemplateDefinitions,
 	findTemplateReferenceAtPosition,
 } from '@/features/templateFeatures';
+import {
+	findParameterDefinitions,
+	findParameterReferenceAtPosition,
+} from '@/features/parameterFeatures';
 
 /**
  * Hover Provider
@@ -43,6 +47,26 @@ export class HoverProvider {
 
 		// カーソル位置のテンプレート参照を検出
 		const templateRef = findTemplateReferenceAtPosition(document, position);
+		if (templateRef) {
+			return this.handleTemplateHover(document, templateRef);
+		}
+
+		// パラメータ参照を検出
+		const parameterRef = findParameterReferenceAtPosition(document, position);
+		if (parameterRef) {
+			return this.handleParameterHover(document, parameterRef);
+		}
+
+		return null;
+	}
+
+	/**
+	 * テンプレート参照のホバーを処理
+	 */
+	private async handleTemplateHover(
+		document: TextDocument,
+		templateRef: ReturnType<typeof findTemplateReferenceAtPosition>,
+	): Promise<Hover | null> {
 		if (!templateRef) {
 			return null;
 		}
@@ -150,6 +174,97 @@ export class HoverProvider {
 		if (description) {
 			parts.push('');
 			parts.push(description);
+		}
+
+		return parts.join('\n');
+	}
+
+	/**
+	 * パラメータ参照のホバーを処理
+	 */
+	private handleParameterHover(
+		document: TextDocument,
+		parameterRef: ReturnType<typeof findParameterReferenceAtPosition>,
+	): Hover | null {
+		if (!parameterRef) {
+			return null;
+		}
+
+		// パラメータ定義を検索
+		const parameterDefs = findParameterDefinitions(document);
+
+		// inputs.parameters または outputs.parameters の場合
+		if (
+			parameterRef.type === 'inputs.parameters' ||
+			parameterRef.type === 'outputs.parameters'
+		) {
+			const parameter = parameterDefs.find((p) => p.name === parameterRef.parameterName);
+			if (parameter) {
+				const markdown = this.buildParameterHover(parameter, parameterRef.type);
+				return {
+					contents: {
+						kind: MarkupKind.Markdown,
+						value: markdown,
+					},
+					range: parameterRef.range,
+				};
+			}
+		}
+
+		// steps.outputs.parameters または tasks.outputs.parameters の場合
+		// TODO: ステップ/タスクのoutputsパラメータへの参照
+		// これは将来の拡張として実装
+
+		return null;
+	}
+
+	/**
+	 * パラメータ定義のホバー情報をマークダウン形式で構築
+	 *
+	 * @param parameter - パラメータ定義
+	 * @param type - パラメータタイプ
+	 * @returns マークダウン文字列
+	 */
+	private buildParameterHover(
+		parameter: {
+			name: string;
+			value?: string;
+			valueAboveComment?: string;
+			valueInlineComment?: string;
+			aboveComment?: string;
+			inlineComment?: string;
+		},
+		type: string,
+	): string {
+		const parts: string[] = [];
+
+		// パラメータ名
+		parts.push(`**Parameter**: \`${parameter.name}\``);
+
+		// タイプ
+		const typeLabel = type === 'inputs.parameters' ? 'Input Parameter' : 'Output Parameter';
+		parts.push(`**Type**: ${typeLabel}`);
+
+		// デフォルト値
+		if (parameter.value) {
+			parts.push(`**Default**: \`${parameter.value}\``);
+		}
+
+		// 説明（コメントから生成）
+		const description = this.buildDescription(parameter.aboveComment, parameter.inlineComment);
+		if (description) {
+			parts.push('');
+			parts.push(description);
+		}
+
+		// 値のコメント
+		const valueDescription = this.buildDescription(
+			parameter.valueAboveComment,
+			parameter.valueInlineComment,
+		);
+		if (valueDescription) {
+			parts.push('');
+			parts.push(`**Value Note**: ${valueDescription}`);
 		}
 
 		return parts.join('\n');

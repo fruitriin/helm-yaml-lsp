@@ -23,6 +23,7 @@ import { defaultSettings, type ServerSettings } from '@/types';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { FileWatcher } from '@/services/fileWatcher';
 import { DefinitionProvider } from '@/providers/definitionProvider';
+import { HoverProvider } from '@/providers/hoverProvider';
 import { uriToFilePath } from '@/utils/uriUtils';
 import { clearChartYamlCache } from '@/features/documentDetection';
 
@@ -38,6 +39,7 @@ const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 const argoTemplateIndex = new ArgoTemplateIndex();
 const fileWatcher = new FileWatcher(connection);
 const definitionProvider = new DefinitionProvider(argoTemplateIndex);
+const hoverProvider = new HoverProvider(argoTemplateIndex);
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -143,8 +145,8 @@ connection.onDefinition(async (params: DefinitionParams): Promise<Location | Loc
   return await definitionProvider.provideDefinition(document, params.position);
 });
 
-// ホバー機能（Hello LSPデモ用）
-connection.onHover((params: HoverParams): Hover | null => {
+// ホバー機能
+connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
   const document = documents.get(params.textDocument.uri);
   if (!document) {
     return null;
@@ -154,13 +156,7 @@ connection.onHover((params: HoverParams): Hover | null => {
     `Hover requested at position: ${params.position.line}:${params.position.character}`
   );
 
-  // デモ: 簡単なホバーメッセージを返す
-  return {
-    contents: {
-      kind: 'markdown',
-      value: '**Hello from Argo Workflows LSP!**\n\nThis is a demo hover message.',
-    },
-  };
+  return await hoverProvider.provideHover(document, params.position);
 });
 
 // 補完機能（Hello LSPデモ用）

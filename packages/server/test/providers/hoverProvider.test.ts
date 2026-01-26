@@ -523,5 +523,122 @@ spec:
         expect(markdown).toContain('Namespace where the Workflow is running');
       }
     });
+
+    it('should provide hover for steps.outputs.parameters reference', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: prepare-data
+            template: prepare-template
+        - - name: process-data
+            template: process-template
+            arguments:
+              parameters:
+                - name: input
+                  value: "{{steps.prepare-data.outputs.parameters.result}}"
+    - name: prepare-template
+      outputs:
+        parameters:
+          # Prepared data result
+          - name: result  # Data output
+            valueFrom:
+              path: /tmp/result.txt
+      container:
+        image: alpine
+    - name: process-template
+      inputs:
+        parameters:
+          - name: input
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{steps.prepare-data.outputs.parameters.result}}" の "result" 部分
+      const position = Position.create(16, 68);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Parameter**: `result`');
+        expect(markdown).toContain('**Type**: Step Output Parameter');
+        expect(markdown).toContain('**Step**: `prepare-data`');
+        expect(markdown).toContain('**Template**: `prepare-template`');
+        expect(markdown).toContain('Prepared data result');
+        expect(markdown).toContain('Data output');
+      }
+    });
+
+    it('should provide hover for tasks.outputs.parameters reference', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: task-a
+            template: generate-template
+          - name: task-b
+            template: use-template
+            dependencies: [task-a]
+            arguments:
+              parameters:
+                - name: input
+                  value: "{{tasks.task-a.outputs.parameters.result}}"
+    - name: generate-template
+      outputs:
+        parameters:
+          # Generated result data
+          - name: result
+            valueFrom:
+              path: /tmp/result.txt
+      container:
+        image: alpine
+    - name: use-template
+      inputs:
+        parameters:
+          - name: input
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{tasks.task-a.outputs.parameters.result}}" の "result" 部分
+      const position = Position.create(18, 66);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Parameter**: `result`');
+        expect(markdown).toContain('**Type**: Task Output Parameter');
+        expect(markdown).toContain('**Task**: `task-a`');
+        expect(markdown).toContain('**Template**: `generate-template`');
+        expect(markdown).toContain('Generated result data');
+      }
+    });
   });
 });

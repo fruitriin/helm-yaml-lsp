@@ -64,6 +64,9 @@ export function findParameterDefinitions(document: TextDocument): ParameterDefin
   let inParametersSection = false;
   let parametersIndent = 0;
   let sectionIndent = 0;
+  let currentTemplateName: string | undefined;
+  let inTemplatesSection = false;
+  let templatesIndent = 0;
 
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
     const line = lines[lineNum];
@@ -75,6 +78,33 @@ export function findParameterDefinitions(document: TextDocument): ParameterDefin
     }
 
     const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+    // templates: セクションの検出
+    const templatesMatch = line.match(/^(\s*)templates:/);
+    if (templatesMatch) {
+      inTemplatesSection = true;
+      templatesIndent = templatesMatch[1].length;
+      continue;
+    }
+
+    // templates セクション内でテンプレート名を検出
+    if (inTemplatesSection) {
+      // テンプレート定義: "- name: xxx"
+      const templateNameMatch = line.match(/^(\s*)-\s*name:\s*['"]?([\w-]+)['"]?/);
+      if (templateNameMatch) {
+        const matchIndent = templateNameMatch[1].length;
+        const expectedTemplateIndent = templatesIndent + 4;
+        if (Math.abs(matchIndent - expectedTemplateIndent) <= 2) {
+          currentTemplateName = templateNameMatch[2];
+        }
+      }
+
+      // templates セクション終了の検出
+      if (currentIndent <= templatesIndent && !trimmed.startsWith('-')) {
+        inTemplatesSection = false;
+        currentTemplateName = undefined;
+      }
+    }
 
     // inputs: セクションの検出
     const inputsMatch = line.match(/^(\s*)inputs:/);
@@ -173,6 +203,7 @@ export function findParameterDefinitions(document: TextDocument): ParameterDefin
         definitions.push({
           name: parameterName,
           type: inInputsSection ? 'input' : 'output',
+          templateName: currentTemplateName,
           range: Range.create(
             Position.create(lineNum, nameStart),
             Position.create(lineNum, nameStart + parameterName.length)

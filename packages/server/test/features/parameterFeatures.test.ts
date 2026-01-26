@@ -156,6 +156,16 @@ spec:
       expect(names).toContain('result');
       expect(names).not.toContain('template1');
       expect(names).not.toContain('template2');
+
+      // templateName が正しく設定されているか確認
+      const param1 = definitions.find(d => d.name === 'param1');
+      expect(param1?.templateName).toBe('template1');
+
+      const param2 = definitions.find(d => d.name === 'param2');
+      expect(param2?.templateName).toBe('template2');
+
+      const result = definitions.find(d => d.name === 'result');
+      expect(result?.templateName).toBe('template2');
     });
   });
 

@@ -11,6 +11,7 @@ import {
   findParameterDefinitions,
   findParameterReferenceAtPosition,
 } from '@/features/parameterFeatures';
+import { findStepDefinitions, findTaskDefinitions } from '@/features/stepFeatures';
 import {
   findTemplateDefinitions,
   findTemplateReferenceAtPosition,
@@ -125,10 +126,104 @@ export class DefinitionProvider {
       }
     }
 
-    // steps.outputs.parameters または tasks.outputs.parameters の場合
-    // TODO: ステップ/タスクのoutputsパラメータへの参照は、
-    // そのステップ/タスクが参照しているテンプレートのoutputs.parametersを探す必要がある
-    // これは将来の拡張として実装
+    // steps.outputs.parameters の場合
+    if (parameterRef.type === 'steps.outputs.parameters' && parameterRef.stepOrTaskName) {
+      return this.handleStepOutputParameter(
+        document,
+        parameterRef.stepOrTaskName,
+        parameterRef.parameterName
+      );
+    }
+
+    // tasks.outputs.parameters の場合
+    if (parameterRef.type === 'tasks.outputs.parameters' && parameterRef.stepOrTaskName) {
+      return this.handleTaskOutputParameter(
+        document,
+        parameterRef.stepOrTaskName,
+        parameterRef.parameterName
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * ステップのoutputsパラメータ参照を処理
+   *
+   * 例: {{steps.prepare-data.outputs.parameters.prepared-data}}
+   * 1. ステップ名 'prepare-data' を探す
+   * 2. そのステップが参照しているテンプレート名を取得
+   * 3. そのテンプレートの outputs.parameters.prepared-data を探す
+   */
+  private handleStepOutputParameter(
+    document: TextDocument,
+    stepName: string,
+    parameterName: string
+  ): Location | null {
+    // ステップ定義を検索
+    const steps = findStepDefinitions(document);
+    const step = steps.find(s => s.name === stepName);
+
+    if (!step) {
+      return null;
+    }
+
+    // ステップが参照しているテンプレートを検索
+    const templates = findTemplateDefinitions(document);
+    const template = templates.find(t => t.name === step.templateName);
+
+    if (!template) {
+      return null;
+    }
+
+    // そのテンプレートのoutputs.parametersを検索
+    const parameterDefs = findParameterDefinitions(document);
+    const parameter = parameterDefs.find(
+      p => p.name === parameterName && p.type === 'output' && p.templateName === step.templateName
+    );
+
+    if (parameter) {
+      return Location.create(document.uri, parameter.range);
+    }
+
+    return null;
+  }
+
+  /**
+   * タスクのoutputsパラメータ参照を処理
+   *
+   * 例: {{tasks.task-a.outputs.parameters.result}}
+   */
+  private handleTaskOutputParameter(
+    document: TextDocument,
+    taskName: string,
+    parameterName: string
+  ): Location | null {
+    // タスク定義を検索
+    const tasks = findTaskDefinitions(document);
+    const task = tasks.find(t => t.name === taskName);
+
+    if (!task) {
+      return null;
+    }
+
+    // タスクが参照しているテンプレートを検索
+    const templates = findTemplateDefinitions(document);
+    const template = templates.find(t => t.name === task.templateName);
+
+    if (!template) {
+      return null;
+    }
+
+    // そのテンプレートのoutputs.parametersを検索
+    const parameterDefs = findParameterDefinitions(document);
+    const parameter = parameterDefs.find(
+      p => p.name === parameterName && p.type === 'output' && p.templateName === task.templateName
+    );
+
+    if (parameter) {
+      return Location.create(document.uri, parameter.range);
+    }
 
     return null;
   }

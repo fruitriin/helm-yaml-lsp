@@ -1,0 +1,35 @@
+{
+  "name": "helm-yaml-lsp",
+  "version": "0.1.0",
+  "description": "Argo Workflows Language Server Protocol implementation for Helm and YAML",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/helm-yaml-lsp.git"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "watch": "bun run --filter '*' watch",
+    "clean": "bun run --filter '*' clean",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format .",
+    "format:write": "biome format --write .",
+    "check": "biome check .",
+    "check:write": "biome check --write .",
+    "test": "bun run --filter '*' test",
+    "package": "cd packages/client && bun run package"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.12",
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
+  }
+}

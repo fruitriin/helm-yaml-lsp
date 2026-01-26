@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/packages/client"],
+      "outFiles": [
+        "${workspaceFolder}/packages/client/dist/**/*.js",
+        "${workspaceFolder}/packages/server/dist/**/*.js"
+      ],
+      "preLaunchTask": "watch"
+    },
+    {
+      "name": "Attach to Server",
+      "type": "node",
+      "request": "attach",
+      "port": 6009,
+      "restart": true,
+      "outFiles": ["${workspaceFolder}/packages/server/dist/**/*.js"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Client + Server",
+      "configurations": ["Launch Extension", "Attach to Server"]
+    }
+  ]
+}

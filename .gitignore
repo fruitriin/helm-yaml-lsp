@@ -1,0 +1,21 @@
+# Dependencies
+node_modules
+
+# Build outputs
+out
+dist
+*.vsix
+
+# Test
+.vscode-test
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Bun
+.bun-cache
+
+# 注意: bun.lock はコミットすべきファイルです（依存関係のバージョン固定のため）

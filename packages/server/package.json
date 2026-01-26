@@ -1,0 +1,24 @@
+{
+  "name": "helm-yaml-lsp-server",
+  "version": "0.1.0",
+  "description": "Argo Workflows Language Server",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "bun build src/server.ts --outdir dist --target node --sourcemap=external",
+    "watch": "bun build src/server.ts --outdir dist --target node --sourcemap=external --watch",
+    "clean": "rm -rf dist",
+    "lint": "biome lint src",
+    "format": "biome format src"
+  },
+  "dependencies": {
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-uri": "^3.0.8",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
+  }
+}

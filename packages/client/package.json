@@ -1,0 +1,67 @@
+{
+  "name": "helm-yaml-lsp-client",
+  "displayName": "Argo Workflows LSP",
+  "description": "Language Server Protocol support for Argo Workflows, Helm, and Kubernetes YAML",
+  "version": "0.1.0",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "argo",
+    "workflows",
+    "kubernetes",
+    "helm",
+    "yaml"
+  ],
+  "activationEvents": [
+    "onLanguage:yaml",
+    "onLanguage:helm"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Argo Workflows LSP",
+      "properties": {
+        "argoWorkflowsLSP.maxNumberOfProblems": {
+          "scope": "resource",
+          "type": "number",
+          "default": 1000,
+          "description": "Controls the maximum number of problems produced by the server."
+        },
+        "argoWorkflowsLSP.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build src/extension.ts --outdir dist --target node --external vscode --sourcemap=external",
+    "watch": "bun build src/extension.ts --outdir dist --target node --external vscode --sourcemap=external --watch",
+    "clean": "rm -rf dist",
+    "lint": "biome lint src",
+    "format": "biome format src",
+    "package": "bun run build && vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.3"
+  }
+}

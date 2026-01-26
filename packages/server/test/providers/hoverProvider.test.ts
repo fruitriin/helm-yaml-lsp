@@ -420,5 +420,63 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).toBeNull();
     });
+
+    it('should provide hover for workflow.name variable (Phase 3.3)', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: alpine
+        args: ["echo", "Workflow: {{workflow.name}}"]
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{workflow.name}}" の位置
+      const position = Position.create(10, 45);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Workflow Variable**: `workflow.name`');
+        expect(markdown).toContain('Name of the Workflow');
+      }
+    });
+
+    it('should provide hover for workflow.namespace variable (Phase 3.3)', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: alpine
+        env:
+          - name: NS
+            value: "{{workflow.namespace}}"
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{workflow.namespace}}" の位置
+      const position = Position.create(12, 35);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Workflow Variable**: `workflow.namespace`');
+        expect(markdown).toContain('Namespace where the Workflow is running');
+      }
+    });
   });
 });

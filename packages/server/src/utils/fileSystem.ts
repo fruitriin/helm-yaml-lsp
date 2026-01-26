@@ -4,6 +4,7 @@
  * エディタ非依存なファイルシステム操作 (Node.js標準API + fast-glob)
  */
 
+import type { Stats } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import fg from 'fast-glob';
 import { filePathToUri, uriToFilePath } from './uriUtils';
@@ -137,7 +138,7 @@ export async function deleteFile(uri: string, recursive = false): Promise<void> 
  * const stats = await getFileStat('file:///Users/test/file.yaml');
  * console.log(stats.size, stats.mtime);
  */
-export async function getFileStat(uri: string): Promise<fs.Stats | undefined> {
+export async function getFileStat(uri: string): Promise<Stats | undefined> {
   try {
     const filePath = uriToFilePath(uri);
     return await fs.stat(filePath);

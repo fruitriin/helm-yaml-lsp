@@ -99,7 +99,12 @@ spec:
       expect(hover).not.toBeNull();
       expect(hover?.contents).toBeDefined();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         expect(hover.contents.kind).toBe(MarkupKind.Markdown);
         const markdown = hover.contents.value;
 
@@ -154,7 +159,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('**Template**: `shared-task`');
         expect(markdown).toContain('**ClusterWorkflowTemplate**: `cluster-template`');
@@ -197,7 +207,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('**Template**: `no-comment`');
         expect(markdown).toContain('**WorkflowTemplate**: `simple-template`');
@@ -252,7 +267,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('**Template**: `local-template`');
         expect(markdown).toContain('Local template');
@@ -319,7 +339,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('This is line 1 of the comment');
         expect(markdown).toContain('This is line 2 of the comment');
@@ -354,7 +379,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('**Parameter**: `message`');
         expect(markdown).toContain('**Type**: Input Parameter');
@@ -393,7 +423,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('**Parameter**: `result`');
         expect(markdown).toContain('**Type**: Output Parameter');
@@ -442,7 +477,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('**Workflow Variable**: `workflow.name`');
         expect(markdown).toContain('Name of the Workflow');
@@ -472,7 +512,12 @@ spec:
       const hover = await provider.provideHover(doc, position);
       expect(hover).not.toBeNull();
 
-      if (hover?.contents && typeof hover.contents === 'object' && 'kind' in hover.contents && 'value' in hover.contents) {
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
         const markdown = hover.contents.value;
         expect(markdown).toContain('**Workflow Variable**: `workflow.namespace`');
         expect(markdown).toContain('Namespace where the Workflow is running');

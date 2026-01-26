@@ -1,6 +1,5 @@
 import {
   type CompletionItem,
-  CompletionItemKind,
   createConnection,
   type DefinitionParams,
   DidChangeConfigurationNotification,
@@ -17,15 +16,15 @@ import {
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
-
-// "@/" エイリアスを使用した型定義のインポート
-import { defaultSettings, type ServerSettings } from '@/types';
-import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
-import { FileWatcher } from '@/services/fileWatcher';
+import { clearChartYamlCache } from '@/features/documentDetection';
+import { CompletionProvider } from '@/providers/completionProvider';
 import { DefinitionProvider } from '@/providers/definitionProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
+import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import { FileWatcher } from '@/services/fileWatcher';
+// "@/" エイリアスを使用した型定義のインポート
+import { defaultSettings, type ServerSettings } from '@/types';
 import { uriToFilePath } from '@/utils/uriUtils';
-import { clearChartYamlCache } from '@/features/documentDetection';
 
 // LSPサーバーの接続を作成
 const connection = createConnection(ProposedFeatures.all);
@@ -40,6 +39,7 @@ const argoTemplateIndex = new ArgoTemplateIndex();
 const fileWatcher = new FileWatcher(connection);
 const definitionProvider = new DefinitionProvider(argoTemplateIndex);
 const hoverProvider = new HoverProvider(argoTemplateIndex);
+const completionProvider = new CompletionProvider();
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -159,23 +159,18 @@ connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
   return await hoverProvider.provideHover(document, params.position);
 });
 
-// 補完機能（Hello LSPデモ用）
-connection.onCompletion((_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-  // デモ: 簡単な補完アイテムを返す
-  return [
-    {
-      label: 'template',
-      kind: CompletionItemKind.Keyword,
-      detail: 'Argo Workflows template',
-      documentation: 'Define a workflow template',
-    },
-    {
-      label: 'steps',
-      kind: CompletionItemKind.Keyword,
-      detail: 'Workflow steps',
-      documentation: 'Define workflow steps',
-    },
-  ];
+// 補完機能
+connection.onCompletion(async (params: TextDocumentPositionParams) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return { isIncomplete: false, items: [] };
+  }
+
+  connection.console.log(
+    `Completion requested at position: ${params.position.line}:${params.position.character}`
+  );
+
+  return await completionProvider.provideCompletion(document, params.position);
 });
 
 connection.onCompletionResolve((item: CompletionItem): CompletionItem => {

@@ -2,7 +2,7 @@
   "name": "helm-yaml-lsp-client",
   "displayName": "Argo Workflows LSP",
   "description": "Language Server Protocol support for Argo Workflows, Helm, and Kubernetes YAML",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "your-publisher-name",
   "engines": {
     "vscode": "^1.85.0"

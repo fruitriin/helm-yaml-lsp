@@ -347,5 +347,101 @@ spec:
       const location = await provider.provideDefinition(doc, position);
       expect(location).toBeNull();
     });
+
+    it('should find steps.outputs.parameters definition', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: prepare-data
+            template: prepare-template
+        - - name: process-data
+            template: process-template
+            arguments:
+              parameters:
+                - name: input
+                  value: "{{steps.prepare-data.outputs.parameters.result}}"
+    - name: prepare-template
+      outputs:
+        parameters:
+          - name: result
+            valueFrom:
+              path: /tmp/result.txt
+      container:
+        image: alpine
+    - name: process-template
+      inputs:
+        parameters:
+          - name: input
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{steps.prepare-data.outputs.parameters.result}}" の "result" 部分
+      const position = Position.create(16, 68);
+
+      const location = await provider.provideDefinition(doc, position);
+      expect(location).not.toBeNull();
+
+      if (location && 'uri' in location) {
+        expect(location.uri).toBe('file:///workflow.yaml');
+        expect(location.range.start.line).toBe(20); // "- name: result" の行
+      }
+    });
+
+    it('should find tasks.outputs.parameters definition', async () => {
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: task-a
+            template: generate-template
+          - name: task-b
+            template: use-template
+            dependencies: [task-a]
+            arguments:
+              parameters:
+                - name: input
+                  value: "{{tasks.task-a.outputs.parameters.result}}"
+    - name: generate-template
+      outputs:
+        parameters:
+          - name: result
+            valueFrom:
+              path: /tmp/result.txt
+      container:
+        image: alpine
+    - name: use-template
+      inputs:
+        parameters:
+          - name: input
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///workflow.yaml', 'yaml', 1, workflowContent);
+
+      // "{{tasks.task-a.outputs.parameters.result}}" の "result" 部分
+      const position = Position.create(18, 66);
+
+      const location = await provider.provideDefinition(doc, position);
+      expect(location).not.toBeNull();
+
+      if (location && 'uri' in location) {
+        expect(location.uri).toBe('file:///workflow.yaml');
+        expect(location.range.start.line).toBe(22); // "- name: result" の行
+      }
+    });
   });
 });

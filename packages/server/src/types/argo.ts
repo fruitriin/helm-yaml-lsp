@@ -86,6 +86,8 @@ export type ParameterDefinition = {
   name: string;
   /** パラメータタイプ ('input' or 'output') */
   type: 'input' | 'output';
+  /** テンプレート名（このパラメータが属するテンプレート） */
+  templateName?: string;
   /** デフォルト値 (あれば) */
   value?: string;
   /** デフォルト値の上のコメント (あれば) */

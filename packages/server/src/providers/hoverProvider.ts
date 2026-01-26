@@ -11,6 +11,7 @@ import {
   findParameterDefinitions,
   findParameterReferenceAtPosition,
 } from '@/features/parameterFeatures';
+import { findStepDefinitions, findTaskDefinitions } from '@/features/stepFeatures';
 import {
   findTemplateDefinitions,
   findTemplateReferenceAtPosition,
@@ -217,9 +218,139 @@ export class HoverProvider {
       }
     }
 
-    // steps.outputs.parameters または tasks.outputs.parameters の場合
-    // TODO: ステップ/タスクのoutputsパラメータへの参照
-    // これは将来の拡張として実装
+    // steps.outputs.parameters の場合
+    if (parameterRef.type === 'steps.outputs.parameters' && parameterRef.stepOrTaskName) {
+      return this.handleStepOutputParameterHover(
+        document,
+        parameterRef.stepOrTaskName,
+        parameterRef.parameterName,
+        parameterRef.range
+      );
+    }
+
+    // tasks.outputs.parameters の場合
+    if (parameterRef.type === 'tasks.outputs.parameters' && parameterRef.stepOrTaskName) {
+      return this.handleTaskOutputParameterHover(
+        document,
+        parameterRef.stepOrTaskName,
+        parameterRef.parameterName,
+        parameterRef.range
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * ステップのoutputsパラメータのホバー情報を処理
+   */
+  private handleStepOutputParameterHover(
+    document: TextDocument,
+    stepName: string,
+    parameterName: string,
+    range: Range
+  ): Hover | null {
+    // ステップ定義を検索
+    const steps = findStepDefinitions(document);
+    const step = steps.find(s => s.name === stepName);
+
+    if (!step) {
+      return null;
+    }
+
+    // ステップが参照しているテンプレートを検索
+    const templates = findTemplateDefinitions(document);
+    const template = templates.find(t => t.name === step.templateName);
+
+    if (!template) {
+      return null;
+    }
+
+    // そのテンプレートのoutputs.parametersを検索
+    const parameterDefs = findParameterDefinitions(document);
+    const parameter = parameterDefs.find(
+      p => p.name === parameterName && p.type === 'output' && p.templateName === step.templateName
+    );
+
+    if (parameter) {
+      const parts: string[] = [];
+      parts.push(`**Parameter**: \`${parameterName}\``);
+      parts.push(`**Type**: Step Output Parameter`);
+      parts.push(`**Step**: \`${stepName}\``);
+      parts.push(`**Template**: \`${step.templateName}\``);
+
+      // 説明（コメントから生成）
+      const description = this.buildDescription(parameter.aboveComment, parameter.inlineComment);
+      if (description) {
+        parts.push('');
+        parts.push(description);
+      }
+
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: parts.join('\n'),
+        },
+        range,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * タスクのoutputsパラメータのホバー情報を処理
+   */
+  private handleTaskOutputParameterHover(
+    document: TextDocument,
+    taskName: string,
+    parameterName: string,
+    range: Range
+  ): Hover | null {
+    // タスク定義を検索
+    const tasks = findTaskDefinitions(document);
+    const task = tasks.find(t => t.name === taskName);
+
+    if (!task) {
+      return null;
+    }
+
+    // タスクが参照しているテンプレートを検索
+    const templates = findTemplateDefinitions(document);
+    const template = templates.find(t => t.name === task.templateName);
+
+    if (!template) {
+      return null;
+    }
+
+    // そのテンプレートのoutputs.parametersを検索
+    const parameterDefs = findParameterDefinitions(document);
+    const parameter = parameterDefs.find(
+      p => p.name === parameterName && p.type === 'output' && p.templateName === task.templateName
+    );
+
+    if (parameter) {
+      const parts: string[] = [];
+      parts.push(`**Parameter**: \`${parameterName}\``);
+      parts.push(`**Type**: Task Output Parameter`);
+      parts.push(`**Task**: \`${taskName}\``);
+      parts.push(`**Template**: \`${task.templateName}\``);
+
+      // 説明（コメントから生成）
+      const description = this.buildDescription(parameter.aboveComment, parameter.inlineComment);
+      if (description) {
+        parts.push('');
+        parts.push(description);
+      }
+
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: parts.join('\n'),
+        },
+        range,
+      };
+    }
 
     return null;
   }

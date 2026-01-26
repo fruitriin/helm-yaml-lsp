@@ -47,6 +47,8 @@ export type TemplateReference = {
   workflowTemplateName?: string;
   /** templateRef の場合: クラスタスコープかどうか */
   clusterScope?: boolean;
+  /** Workflow種類 */
+  kind?: ArgoWorkflowKind;
   /** 参照の位置 */
   range: Range;
 };
@@ -61,6 +63,7 @@ export type ParameterReference = {
     | 'inputs.artifacts'
     | 'outputs.parameters'
     | 'outputs.artifacts'
+    | 'workflow.parameters'
     | 'steps.outputs.parameters'
     | 'steps.outputs.artifacts'
     | 'steps.outputs.result'

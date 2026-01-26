@@ -285,3 +285,72 @@ export function findParameterReferenceAtPosition(
 
   return undefined;
 }
+
+/**
+ * ドキュメント内のすべてのパラメータ参照を取得
+ *
+ * @param document - LSP TextDocument
+ * @returns パラメータ参照の配列
+ *
+ * @example
+ * const references = findAllParameterReferences(document);
+ * for (const ref of references) {
+ *   console.log(`Parameter reference: ${ref.parameterName}`);
+ * }
+ */
+export function findAllParameterReferences(document: TextDocument): ParameterReference[] {
+  const references: ParameterReference[] = [];
+  const text = document.getText();
+  const lines = text.split('\n');
+
+  // パラメータ参照のパターン
+  const patterns = [
+    { pattern: /\{\{inputs\.parameters\.([\w-]+)\}\}/g, type: 'inputs.parameters' as const },
+    { pattern: /\{\{outputs\.parameters\.([\w-]+)\}\}/g, type: 'outputs.parameters' as const },
+    {
+      pattern: /\{\{workflow\.parameters\.([\w-]+)\}\}/g,
+      type: 'workflow.parameters' as const,
+    },
+    {
+      pattern: /\{\{steps\.([\w-]+)\.outputs\.parameters\.([\w-]+)\}\}/g,
+      type: 'steps.outputs.parameters' as const,
+    },
+    {
+      pattern: /\{\{tasks\.([\w-]+)\.outputs\.parameters\.([\w-]+)\}\}/g,
+      type: 'tasks.outputs.parameters' as const,
+    },
+  ];
+
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+    const line = lines[lineNum];
+
+    for (const { pattern, type } of patterns) {
+      const matches = [...line.matchAll(pattern)];
+
+      for (const match of matches) {
+        const fullMatch = match[0];
+        const matchStart = match.index ?? 0;
+        const matchEnd = matchStart + fullMatch.length;
+
+        // パラメータ名を抽出
+        let parameterName: string;
+        if (type === 'steps.outputs.parameters' || type === 'tasks.outputs.parameters') {
+          parameterName = match[2]; // steps/tasks の場合は2番目のキャプチャグループ
+        } else {
+          parameterName = match[1];
+        }
+
+        references.push({
+          type,
+          parameterName,
+          range: Range.create(
+            Position.create(lineNum, matchStart),
+            Position.create(lineNum, matchEnd)
+          ),
+        });
+      }
+    }
+  }
+
+  return references;
+}

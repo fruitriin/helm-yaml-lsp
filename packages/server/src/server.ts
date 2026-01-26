@@ -19,6 +19,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { clearChartYamlCache } from '@/features/documentDetection';
 import { CompletionProvider } from '@/providers/completionProvider';
 import { DefinitionProvider } from '@/providers/definitionProvider';
+import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { FileWatcher } from '@/services/fileWatcher';
@@ -40,6 +41,7 @@ const fileWatcher = new FileWatcher(connection);
 const definitionProvider = new DefinitionProvider(argoTemplateIndex);
 const hoverProvider = new HoverProvider(argoTemplateIndex);
 const completionProvider = new CompletionProvider();
+const diagnosticProvider = new DiagnosticProvider(argoTemplateIndex);
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -178,8 +180,12 @@ connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
 });
 
 // ドキュメント変更時の処理
-documents.onDidChangeContent(change => {
+documents.onDidChangeContent(async change => {
   connection.console.log(`Document changed: ${change.document.uri}`);
+
+  // 診断を実行
+  const diagnostics = await diagnosticProvider.provideDiagnostics(change.document);
+  connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
 });
 
 // ドキュメントマネージャーをリッスン

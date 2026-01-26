@@ -264,3 +264,120 @@ export function findTemplateReferenceAtPosition(
 
   return undefined;
 }
+
+/**
+ * ドキュメント内のすべてのテンプレート参照を取得
+ *
+ * @param document - LSP TextDocument
+ * @returns テンプレート参照の配列
+ *
+ * @example
+ * const references = findAllTemplateReferences(document);
+ * for (const ref of references) {
+ *   console.log(`Template reference: ${ref.templateName}`);
+ * }
+ */
+export function findAllTemplateReferences(document: TextDocument): TemplateReference[] {
+  const references: TemplateReference[] = [];
+  const text = document.getText();
+  const lines = text.split('\n');
+
+  // テンプレートの種類を検出（Workflow, CronWorkflow等）
+  let kind: ArgoWorkflowKind | undefined;
+  for (let i = 0; i < lines.length; i++) {
+    const kindMatch = lines[i].match(
+      /kind:\s*['"]?(Workflow|CronWorkflow|WorkflowTemplate|ClusterWorkflowTemplate)['"]?/
+    );
+    if (kindMatch) {
+      kind = kindMatch[1] as ArgoWorkflowKind;
+      break;
+    }
+  }
+
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+    const line = lines[lineNum];
+
+    // template: フィールドを検出
+    const templateMatch = line.match(/^\s*template:\s*['"]?([\w-]+)['"]?/);
+    if (!templateMatch) {
+      continue;
+    }
+
+    const templateName = templateMatch[1];
+    const nameStart = line.indexOf(templateName);
+    const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+    // templateRef ブロック内かどうかを確認
+    let inTemplateRef = false;
+    let workflowTemplateName: string | undefined;
+    let clusterScope = false;
+
+    // 上の行を探索して templateRef: ブロックを検出
+    for (let i = lineNum - 1; i >= 0 && lineNum - i < 20; i--) {
+      const prevLine = lines[i];
+      const prevTrimmed = prevLine.trim();
+
+      // 空行やコメント行はスキップ
+      if (prevTrimmed === '' || prevTrimmed.startsWith('#')) {
+        continue;
+      }
+
+      const prevIndent = prevLine.match(/^(\s*)/)?.[1].length ?? 0;
+
+      // templateRef: を検出
+      if (prevTrimmed.startsWith('templateRef:')) {
+        inTemplateRef = true;
+
+        // templateRef ブロック内のフィールドを抽出
+        for (let j = i + 1; j <= lineNum; j++) {
+          const blockLine = lines[j];
+
+          // name: フィールド
+          const nameMatch = blockLine.match(/^\s*name:\s*['"]?([\w-]+)['"]?/);
+          if (nameMatch) {
+            workflowTemplateName = nameMatch[1];
+          }
+
+          // clusterScope: フィールド
+          const clusterScopeMatch = blockLine.match(/^\s*clusterScope:\s*(true|false)/);
+          if (clusterScopeMatch) {
+            clusterScope = clusterScopeMatch[1] === 'true';
+          }
+        }
+        break;
+      }
+
+      // インデントが現在行より少ない場合、templateRefブロック外なので終了
+      if (prevIndent < currentIndent) {
+        break;
+      }
+    }
+
+    if (inTemplateRef && workflowTemplateName) {
+      // templateRef 参照
+      references.push({
+        type: 'templateRef',
+        templateName,
+        workflowTemplateName,
+        clusterScope,
+        range: Range.create(
+          Position.create(lineNum, nameStart),
+          Position.create(lineNum, nameStart + templateName.length)
+        ),
+      });
+    } else if (!inTemplateRef) {
+      // 直接参照
+      references.push({
+        type: 'direct',
+        templateName,
+        kind,
+        range: Range.create(
+          Position.create(lineNum, nameStart),
+          Position.create(lineNum, nameStart + templateName.length)
+        ),
+      });
+    }
+  }
+
+  return references;
+}

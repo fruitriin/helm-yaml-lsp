@@ -1,0 +1,3 @@
+[submodule "vscode-kubernetes-tools-argo"]
+	path = vscode-kubernetes-tools-argo
+	url = https://github.com/fruitriin/vscode-kubernetes-tools-argo.git

@@ -1,0 +1,10 @@
+[install]
+# Install dependencies
+peer = true
+
+[install.cache]
+# Cache configuration
+dir = ".bun-cache"
+
+# Path aliases (bunは自動的にtsconfig.jsonから読み取りますが、ここでも定義可能)
+# bunはtsconfig.jsonのpathsマッピングを自動的にサポートします

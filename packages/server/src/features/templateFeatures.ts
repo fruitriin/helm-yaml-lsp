@@ -180,10 +180,11 @@ export function findTemplateReferenceAtPosition(
   const offset = document.offsetAt(position);
 
   // パターン1: template: xxx (direct reference)
-  const directMatch = line.match(/template:\s*['"]?([\w-]+)['"]?/);
+  const directMatch = line.match(/^\s*template:\s*['"]?([\w-]+)['"]?/);
   if (directMatch) {
     const templateName = directMatch[1];
-    const nameStart = line.indexOf(templateName);
+    const templateKeywordStart = line.indexOf('template:');
+    const nameStart = line.indexOf(templateName, templateKeywordStart);
     const nameEnd = nameStart + templateName.length;
 
     // カーソルがテンプレート名の上にあるかチェック

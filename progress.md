@@ -933,3 +933,152 @@ Phase 3に進む前に、以下の動作確認を実施：
 ---
 
 **次回更新**: Phase 1 残タスク完了時
+
+---
+
+## Phase 3: 追加機能の実装 ✅ 完了
+
+**期間**: 2026-01-27
+**ステータス**: ✅ 完了
+
+### 実装内容
+
+#### Phase 3.1: Hover Provider ✅
+- ✅ テンプレート参照のホバー情報表示
+- ✅ パラメータ参照のホバー情報表示
+- ✅ Workflow変数のホバー情報表示
+- ✅ マークダウン形式のドキュメント表示
+- ✅ コメントの抽出と表示
+
+**成果物**:
+- `packages/server/src/providers/hoverProvider.ts`
+- `packages/server/test/providers/hoverProvider.test.ts`（12 tests）
+
+#### Phase 3.2: パラメータ機能 ✅
+- ✅ `inputs.parameters`の定義抽出
+- ✅ `outputs.parameters`の定義抽出
+- ✅ パラメータ参照の検出（`{{inputs.parameters.xxx}}`等）
+- ✅ Definition Providerへの統合
+- ✅ Hover Providerへの統合
+
+**成果物**:
+- `packages/server/src/features/parameterFeatures.ts`
+- `packages/server/test/features/parameterFeatures.test.ts`（12 tests）
+
+#### Phase 3.3: Workflow変数のサポート ✅
+- ✅ 8つのWorkflow変数の定義
+  - workflow.name, workflow.namespace, workflow.uid
+  - workflow.serviceAccountName, workflow.creationTimestamp
+  - workflow.duration, workflow.priority, workflow.status
+- ✅ Hover Providerへの統合
+
+**成果物**:
+- `packages/server/src/features/workflowVariables.ts`
+- `packages/server/test/features/workflowVariables.test.ts`（7 tests）
+
+#### Phase 3.4: Completion Provider ✅
+- ✅ テンプレート名の補完
+- ✅ パラメータ名の補完（inputs/outputs）
+- ✅ Workflow変数の補完
+- ✅ コンテキストに応じた補完候補の提供
+
+**成果物**:
+- `packages/server/src/providers/completionProvider.ts`
+- `packages/server/test/providers/completionProvider.test.ts`（8 tests）
+
+#### Phase 3.5: Diagnostic Provider ✅
+- ✅ 存在しないテンプレート参照の検出
+- ✅ 存在しないパラメータ参照の検出
+- ✅ リアルタイム診断機能
+- ✅ エラーメッセージの表示
+
+**成果物**:
+- `packages/server/src/providers/diagnosticProvider.ts`
+- `packages/server/test/providers/diagnosticProvider.test.ts`（10 tests）
+- `packages/server/src/features/templateFeatures.ts`に`findAllTemplateReferences`追加
+- `packages/server/src/features/parameterFeatures.ts`に`findAllParameterReferences`追加
+
+#### Phase 3.6: ローカルテンプレート参照 ✅
+- ✅ 同一ファイル内のテンプレート参照（`template: xxx`）のサポート
+- ✅ Definition Providerへの統合
+- ✅ Hover Providerへの統合
+
+**統合実装**: Phase 3.1, 3.2実装時に統合済み
+
+### テスト結果
+
+**総テスト数**: 173 tests
+- ✅ 173 pass
+- ❌ 0 fail
+- 363 expect() calls
+
+**テストカバレッジ**:
+- providers/hoverProvider.test.ts: 12 tests
+- providers/definitionProvider.test.ts: 11 tests
+- providers/completionProvider.test.ts: 8 tests
+- providers/diagnosticProvider.test.ts: 10 tests
+- features/parameterFeatures.test.ts: 12 tests
+- features/workflowVariables.test.ts: 7 tests
+- その他のテスト: 113 tests
+
+### 動作確認
+
+**VSCodeでの確認**:
+- ✅ F12キーで定義へジャンプ
+- ✅ ホバーで情報表示
+- ✅ 入力補完の動作
+- ✅ エラーの赤波線表示
+
+**Neovimでの確認**:
+- ✅ `gd`キーで定義へジャンプ
+- ✅ ホバー情報の表示
+- ✅ LSP補完の動作
+
+**デモファイル**:
+- `samples/argo/demo-phase3.yaml`: 6つの確認項目を含むデモワークフロー
+- `samples/argo/DEMO_PHASE3.md`: 詳細なテストガイド
+
+### コミット履歴
+
+1. `85e3f6d` - feat: Phase 3.1完了 - Hover Provider実装
+2. `483b9e3` - feat: Phase 3.6完了 - ローカルテンプレート参照のサポート
+3. `a1c8211` - feat: Phase 3.2完了（基本） - パラメータ機能の実装
+4. `06f6361` - fix: Biome lint修正
+5. `96d7a43` - fix: import順序修正
+6. `6b1c1aa` - fix: TypeScript診断エラー修正
+7. `70d2fb3` - feat: Phase 3デモファイル作成
+8. `23b78b1` - feat: Phase 3.2完了 - パラメータ統合
+9. `99ddc83` - feat: Phase 3.3完了 - Workflow変数のサポート
+10. `0e3dd1b` - feat: Phase 3.4完了 - Completion Provider実装
+11. `eec7011` - feat: Phase 3.5完了 - Diagnostic Provider実装
+
+### 残タスク（Phase 3.7）
+
+⏳ **Phase 3.7: ConfigMap/Secret参照のサポート**（高度な機能）
+- ConfigMapリソースのインデックス化
+- Secret参照の検出
+- 定義へのジャンプ
+
+**判断**: Phase 3の主要機能はすべて完了。Phase 3.7は将来の拡張として位置づけ。
+
+---
+
+## 次のステップ
+
+### Phase 4候補: Helm機能の拡張
+- `.Values`参照のサポート
+- `include`/`template`関数のサポート
+- Helm Valuesのスキーマ検証
+
+### パフォーマンス最適化
+- インデックス構築の最適化
+- 大規模ファイルでのテスト
+
+### ドキュメント整備
+- ユーザーガイドの作成
+- API仕様書の作成
+
+### VSCode Marketplace公開準備
+- 拡張機能のアイコン作成
+- README.mdの整備
+- ライセンス確認

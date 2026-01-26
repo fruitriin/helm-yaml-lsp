@@ -1,0 +1,24 @@
+# デプロイ先の Namespace
+namespace: argo  # K8s namespace
+
+workflow:
+  # ワークフローの有効/無効
+  enabled: true
+  image:
+    # コンテナイメージ
+    repository: alpine  # Docker Hub のイメージ
+    tag: latest
+  # CronWorkflow のスケジュール
+  schedule: "0 * * * *"
+  concurrencyPolicy: Replace
+
+workflowTemplate:
+  enabled: true
+  templates:
+    hello:
+      message: "Hello from Helm!"
+    whalesay:
+      image: docker/whalesay:latest
+
+clusterWorkflowTemplate:
+  enabled: false

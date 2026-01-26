@@ -1,0 +1,43 @@
+# ============================================================================
+# WorkflowTemplate定義 - 再利用可能なテンプレート
+# ============================================================================
+#
+# 【説明】
+# - WorkflowTemplateは再利用可能なテンプレート定義
+# - 他のWorkflowからtemplateRefで参照される
+# - workflow-templateref.yamlから参照される
+#
+# 【参照元】
+# - workflow-templateref.yaml
+# - workflow-dag.yaml
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: hello-world-template
+  namespace: argo
+spec:
+  templates:
+    # workflow-templateref.yamlから参照される
+    - name: hello
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Hello, World!"]
+
+    - name: goodbye
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Goodbye!"]
+
+    # workflow-dag.yamlから参照される
+    - name: whalesay
+      inputs:
+        parameters:
+          - name: message
+      container:
+        image: docker/whalesay:latest
+        command: [cowsay]
+        args: ["{{inputs.parameters.message}}"]

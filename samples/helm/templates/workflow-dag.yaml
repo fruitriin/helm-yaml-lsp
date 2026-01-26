@@ -1,0 +1,63 @@
+{{- if .Values.workflow.enabled }}
+# ============================================================================
+# DAG構造 - 並列実行と依存関係（Helm版）
+# ============================================================================
+#
+# 【テスト目的】
+# - DAG構造でのテンプレート参照のジャンプ機能
+# - tasks参照の解決
+# - Helm変数との組み合わせ
+#
+# 【動作確認方法】
+# 1. F5でExtension Development Hostを起動
+# 2. このファイルを開く
+# 3. template: echo-task (38行目) にカーソルを置いてF12
+#
+# 【期待動作】
+# ✅ 38行目: 61行目の "- name: echo-task" にジャンプ
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.fullname" . }}-dag-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: dag-main
+  templates:
+    - name: dag-main
+      dag:
+        tasks:
+          # ---------------------------------------------------------------------
+          # 【確認ポイント】DAGでのローカルテンプレート参照
+          # 操作: template: echo-task にカーソルを置いてF12
+          # 期待: 61行目の "- name: echo-task" にジャンプ
+          # ---------------------------------------------------------------------
+          - name: task-a
+            template: echo-task
+            arguments:
+              parameters:
+                - name: message
+                  value: "Task A"
+
+          - name: task-b
+            template: echo-task
+            dependencies: [task-a]
+            arguments:
+              parameters:
+                - name: message
+                  value: "Task B (after A)"
+
+    # ---------------------------------------------------------------------
+    # 【定義】ローカルテンプレート（Argo変数エスケープ）
+    # 上の "template: echo-task" からジャンプされる先
+    # ---------------------------------------------------------------------
+    - name: echo-task
+      inputs:
+        parameters:
+          - name: message
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["{{`{{inputs.parameters.message}}`}}"]
+{{- end }}

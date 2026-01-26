@@ -15,9 +15,12 @@
     "format": "biome format src"
   },
   "dependencies": {
+    "fast-glob": "^3.3.3",
     "js-yaml": "^4.1.0",
     "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.11"
+    "vscode-languageserver-protocol": "^3.17.5",
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-languageserver-types": "^3.17.5"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

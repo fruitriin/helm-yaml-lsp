@@ -1,0 +1,47 @@
+# ============================================================================
+# CronWorkflow - スケジュール実行されるワークフロー
+# ============================================================================
+#
+# 【説明】
+# - CronWorkflowは定期的にWorkflowを実行する
+# - cron形式でスケジュールを指定
+# - workflow.scheduledTimeで予定実行時刻を取得可能
+#
+# 【スケジュール形式】
+# - "*/5 * * * *" : 5分ごと
+# - "0 * * * *" : 毎時0分
+# - "0 0 * * *" : 毎日0時0分
+#
+# 【詳細なテスト】
+# - workflow.scheduledTimeのテストは workflow-variables.yaml を参照
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: scheduled-hello
+  namespace: argo
+spec:
+  # 5分ごとに実行
+  schedule: "*/5 * * * *"
+  # 同時実行ポリシー: Replace（前回実行を置き換え）
+  concurrencyPolicy: Replace
+  workflowSpec:
+    entrypoint: main
+    templates:
+      - name: main
+        steps:
+          - - name: run-hello
+              template: scheduled-task
+
+          # WorkflowTemplateの参照も可能
+          - - name: run-from-template
+              templateRef:
+                name: hello-world-template
+                template: goodbye
+
+      - name: scheduled-task
+        container:
+          image: alpine:latest
+          command: [sh, -c]
+          args: ["echo 'Scheduled run at $(date)'"]

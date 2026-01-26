@@ -1,0 +1,165 @@
+# ============================================================================
+# workflow.* 変数 - ワークフロー情報へのアクセス
+# ============================================================================
+#
+# 【テスト目的】
+# - workflow.*変数のホバー表示
+# - workflow.parametersの定義へのジャンプ機能
+# - workflow.labelsとannotationsの表示
+# - workflow.creationTimestampのフォーマット
+# - workflow.statusの参照（Exit handler）
+# - workflow.scheduledTimeの参照（CronWorkflow）
+#
+# 【動作確認方法】
+# 1. F5でExtension Development Hostを起動
+# 2. このファイルを開く
+# 3. {{workflow.name}} (66行目) にカーソルを置いてホバー
+# 4. {{workflow.parameters.message}} (85行目) の "message" にカーソルを置いてF12
+# 5. {{workflow.status}} (151行目) にカーソルを置いてホバー
+#
+# 【期待動作】
+# ✅ 66行目: ホバーで "ワークフロー名" などの説明が表示される
+# ✅ 85行目: 45行目の "- name: message" にジャンプ
+# ✅ 151行目: ホバーで "ワークフローの最終ステータス（Succeeded, Failed等）" が表示される
+# ✅ 各変数にホバーで詳細な説明が表示される
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: workflow-variables-test-
+  namespace: argo
+  labels:
+    app: test-workflow
+  annotations:
+    description: "Test workflow for workflow variables"
+spec:
+  entrypoint: main
+  # -------------------------------------------------------------------------
+  # 【確認ポイント】workflow.parameters の定義
+  # 操作: {{workflow.parameters.message}} の "message" にカーソルを置いてF12
+  # 期待: 45行目の "- name: message" にジャンプ
+  # -------------------------------------------------------------------------
+  arguments:
+    parameters:
+      - name: message
+        value: "Hello from workflow parameters"
+      - name: count
+        value: "5"
+      - name: environment
+        value: "production"
+  templates:
+    - name: main
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "=== Workflow Variables ==="
+            # 基本情報
+            echo "Name: {{workflow.name}}"
+            echo "Namespace: {{workflow.namespace}}"
+            echo "UID: {{workflow.uid}}"
+            echo "Service Account: {{workflow.serviceAccountName}}"
+            echo "Duration: {{workflow.duration}}"
+            echo "Priority: {{workflow.priority}}"
+            echo "Main Entrypoint: {{workflow.mainEntrypoint}}"
+            echo ""
+            # タイムスタンプとフォーマット
+            echo "=== Timestamp Formats ==="
+            echo "Default: {{workflow.creationTimestamp}}"
+            echo "RFC3339: {{workflow.creationTimestamp.RFC3339}}"
+            echo "Year: {{workflow.creationTimestamp.Y}}"
+            echo "Month: {{workflow.creationTimestamp.m}}"
+            echo "Day: {{workflow.creationTimestamp.d}}"
+            echo ""
+            # パラメータ参照
+            echo "=== Parameters ==="
+            echo "Message: {{workflow.parameters.message}}"
+            echo "Count: {{workflow.parameters.count}}"
+            echo "Environment: {{workflow.parameters.environment}}"
+            echo ""
+            # ラベルとアノテーション
+            echo "=== Labels & Annotations ==="
+            echo "App Label: {{workflow.labels.app}}"
+            echo "Description: {{workflow.annotations.description}}"
+
+---
+# ============================================================================
+# workflow.status - Exit handlerでの使用
+# ============================================================================
+#
+# 【確認ポイント】
+# - workflow.statusは通常のテンプレートでは使用できない
+# - Exit handler（onExit）でのみワークフローの最終ステータスが利用可能
+# ============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: workflow-exit-handler-test-
+  namespace: argo
+spec:
+  entrypoint: main
+  # Exit handler: ワークフロー終了時に実行される
+  onExit: exit-handler
+  templates:
+    - name: main
+      container:
+        image: alpine:latest
+        command: [echo, "Main task completed"]
+
+    # -------------------------------------------------------------------------
+    # 【確認ポイント】Exit handlerでのworkflow.status参照
+    # 操作: {{workflow.status}} にカーソルを置いてホバー
+    # 期待: "ワークフローの最終ステータス（Succeeded, Failed等）" が表示される
+    # -------------------------------------------------------------------------
+    - name: exit-handler
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Workflow {{workflow.name}} finished"
+            echo "Final status: {{workflow.status}}"
+            # statusの値: Succeeded, Failed, Error のいずれか
+            if [ "{{workflow.status}}" = "Succeeded" ]; then
+              echo "Workflow succeeded!"
+            else
+              echo "Workflow failed with status: {{workflow.status}}"
+            fi
+
+---
+# ============================================================================
+# workflow.scheduledTime - CronWorkflowでの使用
+# ============================================================================
+#
+# 【確認ポイント】
+# - workflow.scheduledTimeはCronWorkflowでのみ利用可能
+# - スケジュールされた実行時刻が格納される
+# ============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: scheduled-time-test
+  namespace: argo
+spec:
+  schedule: "0 * * * *"
+  timezone: "Asia/Tokyo"
+  workflowSpec:
+    entrypoint: main
+    templates:
+      - name: main
+        container:
+          image: alpine:latest
+          command: [sh, -c]
+          args:
+            # -------------------------------------------------------------------------
+            # 【確認ポイント】workflow.scheduledTime参照
+            # 操作: {{workflow.scheduledTime}} にカーソルを置いてホバー
+            # 期待: "CronWorkflowのスケジュール実行時刻" などの説明が表示される
+            # -------------------------------------------------------------------------
+            - |
+              echo "Scheduled time: {{workflow.scheduledTime}}"
+              echo "Actual time: {{workflow.creationTimestamp}}"
+              # scheduledTime: スケジュールで指定された時刻
+              # creationTimestamp: 実際にワークフローが作成された時刻

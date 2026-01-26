@@ -4,6 +4,7 @@ import {
   createConnection,
   type DefinitionParams,
   DidChangeConfigurationNotification,
+  FileChangeType,
   type Hover,
   type HoverParams,
   type InitializeParams,
@@ -19,6 +20,11 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 
 // "@/" エイリアスを使用した型定義のインポート
 import { defaultSettings, type ServerSettings } from '@/types';
+import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import { FileWatcher } from '@/services/fileWatcher';
+import { DefinitionProvider } from '@/providers/definitionProvider';
+import { uriToFilePath } from '@/utils/uriUtils';
+import { clearChartYamlCache } from '@/features/documentDetection';
 
 // LSPサーバーの接続を作成
 const connection = createConnection(ProposedFeatures.all);
@@ -27,6 +33,11 @@ console.log('🚀 Argo Workflows Language Server starting...');
 
 // テキストドキュメントマネージャー
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
+
+// サービスインスタンス
+const argoTemplateIndex = new ArgoTemplateIndex();
+const fileWatcher = new FileWatcher(connection);
+const definitionProvider = new DefinitionProvider(argoTemplateIndex);
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -66,7 +77,7 @@ connection.onInitialize((params: InitializeParams) => {
   return result;
 });
 
-connection.onInitialized(() => {
+connection.onInitialized(async () => {
   console.log('📋 Server initialization phase...');
 
   if (hasConfigurationCapability) {
@@ -81,6 +92,30 @@ connection.onInitialized(() => {
     console.log('  ✓ Workspace folder capability enabled');
   }
 
+  // ワークスペースフォルダーを取得
+  const workspaceFolders = await connection.workspace.getWorkspaceFolders();
+  if (workspaceFolders) {
+    const folders = workspaceFolders.map(folder => uriToFilePath(folder.uri));
+    argoTemplateIndex.setWorkspaceFolders(folders);
+
+    // 初期インデックス構築
+    await argoTemplateIndex.initialize();
+  }
+
+  // ファイル監視を開始
+  fileWatcher.watch('**/*.{yaml,yml}', 'yaml-files', async (uri, changeType) => {
+    if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
+      await argoTemplateIndex.updateFile(uri);
+    } else if (changeType === FileChangeType.Deleted) {
+      argoTemplateIndex.removeFile(uri);
+    }
+
+    // Chart.yamlの変更時はキャッシュをクリア
+    if (uri.endsWith('Chart.yaml') || uri.endsWith('Chart.yml')) {
+      clearChartYamlCache();
+    }
+  });
+
   console.log('✅ Argo Workflows Language Server initialized successfully');
   connection.console.log('✅ Argo Workflows Language Server initialized successfully');
 });
@@ -94,8 +129,8 @@ connection.onDidChangeConfiguration(change => {
   }
 });
 
-// 定義へ移動機能（Hello LSPデモ用）
-connection.onDefinition((params: DefinitionParams): Location | Location[] | null => {
+// 定義へ移動機能
+connection.onDefinition(async (params: DefinitionParams): Promise<Location | Location[] | null> => {
   const document = documents.get(params.textDocument.uri);
   if (!document) {
     return null;
@@ -105,8 +140,7 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
     `Definition requested at position: ${params.position.line}:${params.position.character}`
   );
 
-  // 実際の実装はPhase 2で追加されます
-  return null;
+  return await definitionProvider.provideDefinition(document, params.position);
 });
 
 // ホバー機能（Hello LSPデモ用）

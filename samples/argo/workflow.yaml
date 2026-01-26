@@ -1,0 +1,63 @@
+# ============================================================================
+# テスト用サンプルWorkflow
+# ============================================================================
+#
+# 【注意】
+# このファイルは自動テスト用のサンプルファイルです。
+# 実際の機能別サンプルは以下を参照してください：
+# - workflow-basic.yaml
+# - workflow-parameters.yaml
+# - workflow-templateref.yaml
+# など
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-workflow-
+  namespace: argo
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step-whalesay
+            template: whalesay
+            arguments:
+              parameters:
+                - name: message
+                  value: "Hello from test"
+
+        - - name: step-with-templateref
+            templateRef:
+              name: test-template
+              template: hello
+
+    - name: whalesay
+      inputs:
+        parameters:
+          # 表示するメッセージ
+          - name: message  # メッセージパラメータ
+            value: "Hello World"
+          - name: count
+            value: "10"
+      outputs:
+        parameters:
+          # 計算結果
+          - name: result  # メイン出力
+            valueFrom:
+              path: /tmp/result.txt
+          - name: status
+            valueFrom:
+              path: /tmp/status.txt
+      container:
+        image: alpine:latest
+        command: [sh]
+        args:
+          - -c
+          - |
+            echo "{{inputs.parameters.message}}"
+            echo "Count: {{inputs.parameters.count}}"
+            echo "42" > /tmp/result.txt
+            echo "success" > /tmp/status.txt
+            echo "Result: {{outputs.parameters.result}}"

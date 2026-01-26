@@ -81,6 +81,8 @@ export type ParameterReference = {
 export type ParameterDefinition = {
   /** パラメータ名 */
   name: string;
+  /** パラメータタイプ ('input' or 'output') */
+  type: 'input' | 'output';
   /** デフォルト値 (あれば) */
   value?: string;
   /** デフォルト値の上のコメント (あれば) */

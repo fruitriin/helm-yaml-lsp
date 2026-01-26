@@ -1,0 +1,151 @@
+# ============================================================================
+# 包括的なテストワークフロー
+# ============================================================================
+# このファイルは統合テストで使用され、以下の機能をすべて含みます:
+# - ローカルテンプレート参照
+# - パラメータ定義と参照（inputs/outputs）
+# - Workflow変数
+# - コメント付き定義
+# - 複数のテンプレート
+# ============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: comprehensive-test-
+  namespace: argo
+spec:
+  entrypoint: main
+
+  # Workflow全体のパラメータ
+  arguments:
+    parameters:
+      # Global configuration parameter
+      - name: environment  # Target environment
+        value: "development"
+
+  templates:
+    # =========================================================================
+    # メインテンプレート - すべてのステップを調整
+    # =========================================================================
+    - name: main
+      steps:
+        # ステップ1: データ準備
+        - - name: prepare-data
+            template: prepare-data-template
+            arguments:
+              parameters:
+                - name: env
+                  value: "{{workflow.parameters.environment}}"
+
+        # ステップ2: データ処理
+        - - name: process-data
+            template: process-data-template
+            arguments:
+              parameters:
+                - name: input-data
+                  value: "{{steps.prepare-data.outputs.parameters.prepared-data}}"
+
+        # ステップ3: 結果出力
+        - - name: output-results
+            template: output-results-template
+            arguments:
+              parameters:
+                - name: result
+                  value: "{{steps.process-data.outputs.parameters.processed-data}}"
+
+    # =========================================================================
+    # データ準備テンプレート
+    # =========================================================================
+    # Prepares data for processing
+    - name: prepare-data-template  # Data preparation step
+      inputs:
+        parameters:
+          # Environment parameter
+          - name: env  # Target environment name
+            value: "dev"
+      outputs:
+        parameters:
+          # Prepared data output
+          - name: prepared-data  # Data ready for processing
+            valueFrom:
+              path: /tmp/prepared.txt
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Preparing data for {{inputs.parameters.env}}"
+            echo "Workflow: {{workflow.name}} in {{workflow.namespace}}"
+            echo "Data prepared at {{workflow.creationTimestamp}}" > /tmp/prepared.txt
+
+    # =========================================================================
+    # データ処理テンプレート
+    # =========================================================================
+    # Processes the prepared data
+    - name: process-data-template  # Data processing step
+      inputs:
+        parameters:
+          # Input data parameter
+          - name: input-data  # Data to process
+          # Optional batch size
+          - name: batch-size  # Number of items per batch
+            value: "100"
+      outputs:
+        parameters:
+          # Processed data output
+          - name: processed-data  # Processing result
+            valueFrom:
+              path: /tmp/processed.txt
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Processing: {{inputs.parameters.input-data}}"
+            echo "Batch size: {{inputs.parameters.batch-size}}"
+            echo "Workflow UID: {{workflow.uid}}"
+            echo "Processed successfully" > /tmp/processed.txt
+
+    # =========================================================================
+    # 結果出力テンプレート
+    # =========================================================================
+    # Outputs the final results
+    - name: output-results-template  # Result output step
+      inputs:
+        parameters:
+          # Result parameter
+          - name: result  # Processing result to output
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Results: {{inputs.parameters.result}}"
+            echo "Workflow status: {{workflow.status}}"
+            echo "Duration: {{workflow.duration}} seconds"
+
+    # =========================================================================
+    # ヘルパーテンプレート - ユーティリティ機能
+    # =========================================================================
+    # Utility helper template
+    - name: helper-template  # Helper utilities
+      inputs:
+        parameters:
+          # Message parameter
+          - name: message  # Message to display
+            value: "Hello, World!"
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.message}}"]
+
+    # =========================================================================
+    # エラーケース - 存在しないパラメータ参照（診断テスト用）
+    # =========================================================================
+    - name: error-case-template
+      container:
+        image: alpine:latest
+        command: [echo]
+        # この行は意図的なエラー: non-existent-param は定義されていない
+        args: ["{{inputs.parameters.non-existent-param}}"]

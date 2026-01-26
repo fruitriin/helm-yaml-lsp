@@ -64,9 +64,9 @@ export class DefinitionProvider {
 		}
 
 		// templateRef 参照 (templateRef.name)
-		if (templateRef.type === 'templateRef') {
+		if (templateRef.type === 'templateRef' && templateRef.workflowTemplateName) {
 			const template = await this.templateIndex.findTemplate(
-				templateRef.workflowTemplateName!,
+				templateRef.workflowTemplateName,
 				templateRef.templateName,
 				templateRef.clusterScope ?? false,
 			);

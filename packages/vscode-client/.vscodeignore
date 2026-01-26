@@ -1,0 +1,27 @@
+# Source files
+src/**
+test/**
+tsconfig.json
+
+# Build configuration
+*.config.js
+*.config.mjs
+
+# Dependencies
+node_modules/**
+
+# Development files
+.vscode/**
+.vscode-test/**
+*.log
+
+# Documentation
+README.md
+CHANGELOG.md
+
+# Git
+.git/**
+.gitignore
+
+# Bun
+bun.lockb

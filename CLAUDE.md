@@ -179,6 +179,10 @@ bun run package             # VSIXパッケージ作成
 
 ## デバッグ
 
+**詳細なデバッグ手順は [DEBUG_GUIDE.md](./DEBUG_GUIDE.md) を参照してください。**
+
+### クイックスタート
+
 1. VSCodeで `F5` キーを押す、または「実行とデバッグ」から起動設定を選択
    - **Launch Extension**: クライアント拡張のみ起動
    - **Attach to Server**: サーバープロセスにアタッチ
@@ -187,6 +191,36 @@ bun run package             # VSIXパッケージ作成
 2. Extension Development Hostウィンドウで `samples/test-workflow.yaml` を開く
 
 3. ホバー、定義へ移動、補完などのLSP機能をテスト
+
+### デバッグログの確認
+
+拡張が正しく読み込まれると、**デバッグコンソール**に以下のログが出力されます：
+
+```
+🚀 Argo Workflows LSP Extension is now activating...
+📂 Server module path: /path/to/server/dist/server.js
+🔍 Debug port: 6009
+🔌 Starting Language Server client...
+✅ Argo Workflows LSP Extension activated
+🚀 Argo Workflows Language Server starting...
+👂 Document manager listening...
+✅ Argo Workflows Language Server is now listening for client connections
+📋 Server initialization phase...
+  ✓ Configuration capability enabled
+  ✓ Workspace folder capability enabled
+✅ Argo Workflows Language Server initialized successfully
+✅ Argo Workflows Language Server is ready!
+```
+
+### デバッグポートのカスタマイズ
+
+デバッグポートをカスタマイズする場合は、環境変数 `LSP_DEBUG_PORT` を設定してください：
+
+```bash
+export LSP_DEBUG_PORT=6010
+```
+
+または、`.vscode/launch.json` の設定で直接指定することもできます。
 
 ## LSP移行ステータス
 

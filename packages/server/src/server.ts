@@ -23,6 +23,8 @@ import { defaultSettings, type ServerSettings } from '@/types';
 // LSPサーバーの接続を作成
 const connection = createConnection(ProposedFeatures.all);
 
+console.log('🚀 Argo Workflows Language Server starting...');
+
 // テキストドキュメントマネージャー
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
@@ -65,17 +67,22 @@ connection.onInitialize((params: InitializeParams) => {
 });
 
 connection.onInitialized(() => {
+  console.log('📋 Server initialization phase...');
+
   if (hasConfigurationCapability) {
     connection.client.register(DidChangeConfigurationNotification.type, undefined);
+    console.log('  ✓ Configuration capability enabled');
   }
 
   if (hasWorkspaceFolderCapability) {
     connection.workspace.onDidChangeWorkspaceFolders(_event => {
-      connection.console.log('Workspace folder change event received.');
+      connection.console.log('📁 Workspace folder change event received.');
     });
+    console.log('  ✓ Workspace folder capability enabled');
   }
 
-  connection.console.log('Argo Workflows Language Server initialized successfully');
+  console.log('✅ Argo Workflows Language Server initialized successfully');
+  connection.console.log('✅ Argo Workflows Language Server initialized successfully');
 });
 
 // 設定変更のハンドリング
@@ -153,7 +160,10 @@ documents.onDidChangeContent(change => {
 // ドキュメントマネージャーをリッスン
 documents.listen(connection);
 
+console.log('👂 Document manager listening...');
+
 // 接続をリッスン
 connection.listen();
 
-connection.console.log('Argo Workflows Language Server started');
+console.log('✅ Argo Workflows Language Server is now listening for client connections');
+connection.console.log('✅ Argo Workflows Language Server started and ready');

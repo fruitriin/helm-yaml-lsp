@@ -12,7 +12,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "outDir": "./out",
+    "outDir": "./dist",
     "rootDir": "."
   },
   "exclude": ["node_modules", "out", "dist", "**/node_modules", "**/out", "**/dist"]

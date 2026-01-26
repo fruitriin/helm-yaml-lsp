@@ -7,16 +7,7 @@
     "defaultBranch": "main"
   },
   "files": {
-    "ignoreUnknown": false,
-    "includes": [
-      "**",
-      "!**/node_modules",
-      "!**/dist",
-      "!**/out",
-      "!**/*.vsix",
-      "!**/.vscode-test",
-      "!**/vscode-kubernetes-tools-argo"
-    ]
+    "ignoreUnknown": false
   },
   "formatter": {
     "enabled": true,

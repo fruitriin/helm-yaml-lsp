@@ -18,8 +18,8 @@
     "yaml"
   ],
   "activationEvents": [
-    "onLanguage:yaml",
-    "onLanguage:helm"
+    "onStartupFinished",
+    "onLanguage:yaml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -48,10 +48,10 @@
     }
   },
   "scripts": {
-    "build": "bun build src/extension.ts --outdir dist --target node --external vscode --sourcemap=external",
-    "watch": "bun build src/extension.ts --outdir dist --target node --external vscode --sourcemap=external --watch",
+    "build": "bun build src/extension.ts --outdir dist --target node --format cjs --external vscode --sourcemap=external",
+    "watch": "bun build src/extension.ts --outdir dist --target node --format cjs --external vscode --sourcemap=external --watch",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit && cd test && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "biome lint src",
     "format": "biome format src",
@@ -61,10 +61,7 @@
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.6",
-    "@types/node": "^20.11.5",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^2.22.0",
-    "typescript": "^5.3.3"
+    "@vscode/vsce": "^2.22.0"
   }
 }

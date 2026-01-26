@@ -56,6 +56,14 @@ samples/
 | [cluster-workflow-template.yaml](argo/cluster-workflow-template.yaml) | ClusterWorkflowTemplate定義 | クラスタスコープtemplateRefのジャンプ先 |
 | [cron-workflow.yaml](argo/cron-workflow.yaml) | CronWorkflow定義 | スケジュール実行、workflow.scheduledTime |
 
+### 統合サンプル
+
+| ファイル名 | 内容 | テスト機能 |
+|-----------|------|----------|
+| [comprehensive-workflow.yaml](argo/comprehensive-workflow.yaml) | すべての主要機能を含む包括的なサンプル | ローカルテンプレート参照、パラメータ（inputs/outputs）、Workflow変数、コメント付き定義 |
+
+**注意**: テストフィクスチャー版（`packages/server/test/fixtures/comprehensive-workflow.yaml`）には意図的なエラーケースが含まれています。正常なサンプルを参照する場合は上記のファイルを使用してください。
+
 ## Helm版 (`samples/helm/templates/`)
 
 Helmテンプレート形式のArgo Workflowsサンプルファイル。Plain版と同じArgo構文を提供しつつ、Helm機能も含みます。

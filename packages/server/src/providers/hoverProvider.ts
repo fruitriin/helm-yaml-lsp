@@ -16,8 +16,16 @@ import {
   findTemplateDefinitions,
   findTemplateReferenceAtPosition,
 } from '@/features/templateFeatures';
+import {
+  findValuesReference,
+  isHelmTemplate,
+} from '@/features/valuesReferenceFeatures';
+import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
 import { findWorkflowVariableAtPosition } from '@/features/workflowVariables';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import type { HelmChartIndex } from '@/services/helmChartIndex';
+import type { ValuesIndex } from '@/services/valuesIndex';
+import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 
 /**
  * Hover Provider
@@ -26,7 +34,12 @@ import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
  * テンプレート参照の詳細情報をマークダウン形式で表示
  */
 export class HoverProvider {
-  constructor(private templateIndex: ArgoTemplateIndex) {}
+  constructor(
+    private templateIndex: ArgoTemplateIndex,
+    private helmChartIndex?: HelmChartIndex,
+    private valuesIndex?: ValuesIndex,
+    private helmTemplateIndex?: HelmTemplateIndex,
+  ) {}
 
   /**
    * ホバー情報を提供
@@ -42,6 +55,25 @@ export class HoverProvider {
    * }
    */
   async provideHover(document: TextDocument, position: Position): Promise<Hover | null> {
+    // Helm template機能を検出
+    if (isHelmTemplate(document) && this.helmChartIndex) {
+      // .Values参照を検出
+      if (this.valuesIndex) {
+        const valuesRef = findValuesReference(document, position);
+        if (valuesRef) {
+          return this.handleValuesHover(document, valuesRef);
+        }
+      }
+
+      // include/template参照を検出
+      if (this.helmTemplateIndex) {
+        const helmTemplateRef = findHelmTemplateReferenceAtPosition(document, position);
+        if (helmTemplateRef) {
+          return this.handleHelmTemplateHover(document, helmTemplateRef);
+        }
+      }
+    }
+
     // Argo Workflowドキュメントでない場合はスキップ
     if (!isArgoWorkflowDocument(document)) {
       return null;
@@ -405,6 +437,135 @@ export class HoverProvider {
     }
 
     return parts.join('\n');
+  }
+
+  /**
+   * .Values参照のホバーを処理
+   */
+  private handleValuesHover(
+    document: TextDocument,
+    valuesRef: ReturnType<typeof findValuesReference>,
+  ): Hover | null {
+    if (!valuesRef || !this.helmChartIndex || !this.valuesIndex) {
+      return null;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+    if (!chart) {
+      return null;
+    }
+
+    // values.yamlから値定義を検索
+    const valueDef = this.valuesIndex.findValue(chart.name, valuesRef.valuePath);
+    if (!valueDef) {
+      return null;
+    }
+
+    const parts: string[] = [];
+
+    // 値パス
+    parts.push(`**Value**: \`.Values.${valueDef.path}\``);
+
+    // 型
+    parts.push(`**Type**: ${valueDef.valueType}`);
+
+    // デフォルト値
+    if (valueDef.value !== null && valueDef.value !== undefined) {
+      const valueStr = JSON.stringify(valueDef.value);
+      const displayValue = valueStr.length > 50 ? `${valueStr.substring(0, 50)}...` : valueStr;
+      parts.push(`**Default**: \`${displayValue}\``);
+    }
+
+    // Chart名
+    parts.push(`**Chart**: ${chart.name}`);
+
+    // 説明（コメントから抽出）
+    if (valueDef.description) {
+      parts.push('');
+      parts.push(valueDef.description);
+    }
+
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: parts.join('\n'),
+      },
+      range: valuesRef.range,
+    };
+  }
+
+  /**
+   * Helm include/template参照のホバーを処理
+   */
+  private handleHelmTemplateHover(
+    document: TextDocument,
+    helmTemplateRef: ReturnType<typeof findHelmTemplateReferenceAtPosition>,
+  ): Hover | null {
+    if (!helmTemplateRef || !this.helmChartIndex || !this.helmTemplateIndex) {
+      return null;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+    if (!chart) {
+      return null;
+    }
+
+    // テンプレート定義を検索
+    const templateDef = this.helmTemplateIndex.findTemplate(
+      chart.name,
+      helmTemplateRef.templateName,
+    );
+
+    if (!templateDef) {
+      return null;
+    }
+
+    const parts: string[] = [];
+
+    // テンプレート名
+    parts.push(`**Template**: \`${templateDef.name}\``);
+
+    // タイプ
+    parts.push(`**Type**: Helm ${helmTemplateRef.type === 'include' ? 'include' : 'template'}`);
+
+    // Chart名
+    parts.push(`**Chart**: ${chart.name}`);
+
+    // ファイル名
+    const fileName = templateDef.uri.split('/').pop() || '';
+    parts.push(`**File**: ${fileName}`);
+
+    // 説明（コメントから抽出）
+    if (templateDef.description) {
+      parts.push('');
+      parts.push(templateDef.description);
+    }
+
+    // テンプレート内容のプレビュー（最初の3行）
+    if (templateDef.content) {
+      const lines = templateDef.content.split('\n').slice(0, 3);
+      const preview = lines.join('\n');
+      if (preview) {
+        parts.push('');
+        parts.push('**Preview**:');
+        parts.push('```yaml');
+        parts.push(preview);
+        if (templateDef.content.split('\n').length > 3) {
+          parts.push('...');
+        }
+        parts.push('```');
+      }
+    }
+
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: parts.join('\n'),
+      },
+      range: helmTemplateRef.range,
+    };
   }
 
   /**

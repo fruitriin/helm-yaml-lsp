@@ -3,7 +3,7 @@
 このプロジェクトは、Helm内に書かれたArgo Workflows YAMLに対してLSP（Language Server Protocol）を提供することを目的とする。
 
 **最終更新**: 2026-01-27
-**現在のステータス**: Phase 2 完了 ✅
+**現在のステータス**: Phase 3 完了 ✅、Phase 4 計画中 ⏳
 
 ---
 
@@ -19,13 +19,28 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - **Neovim** - nvim-lspconfig経由で動作確認済み
 - **その他のLSPクライアント** - LSP標準プロトコルに準拠した任意のエディタ
 
-### 実装済み機能（Phase 2完了時点）
+### 実装済み機能（Phase 3完了時点）
 
 ✅ **Definition Provider（定義へのジャンプ）**
 - WorkflowTemplate/ClusterWorkflowTemplateのインデックス化
 - templateRef参照から定義へのジャンプ
-- VSCode: F12キー
-- Neovim: `gd`キー
+- パラメータ定義へのジャンプ
+- ローカルテンプレート参照のジャンプ
+- VSCode: F12キー / Neovim: `gd`キー
+
+✅ **Hover Provider（ホバー情報表示）**
+- テンプレート参照のホバー情報
+- パラメータ参照のホバー情報
+- Workflow変数のホバー情報
+
+✅ **Completion Provider（入力補完）**
+- テンプレート名の補完
+- パラメータ名の補完（inputs/outputs）
+- Workflow変数の補完
+
+✅ **Diagnostic Provider（エラー検出）**
+- 存在しないテンプレート参照の検出
+- 存在しないパラメータ参照の検出
 
 ✅ **エディタ非依存性の実証**
 - VSCode API依存ゼロ
@@ -216,7 +231,7 @@ bun run lint:fix            # lintエラーを自動修正
 ### テスト
 
 ```bash
-bun run test                # 全テスト実行（116 tests）
+bun run test                # 全テスト実行（173 tests）
 bun run test:packages       # 各パッケージのテスト実行
 bun run test:all            # 統合 + パッケージテスト
 ```
@@ -273,7 +288,7 @@ nvim samples/argo/workflow-templateref.yaml
 ### 新機能の追加
 
 1. **計画書の確認**
-   - `PHASE3_PLAN.md` で実装する機能を確認
+   - `PHASE4_PLAN.md` で実装する機能を確認
    - 依存関係と実装順序を把握
 
 2. **実装**
@@ -316,7 +331,7 @@ nvim samples/argo/workflow-templateref.yaml
 - デバッグ環境（.vscode/launch.json）
 - パスエイリアス（"@/"）の設定
 - Neovimクライアント実装
-- テストインフラ整備（116 tests）
+- テストインフラ整備
 
 ### Phase 2: コア機能の移植 ✅
 
@@ -330,26 +345,55 @@ nvim samples/argo/workflow-templateref.yaml
 7. `services/argoTemplateIndex.ts` - テンプレートインデックス
 8. `providers/definitionProvider.ts` - Definition Provider
 
-**テスト結果**: 116 tests passed, 0 fail
-
 **動作確認**:
 - ✅ VSCodeで定義ジャンプ成功（F12キー）
 - ✅ Neovimで定義ジャンプ成功（`gd`キー）
 
 ---
 
-## 次のフェーズ（Phase 3）
+## Phase 3: 追加機能の実装 ✅
 
-### 実装予定機能
+**実装済み機能**:
+1. ✅ **Hover Provider** - テンプレート参照、パラメータ参照、Workflow変数のホバー情報表示
+2. ✅ **パラメータ機能** - inputs/outputs.parametersの定義と参照の検出
+3. ✅ **Workflow変数** - workflow.name等の8つの組み込み変数サポート
+4. ✅ **Completion Provider** - テンプレート名、パラメータ名、Workflow変数の入力補完
+5. ✅ **Diagnostic Provider** - 存在しないテンプレート/パラメータ参照の検出
+6. ✅ **ローカルテンプレート参照** - 同一ファイル内のテンプレートジャンプ
 
-1. **Hover Provider** - ホバー情報の表示
-2. **パラメータ機能** - パラメータ定義と参照の検出
-3. **Completion Provider** - 入力補完機能
-4. **Diagnostics** - 診断機能（エラー検出）
-5. **ローカルテンプレート参照** - 同一ファイル内のテンプレートジャンプ
-6. **ConfigMap/Secret参照** - ConfigMap参照のサポート
+**テスト結果**: 173 tests passed, 0 fail
 
-詳細は `PHASE3_PLAN.md` を参照。
+**動作確認**:
+- ✅ VSCodeで全機能動作確認
+- ✅ Neovimで全機能動作確認
+
+詳細は `PHASE3_PLAN.md` および `progress.md` を参照。
+
+---
+
+## 次のフェーズ（Phase 4）
+
+### 実装予定機能: Helm機能のサポート
+
+Phase 4では、プロジェクトの主要目的である「Helm内に書かれたArgo Workflows YAML」のサポートを実装します。
+
+1. **Phase 4.1**: Helm Chart構造の検出とインデックス化
+2. **Phase 4.2**: values.yaml解析とインデックス化
+3. **Phase 4.3**: .Values参照のサポート（Definition/Hover/Completion/Diagnostics）
+4. **Phase 4.4**: include/template関数のサポート
+5. **Phase 4.5**: Helm組み込み関数のサポート（toYaml, default等）
+6. **Phase 4.6**: Chart.yamlサポート（.Chart変数）
+7. **Phase 4.7**: Release/Capabilities変数のサポート（オプション）
+8. **Phase 4.8**: values.schema.jsonサポート（将来拡張）
+
+**完了基準**:
+- [ ] `.Values`参照が動作する（Definition/Hover/Completion/Diagnostics）
+- [ ] `include`/`template`関数が動作する
+- [ ] Helm組み込み関数のホバー情報が表示される
+- [ ] 全テストが通過する（300+ tests想定）
+- [ ] VSCodeとNeovim両方で動作確認できる
+
+詳細は `PHASE4_PLAN.md` を参照。
 
 ---
 
@@ -358,9 +402,8 @@ nvim samples/argo/workflow-templateref.yaml
 ### プロジェクト内ドキュメント
 
 - **progress.md** - 開発進捗の詳細記録
-- **PHASE1_PLAN.md** - Phase 1の詳細計画
-- **PHASE2_PLAN.md** - Phase 2の詳細計画
-- **PHASE3_PLAN.md** - Phase 3の詳細計画
+- **PHASE3_PLAN.md** - Phase 3の詳細計画（完了）
+- **PHASE4_PLAN.md** - Phase 4の詳細計画（Helm機能）
 - **README.md** - プロジェクト概要とセットアップ
 - **samples/README.md** - サンプルファイルの説明
 

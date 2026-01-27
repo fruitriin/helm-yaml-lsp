@@ -25,6 +25,7 @@ import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { HelmChartIndex } from '@/services/helmChartIndex';
 import { ValuesIndex } from '@/services/valuesIndex';
 import { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import { ConfigMapIndex } from '@/services/configMapIndex';
 import { FileWatcher } from '@/services/fileWatcher';
 // "@/" エイリアスを使用した型定義のインポート
 import { defaultSettings, type ServerSettings } from '@/types';
@@ -43,11 +44,12 @@ const argoTemplateIndex = new ArgoTemplateIndex();
 const helmChartIndex = new HelmChartIndex();
 const valuesIndex = new ValuesIndex();
 const helmTemplateIndex = new HelmTemplateIndex();
+const configMapIndex = new ConfigMapIndex();
 const fileWatcher = new FileWatcher(connection);
-const definitionProvider = new DefinitionProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex);
-const hoverProvider = new HoverProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex);
-const completionProvider = new CompletionProvider(helmChartIndex, valuesIndex, helmTemplateIndex);
-const diagnosticProvider = new DiagnosticProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex);
+const definitionProvider = new DefinitionProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
+const hoverProvider = new HoverProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
+const completionProvider = new CompletionProvider(helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
+const diagnosticProvider = new DiagnosticProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -122,6 +124,9 @@ connection.onInitialized(async () => {
 
     // Helm Template Index初期化
     await helmTemplateIndex.initialize(charts);
+
+    // ConfigMap Index初期化
+    await configMapIndex.initialize(folderPaths);
   }
 
   // ファイル監視を開始
@@ -156,6 +161,13 @@ connection.onInitialized(async () => {
       if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
         await helmTemplateIndex.updateTemplateFile(uri);
       }
+    }
+
+    // ConfigMap/Secretファイルの変更時はConfigMapIndexを更新
+    if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
+      await configMapIndex.updateFile(uri);
+    } else if (changeType === FileChangeType.Deleted) {
+      configMapIndex.removeFile(uri);
     }
   });
 

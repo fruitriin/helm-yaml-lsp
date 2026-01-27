@@ -27,6 +27,7 @@ import { getAllReleaseVariables, getAllCapabilitiesVariables } from '@/features/
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ConfigMapIndex } from '@/services/configMapIndex';
 
 /**
  * Completion Provider
@@ -39,6 +40,7 @@ export class CompletionProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
+    private configMapIndex?: ConfigMapIndex,
   ) {}
   /**
    * 補完候補を提供
@@ -89,6 +91,14 @@ export class CompletionProvider {
       // Helm関数の補完（パイプライン後）
       if (this.isPipelineContext(linePrefix)) {
         return this.provideHelmFunctionCompletion();
+      }
+    }
+
+    // ConfigMap/Secret名の補完
+    if (this.configMapIndex) {
+      const configMapContext = this.getConfigMapContext(document, position, linePrefix);
+      if (configMapContext) {
+        return this.provideConfigMapCompletion(configMapContext);
       }
     }
 
@@ -439,6 +449,110 @@ export class CompletionProvider {
           detail: `${variable.category === 'release' ? 'Release' : 'Capabilities'} Variable`,
           documentation: variable.description,
           insertText: variable.name,
+        });
+      }
+    }
+
+    return { isIncomplete: false, items };
+  }
+
+  /**
+   * ConfigMap/Secret補完コンテキストを取得
+   */
+  private getConfigMapContext(
+    document: TextDocument,
+    position: Position,
+    linePrefix: string,
+  ): { type: 'name' | 'key'; kind: 'ConfigMap' | 'Secret'; configMapName?: string } | null {
+    const lines = document.getText().split('\n');
+
+    // Check if we're completing a name field
+    if (/^\s*(name|secretName):\s*$/.test(linePrefix) || /^\s*(name|secretName):\s+\w*$/.test(linePrefix)) {
+      // Look for context to determine kind
+      const context = this.getContextLines(lines, position.line, 5);
+      const contextStr = context.join('\n');
+
+      if (contextStr.includes('configMapKeyRef:') || contextStr.includes('configMapRef:') || contextStr.includes('configMap:')) {
+        return { type: 'name', kind: 'ConfigMap' };
+      }
+
+      if (contextStr.includes('secretKeyRef:') || contextStr.includes('secretRef:') || contextStr.includes('secret:')) {
+        return { type: 'name', kind: 'Secret' };
+      }
+    }
+
+    // Check if we're completing a key field
+    if (/^\s*key:\s*$/.test(linePrefix) || /^\s*key:\s+\w*$/.test(linePrefix)) {
+      // Look for ConfigMap/Secret name in context
+      const context = this.getContextLines(lines, position.line, 5);
+      const contextStr = context.join('\n');
+
+      // Extract name from context
+      const nameMatch = contextStr.match(/(?:name|secretName):\s*([^\s\n]+)/);
+      if (!nameMatch) {
+        return null;
+      }
+
+      const configMapName = nameMatch[1].trim().replace(/^["']|["']$/g, '');
+
+      if (contextStr.includes('configMapKeyRef:') || contextStr.includes('configMap:')) {
+        return { type: 'key', kind: 'ConfigMap', configMapName };
+      }
+
+      if (contextStr.includes('secretKeyRef:') || contextStr.includes('secret:')) {
+        return { type: 'key', kind: 'Secret', configMapName };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Get context lines around a position
+   */
+  private getContextLines(lines: string[], lineNum: number, contextSize: number): string[] {
+    const start = Math.max(0, lineNum - contextSize);
+    const end = Math.min(lines.length, lineNum + contextSize + 1);
+    return lines.slice(start, end);
+  }
+
+  /**
+   * ConfigMap/Secret補完を提供
+   */
+  private provideConfigMapCompletion(context: {
+    type: 'name' | 'key';
+    kind: 'ConfigMap' | 'Secret';
+    configMapName?: string;
+  }): CompletionList {
+    const items: CompletionItem[] = [];
+
+    if (!this.configMapIndex) {
+      return { isIncomplete: false, items };
+    }
+
+    // Name completion
+    if (context.type === 'name') {
+      const resources = this.configMapIndex.getAll(context.kind);
+      for (const resource of resources) {
+        items.push({
+          label: resource.name,
+          kind: CompletionItemKind.Value,
+          detail: `${context.kind}`,
+          documentation: `${context.kind} with ${resource.keys.length} key(s)`,
+          insertText: resource.name,
+        });
+      }
+    }
+
+    // Key completion
+    if (context.type === 'key' && context.configMapName) {
+      const keys = this.configMapIndex.getKeys(context.configMapName, context.kind);
+      for (const key of keys) {
+        items.push({
+          label: key,
+          kind: CompletionItemKind.Property,
+          detail: `Key in ${context.kind} '${context.configMapName}'`,
+          insertText: key,
         });
       }
     }

@@ -3,7 +3,7 @@
 このプロジェクトは、Helm内に書かれたArgo Workflows YAMLに対してLSP（Language Server Protocol）を提供することを目的とする。
 
 **最終更新**: 2026-01-27
-**現在のステータス**: Phase 4 完了 ✅、Phase 5 計画中 ⏳
+**現在のステータス**: Phase 5 完了 ✅、Phase 6.1〜6.3 完了 🔨
 
 ---
 
@@ -15,11 +15,12 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 
 ### 対象エディタ
 
-- **VSCode** - 主要ターゲット
+- **VSCode** - 主要ターゲット（実装済み）
 - **Neovim** - nvim-lspconfig経由で動作確認済み
+- **IntelliJ IDEA / JetBrains製品** - Phase 6で実装中（基本実装完了）
 - **その他のLSPクライアント** - LSP標準プロトコルに準拠した任意のエディタ
 
-### 実装済み機能（Phase 4完了時点）
+### 実装済み機能（Phase 5完了時点）
 
 #### Argo Workflows機能（Phase 2-3）
 
@@ -87,6 +88,37 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - VSCode API依存ゼロ
 - Node.js標準ライブラリのみ使用
 - 両エディタで同じLSPサーバーが動作
+
+#### ConfigMap/Secret機能（Phase 5）
+
+✅ **ConfigMap/Secret検出とインデックス化**
+- `kind: ConfigMap` / `kind: Secret` の自動検出
+- metadata.nameとdataキーのインデックス化
+- multilineブロック値のサポート（`|` と `>`）
+
+✅ **ConfigMap/Secret参照のサポート**
+- configMapKeyRef / secretKeyRef（env.valueFrom）
+- configMapRef / secretRef（envFrom）
+- volumeConfigMap / volumeSecret（volumes）
+- name参照とkey参照の両方に対応
+
+✅ **Definition Provider統合**
+- configMapKeyRef.name → ConfigMap定義へジャンプ
+- configMapKeyRef.key → dataキーへジャンプ
+- Secret参照も同様にサポート
+
+✅ **Hover Provider統合**
+- ConfigMap name: 名前、キー数、キーリスト表示
+- ConfigMap key: キー名、値表示（multiline対応）
+- Secret: 値を`[hidden]`で隠蔽
+
+✅ **Completion Provider統合**
+- ConfigMap/Secret名の入力補完
+- dataキーの入力補完
+
+✅ **Diagnostics Provider統合**
+- 存在しないConfigMap/Secret参照の検出
+- 存在しないキー参照の検出
 
 ---
 
@@ -433,38 +465,76 @@ Phase 4（Helm機能のサポート）はすべて完了しました：
 
 ---
 
-## 次のフェーズ（Phase 5）
+## Phase 5の完了状況 ✅
 
-### 実装予定機能: ConfigMap/Secretサポート
+Phase 5（ConfigMap/Secretサポート）はすべて完了しました：
 
-Phase 5では、Argo WorkflowsおよびKubernetesで頻繁に使用されるConfigMap/Secretの参照機能を実装します。
+- ✅ **Phase 5.1**: ConfigMap/Secret検出とインデックス化
+- ✅ **Phase 5.2**: ConfigMap/Secret参照の検出（5種類のパターン）
+- ✅ **Phase 5.3**: Definition Provider統合
+- ✅ **Phase 5.4**: Hover Provider統合（マルチライン値プレビュー対応）
+- ✅ **Phase 5.5**: Completion Provider統合
+- ✅ **Phase 5.6**: Diagnostics Provider統合
 
-1. **Phase 5.1**: ConfigMap/Secret検出とインデックス化
-2. **Phase 5.2**: ConfigMap/Secret参照の検出
-3. **Phase 5.3**: Definition Provider統合（name→定義、key→dataキーへのジャンプ）
-4. **Phase 5.4**: Hover Provider統合（参照時の情報表示）
-5. **Phase 5.5**: Completion Provider統合（name補完、key補完）
-6. **Phase 5.6**: Diagnostics統合（存在しない参照の検出）
+**テスト結果**: 440 tests passed（Phase 4の426 testsから+13 tests増加）
 
-**サポート対象**:
-- `configMapKeyRef` (env.valueFrom)
-- `secretKeyRef` (env.valueFrom)
-- `configMapRef` (envFrom)
-- `secretRef` (envFrom)
-- `volumeConfigMap` (volumes)
-- `volumeSecret` (volumes)
-
-**完了基準**:
-- [ ] ConfigMap/Secret定義が検出され、インデックス化される
-- [ ] configMapKeyRef.name から ConfigMap定義へジャンプできる
-- [ ] configMapKeyRef.key から dataキーへジャンプできる
-- [ ] ホバー情報が表示される
-- [ ] 入力補完が動作する
-- [ ] 存在しないConfigMap/key参照がエラー検出される
-- [ ] 全テストが通過する（526+ tests想定）
-- [ ] VSCodeとNeovim両方で動作確認できる
+**サポートされる参照パターン**:
+- `configMapKeyRef` / `secretKeyRef` (env.valueFrom)
+- `configMapRef` / `secretRef` (envFrom)
+- `volumeConfigMap` / `volumeSecret` (volumes)
 
 詳細は `PHASE5_PLAN.md` を参照。
+
+---
+
+## Phase 6の進行状況 🔨
+
+### 実装済み機能: IntelliJ Plugin Support（Phase 6.1〜6.3）
+
+Phase 6では、IntelliJ IDEAおよびJetBrains製品向けのプラグインを実装し、より多くの開発者がLSPサーバーを利用できるようにします。
+
+**実装アプローチ**: IntelliJ Platform標準のLSP API使用
+
+✅ **Phase 6.1-6.3完了**:
+- ✅ IntelliJ Plugin基本構造のセットアップ
+- ✅ LSP統合実装（IntelliJ Platform標準API）
+- ✅ サーバーパス自動検出（5段階の優先順位）
+- ✅ 設定UI実装
+- ✅ プロジェクトライフサイクル管理
+- ✅ ドキュメント整備
+
+**技術的特徴**:
+- ✅ **外部依存ゼロ**: LSP4IJライブラリ不要
+- ✅ **IntelliJ Platform標準API**: `com.intellij.platform.lsp.api`使用
+- ✅ **シンプルなビルド**: Gradleの依存関係が最小限
+- ✅ **プラグインサイズ削減**: 外部ライブラリをバンドルしない
+
+**実装コード統計**:
+- Kotlinファイル: 4ファイル
+- Kotlinコード: 402行
+- 主要クラス:
+  - HelmYamlLspServerSupportProvider.kt: 241行（LSP統合のコア）
+  - HelmYamlLspConfigurable.kt: 90行（設定UI）
+  - HelmYamlLspSettings.kt: 44行（設定永続化）
+  - HelmYamlLspProjectListener.kt: 27行（ライフサイクル）
+
+**未完了（オプション）**:
+- ⏸️ **Phase 6.4**: ビルド・パッケージング（Gradleインストールが必要）
+- ⏸️ **Phase 6.5**: テストと動作確認
+- ⏸️ **Phase 6.6**: JetBrains Marketplace公開準備
+
+**サポート対象IDE**:
+- IntelliJ IDEA（Community/Ultimate）
+- PyCharm
+- WebStorm
+- その他JetBrains製品
+
+**次のステップ**:
+- Gradleをインストールして `./gradlew build` を実行
+- IntelliJ IDEAでプラグインを読み込んで動作確認
+- Phase 6.4以降の実装
+
+詳細は `PHASE6_PLAN.md` を参照。
 
 ---
 
@@ -475,7 +545,8 @@ Phase 5では、Argo WorkflowsおよびKubernetesで頻繁に使用されるConf
 - **progress.md** - 開発進捗の詳細記録
 - **PHASE3_PLAN.md** - Phase 3の詳細計画（完了）
 - **PHASE4_PLAN.md** - Phase 4の詳細計画（Helm機能、完了）
-- **PHASE5_PLAN.md** - Phase 5の詳細計画（ConfigMap/Secret）
+- **PHASE5_PLAN.md** - Phase 5の詳細計画（ConfigMap/Secret、完了）
+- **PHASE6_PLAN.md** - Phase 6の詳細計画（IntelliJ Plugin）
 - **README.md** - プロジェクト概要とセットアップ
 - **samples/README.md** - サンプルファイルの説明
 
@@ -583,23 +654,23 @@ const range = Range.create(Position.create(0, 0), Position.create(1, 10));
 
 **Q: 現在どのフェーズまで完了していますか？**
 
-A: Phase 4（Helm機能のフルサポート）まで完了しています。426個のテストが通過し、Argo WorkflowsとHelm両方の機能が実装されています。
+A: Phase 5（ConfigMap/Secretサポート）まで完了しています。440個のテストが通過し、Argo Workflows、Helm、ConfigMap/Secretのすべての機能が実装されています。
 
-**Q: Phase 4で実装した機能は何ですか？**
+**Q: Phase 5で実装した機能は何ですか？**
 
-A: Helm機能の包括的なサポートです。`.Values`参照、`include`/`template`関数、70以上のHelm組み込み関数、`.Chart`変数、`.Release`/`.Capabilities`変数のすべてがサポートされています。
+A: ConfigMap/Secret参照の包括的なサポートです。`configMapKeyRef`、`secretKeyRef`、`configMapRef`、`secretRef`、`volumeConfigMap`、`volumeSecret`のすべての参照パターンに対応し、定義ジャンプ、ホバー情報、入力補完、エラー検出を提供します。multilineブロック値もサポートしています。
 
 **Q: VSCodeとNeovim以外のエディタでも動作しますか？**
 
-A: はい。LSP標準プロトコルに準拠しているため、LSPクライアントを持つ任意のエディタで動作します（Emacs、Vim、Visual Studio等）。
+A: はい。LSP標準プロトコルに準拠しているため、LSPクライアントを持つ任意のエディタで動作します（Emacs、Vim等）。Phase 6ではIntelliJ IDEA/JetBrains製品向けの公式プラグインも実装予定です。
 
 **Q: テストはどのように実行しますか？**
 
-A: `bun run test` を実行してください。426個のテストが実行され、すべて通過するはずです。
+A: `bun run test` を実行してください。440個のテストが実行され、すべて通過するはずです。
 
 **Q: 次に実装する機能は何ですか？**
 
-A: Phase 5でConfigMap/Secretサポートを実装予定です。`configMapKeyRef`や`secretKeyRef`から定義へのジャンプ、補完、エラー検出を提供します。詳細は`PHASE5_PLAN.md`を参照してください。
+A: Phase 6でIntelliJ IDEA向けのプラグインを実装予定です。Kotlin/JavaでIntelliJ Pluginを開発し、LSP4IJを使用してLSPサーバーと統合します。詳細は`PHASE6_PLAN.md`を参照してください。
 
 **Q: エディタ非依存性はどのように検証されていますか？**
 

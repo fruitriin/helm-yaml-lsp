@@ -30,3 +30,31 @@ app.kubernetes.io/name: {{ include "argo-workflow-sample.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
+
+{{/*
+Generate ConfigMap name
+*/}}
+{{- define "argo-workflow-sample.configMapName" -}}
+{{- printf "%s-config" (include "argo-workflow-sample.fullname" .) }}
+{{- end }}
+
+{{/*
+Generate Secret name
+*/}}
+{{- define "argo-workflow-sample.secretName" -}}
+{{- printf "%s-secrets" (include "argo-workflow-sample.fullname" .) }}
+{{- end }}
+
+{{/*
+Generate WorkflowTemplate name
+*/}}
+{{- define "argo-workflow-sample.workflowTemplateName" -}}
+{{- printf "%s-templates" (include "argo-workflow-sample.fullname" .) }}
+{{- end }}
+
+{{/*
+Format environment value with uppercase and prefix
+*/}}
+{{- define "argo-workflow-sample.envPrefix" -}}
+{{- .Values.app.environment | upper | printf "%s_" }}
+{{- end }}

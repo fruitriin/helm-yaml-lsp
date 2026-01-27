@@ -61,12 +61,34 @@ samples/
 | ファイル名 | 内容 | テスト機能 |
 |-----------|------|----------|
 | [comprehensive-workflow.yaml](argo/comprehensive-workflow.yaml) | すべての主要機能を含む包括的なサンプル | ローカルテンプレート参照、パラメータ（inputs/outputs）、Workflow変数、コメント付き定義 |
+| **[demo-workflow.yaml](argo/demo-workflow.yaml)** | **Phase 5完了版・全機能デモ** | **Argo Workflows全機能 + ConfigMap/Secret参照を上から順に確認できる包括的デモ** |
 
 **注意**: テストフィクスチャー版（`packages/server/test/fixtures/comprehensive-workflow.yaml`）には意図的なエラーケースが含まれています。正常なサンプルを参照する場合は上記のファイルを使用してください。
+
+### 推奨デモファイル ⭐
+
+**最初に試すべきファイル**: [demo-workflow.yaml](argo/demo-workflow.yaml)
+
+Phase 5完了時点での全機能を、セクション別に段階的に確認できる包括的なデモファイルです：
+- Section 1: ConfigMap/Secret定義
+- Section 2: WorkflowTemplate定義（ConfigMap/Secret参照含む）
+- Section 3: メインワークフロー（全機能統合）
+- チェックリスト付き: すべての機能の動作確認手順を記載
 
 ## Helm版 (`samples/helm/templates/`)
 
 Helmテンプレート形式のArgo Workflowsサンプルファイル。Plain版と同じArgo構文を提供しつつ、Helm機能も含みます。
+
+### 推奨デモファイル ⭐
+
+**Helm版で最初に試すべきファイル**: [demo-workflow.yaml](helm/templates/demo-workflow.yaml)
+
+Phase 5完了時点での全機能（Argo + Helm）を、セクション別に段階的に確認できる包括的なデモファイルです：
+- Section 1: ConfigMap定義（.Values参照、Helm組み込み関数、.Chart/.Release変数）
+- Section 2: Secret定義（b64enc関数等）
+- Section 3: WorkflowTemplate定義（ConfigMap/Secret参照、include関数）
+- Section 4: メインワークフロー（Argo + Helm全機能統合）
+- チェックリスト付き: すべての機能の動作確認手順を記載
 
 ### 基本構文（Helm版）
 

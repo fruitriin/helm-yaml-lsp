@@ -28,10 +28,12 @@ import { findChartVariable } from '@/features/chartVariables';
 import { findReleaseCapabilitiesReference } from '@/features/releaseCapabilitiesReferenceFeatures';
 import { findReleaseVariable, findCapabilitiesVariable } from '@/features/releaseCapabilitiesVariables';
 import { findWorkflowVariableAtPosition } from '@/features/workflowVariables';
+import { findConfigMapReferenceAtPosition } from '@/features/configMapReferenceFeatures';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ConfigMapIndex } from '@/services/configMapIndex';
 
 /**
  * Hover Provider
@@ -45,6 +47,7 @@ export class HoverProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
+    private configMapIndex?: ConfigMapIndex,
   ) {}
 
   /**
@@ -95,6 +98,14 @@ export class HoverProvider {
       const releaseCapabilitiesRef = findReleaseCapabilitiesReference(document, position);
       if (releaseCapabilitiesRef) {
         return this.handleReleaseCapabilitiesHover(releaseCapabilitiesRef);
+      }
+    }
+
+    // ConfigMap/Secret参照を検出
+    if (this.configMapIndex) {
+      const configMapRef = findConfigMapReferenceAtPosition(document, position);
+      if (configMapRef) {
+        return this.handleConfigMapHover(configMapRef);
       }
     }
 
@@ -812,5 +823,92 @@ export class HoverProvider {
     }
 
     return comments.length > 0 ? comments.join('\n\n') : undefined;
+  }
+
+  /**
+   * ConfigMap/Secret参照のホバー情報を処理
+   */
+  private handleConfigMapHover(
+    ref: ReturnType<typeof findConfigMapReferenceAtPosition>,
+  ): Hover | null {
+    if (!ref || !this.configMapIndex) {
+      return null;
+    }
+
+    // name参照の場合：ConfigMap/Secret名と内容
+    if (ref.referenceType === 'name') {
+      const configMap = this.configMapIndex.findConfigMap(ref.name, ref.kind);
+      if (!configMap) {
+        return null;
+      }
+
+      const keyCount = configMap.keys.length;
+      const keyList = configMap.keys
+        .map((k) => `- ${k.keyName}`)
+        .join('\n');
+
+      const markdown = [
+        `**${ref.kind}**: \`${ref.name}\``,
+        `**Keys**: ${keyCount} key${keyCount !== 1 ? 's' : ''} defined`,
+        '',
+        keyList || '*(no keys)*',
+      ].join('\n');
+
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: markdown,
+        },
+        range: ref.range,
+      };
+    }
+
+    // key参照の場合：キー名と値
+    if (ref.referenceType === 'key' && ref.keyName) {
+      const key = this.configMapIndex.findKey(ref.name, ref.keyName, ref.kind);
+      if (!key) {
+        return null;
+      }
+
+      // Secretの場合は値を隠す
+      let valueDisplay: string;
+      if (ref.kind === 'Secret') {
+        valueDisplay = '`[hidden]`';
+      } else if (key.value) {
+        // Check if multiline (contains newlines)
+        if (key.value.includes('\n')) {
+          const lines = key.value.split('\n');
+          const preview = lines.slice(0, 3).join('\n');
+          const remaining = lines.length - 3;
+          valueDisplay = `\`\`\`\n${preview}${remaining > 0 ? `\n... (${remaining} more line${remaining > 1 ? 's' : ''})` : ''}\n\`\`\``;
+        } else {
+          // Single line value
+          const maxLength = 100;
+          if (key.value.length > maxLength) {
+            valueDisplay = `\`${key.value.substring(0, maxLength)}...\``;
+          } else {
+            valueDisplay = `\`${key.value}\``;
+          }
+        }
+      } else {
+        valueDisplay = '*(empty)*';
+      }
+
+      const markdown = [
+        `**Key**: \`${ref.keyName}\``,
+        `**${ref.kind}**: \`${ref.name}\``,
+        `**Value**: ${valueDisplay}`,
+      ].join('\n');
+
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: markdown,
+        },
+        range: ref.range,
+      };
+    }
+
+    return null;
   }
 }

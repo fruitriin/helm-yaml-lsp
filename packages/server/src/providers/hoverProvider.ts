@@ -21,6 +21,12 @@ import {
   isHelmTemplate,
 } from '@/features/valuesReferenceFeatures';
 import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
+import { findHelmFunctionReference } from '@/features/helmFunctionFeatures';
+import { findFunction } from '@/features/helmFunctions';
+import { findChartReference } from '@/features/chartReferenceFeatures';
+import { findChartVariable } from '@/features/chartVariables';
+import { findReleaseCapabilitiesReference } from '@/features/releaseCapabilitiesReferenceFeatures';
+import { findReleaseVariable, findCapabilitiesVariable } from '@/features/releaseCapabilitiesVariables';
 import { findWorkflowVariableAtPosition } from '@/features/workflowVariables';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
@@ -71,6 +77,24 @@ export class HoverProvider {
         if (helmTemplateRef) {
           return this.handleHelmTemplateHover(document, helmTemplateRef);
         }
+      }
+
+      // Helm関数参照を検出
+      const helmFunctionRef = findHelmFunctionReference(document, position);
+      if (helmFunctionRef) {
+        return this.handleHelmFunctionHover(helmFunctionRef);
+      }
+
+      // .Chart参照を検出
+      const chartRef = findChartReference(document, position);
+      if (chartRef) {
+        return this.handleChartHover(document, chartRef);
+      }
+
+      // .Release/.Capabilities参照を検出
+      const releaseCapabilitiesRef = findReleaseCapabilitiesReference(document, position);
+      if (releaseCapabilitiesRef) {
+        return this.handleReleaseCapabilitiesHover(releaseCapabilitiesRef);
       }
     }
 
@@ -596,6 +620,176 @@ export class HoverProvider {
         value: parts.join('\n'),
       },
       range: workflowVar.range,
+    };
+  }
+
+  /**
+   * Helm関数参照のホバーを処理
+   */
+  private handleHelmFunctionHover(
+    helmFunctionRef: ReturnType<typeof findHelmFunctionReference>,
+  ): Hover | null {
+    if (!helmFunctionRef) {
+      return null;
+    }
+
+    // 関数定義を検索
+    const helmFunction = findFunction(helmFunctionRef.functionName);
+
+    if (!helmFunction) {
+      return null;
+    }
+
+    const parts: string[] = [];
+
+    // 関数名
+    parts.push(`**Function**: \`${helmFunction.name}\``);
+
+    // シグネチャ
+    parts.push(`**Signature**: \`${helmFunction.signature}\``);
+
+    // カテゴリ
+    parts.push(`**Category**: ${helmFunction.category}`);
+
+    // 説明
+    parts.push('');
+    parts.push(helmFunction.description);
+
+    // 使用例
+    if (helmFunction.examples && helmFunction.examples.length > 0) {
+      parts.push('');
+      parts.push('**Examples**:');
+      parts.push('```yaml');
+      for (const example of helmFunction.examples) {
+        parts.push(example);
+      }
+      parts.push('```');
+    }
+
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: parts.join('\n'),
+      },
+      range: helmFunctionRef.range,
+    };
+  }
+
+  /**
+   * Chart変数参照のホバーを処理
+   */
+  private handleChartHover(
+    document: TextDocument,
+    chartRef: ReturnType<typeof findChartReference>,
+  ): Hover | null {
+    if (!chartRef || !this.helmChartIndex) {
+      return null;
+    }
+
+    // Chart変数定義を検索
+    const chartVariable = findChartVariable(chartRef.variableName);
+
+    if (!chartVariable) {
+      return null;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+
+    if (!chart || !chart.metadata) {
+      return null;
+    }
+
+    const parts: string[] = [];
+
+    // 変数名
+    parts.push(`**Chart Variable**: \`${chartVariable.fullPath}\``);
+
+    // 実際の値
+    const value = this.getChartVariableValue(chart.metadata, chartRef.variableName);
+    if (value !== undefined) {
+      parts.push(`**Value**: \`${JSON.stringify(value)}\``);
+    }
+
+    // Chart名
+    parts.push(`**Chart**: ${chart.name}`);
+
+    // 説明
+    parts.push('');
+    parts.push(chartVariable.description);
+
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: parts.join('\n'),
+      },
+      range: chartRef.range,
+    };
+  }
+
+  /**
+   * Chart.yamlのメタデータから変数値を取得
+   */
+  private getChartVariableValue(
+    metadata: { name?: string; version?: string; description?: string; apiVersion?: string; appVersion?: string; type?: string; [key: string]: unknown },
+    variableName: string,
+  ): unknown {
+    switch (variableName) {
+      case 'Name':
+        return metadata.name;
+      case 'Version':
+        return metadata.version;
+      case 'Description':
+        return metadata.description;
+      case 'ApiVersion':
+        return metadata.apiVersion;
+      case 'AppVersion':
+        return metadata.appVersion;
+      case 'Type':
+        return metadata.type;
+      default:
+        // Other metadata fields
+        return metadata[variableName.toLowerCase()];
+    }
+  }
+
+  /**
+   * Release/Capabilities変数参照のホバーを処理
+   */
+  private handleReleaseCapabilitiesHover(
+    ref: ReturnType<typeof findReleaseCapabilitiesReference>,
+  ): Hover | null {
+    if (!ref) {
+      return null;
+    }
+
+    // 変数定義を検索
+    const variable = ref.type === 'release'
+      ? findReleaseVariable(ref.variableName)
+      : findCapabilitiesVariable(ref.variableName);
+
+    if (!variable) {
+      return null;
+    }
+
+    const parts: string[] = [];
+
+    // 変数名
+    parts.push(`**${variable.category === 'release' ? 'Release' : 'Capabilities'} Variable**: \`${variable.fullPath}\``);
+
+    // カテゴリ
+    parts.push(`**Category**: ${variable.category}`);
+
+    // 説明
+    parts.push('');
+    parts.push(variable.description);
+
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: parts.join('\n'),
+      },
+      range: ref.range,
     };
   }
 

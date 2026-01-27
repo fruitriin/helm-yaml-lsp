@@ -21,6 +21,8 @@ import {
   isHelmTemplate,
 } from '@/features/valuesReferenceFeatures';
 import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
+import { findChartReference } from '@/features/chartReferenceFeatures';
+import { filePathToUri } from '@/utils/uriUtils';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
@@ -73,6 +75,12 @@ export class DefinitionProvider {
         if (helmTemplateRef) {
           return this.handleHelmTemplateReference(document, helmTemplateRef);
         }
+      }
+
+      // .Chart参照を検出
+      const chartRef = findChartReference(document, position);
+      if (chartRef) {
+        return this.handleChartReference(document, chartRef);
       }
     }
 
@@ -150,6 +158,32 @@ export class DefinitionProvider {
     }
 
     return null;
+  }
+
+  /**
+   * Chart変数参照を処理
+   *
+   * .Chart.Name等からChart.yamlへジャンプ
+   */
+  private handleChartReference(
+    document: TextDocument,
+    chartRef: ReturnType<typeof findChartReference>,
+  ): Location | null {
+    if (!chartRef || !this.helmChartIndex) {
+      return null;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+    if (!chart || !chart.chartYamlUri) {
+      return null;
+    }
+
+    // Chart.yamlへジャンプ（ファイル全体を指す）
+    return Location.create(chart.chartYamlUri, {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 },
+    });
   }
 
   /**

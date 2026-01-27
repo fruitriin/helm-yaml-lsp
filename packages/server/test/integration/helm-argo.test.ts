@@ -44,7 +44,8 @@ describe('Helm + Argo Workflows Integration Tests', () => {
 		argoTemplateIndex = new ArgoTemplateIndex();
 
 		// Helm Chartをインデックス化
-		await helmChartIndex.initialize([helmDirUri]);
+		helmChartIndex.setWorkspaceFolders([helmDir]);
+		await helmChartIndex.initialize();
 
 		const charts = helmChartIndex.getAllCharts();
 		expect(charts.length).toBeGreaterThan(0);

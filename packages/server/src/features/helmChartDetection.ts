@@ -1,248 +1,240 @@
 /**
- * Helm Chart Detection Module
+ * Argo Workflows LSP - Helm Chart Detection
  *
- * Detects Helm Chart structure by checking for:
- * - Chart.yaml file
- * - values.yaml file
- * - templates/ directory
+ * Helm Chart構造の検出（エディタ非依存）
  */
 
-import * as fs from 'node:fs';
+import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import * as yaml from 'js-yaml';
-import { filePathToUri } from '@/utils/uriUtils';
+import { findFiles } from '@/utils/fileSystem';
+import { filePathToUri, uriToFilePath } from '@/utils/uriUtils';
 
 /**
- * Represents a Helm Chart structure
+ * Helm Chart構造
  */
 export type HelmChart = {
-	/** Chart name from Chart.yaml */
-	name: string;
-	/** URI of Chart.yaml file */
-	chartYamlUri: string;
-	/** URI of values.yaml file */
-	valuesYamlUri: string;
-	/** Path to templates/ directory */
-	templatesDir: string;
-	/** Path to Chart root directory */
-	rootDir: string;
+  /** Chart名 */
+  name: string;
+  /** Chart.yamlのURI */
+  chartYamlUri: string;
+  /** values.yamlのURI（存在する場合） */
+  valuesYamlUri?: string;
+  /** templates/ディレクトリのパス */
+  templatesDir?: string;
+  /** Chartのルートディレクトリ */
+  rootDir: string;
+  /** Chart.yamlのメタデータ */
+  metadata?: ChartMetadata;
 };
 
 /**
- * Metadata extracted from Chart.yaml
+ * Chart.yamlのメタデータ
  */
 export type ChartMetadata = {
-	/** Chart name */
-	name: string;
-	/** Chart version */
-	version: string;
-	/** Chart description (optional) */
-	description?: string;
-	/** API version (e.g., v2) */
-	apiVersion: string;
-	/** Application version (optional) */
-	appVersion?: string;
-	/** Chart type: application or library (optional) */
-	type?: string;
+  /** Chart名 */
+  name: string;
+  /** バージョン */
+  version: string;
+  /** 説明 */
+  description?: string;
+  /** APIバージョン（v1 or v2） */
+  apiVersion: string;
+  /** Chartタイプ（application or library） */
+  type?: string;
+  /** アプリケーションバージョン */
+  appVersion?: string;
 };
 
 /**
- * Checks if a directory is a valid Helm Chart
+ * 指定ディレクトリがHelm Chartかどうかを判定
  *
- * A valid Helm Chart must have:
- * - Chart.yaml file
- * - At least one of: values.yaml or templates/ directory
+ * @param directory - チェックするディレクトリパス
+ * @returns Helm Chartの場合true
  *
- * @param directory - Absolute path to directory to check
- * @returns true if directory is a Helm Chart
+ * @example
+ * const isChart = await isHelmChart('/path/to/chart');
+ * if (isChart) {
+ *   console.log('This is a Helm Chart!');
+ * }
  */
-export function isHelmChart(directory: string): boolean {
-	try {
-		// Check if directory exists
-		if (!fs.existsSync(directory)) {
-			return false;
-		}
-
-		const stats = fs.statSync(directory);
-		if (!stats.isDirectory()) {
-			return false;
-		}
-
-		// Must have Chart.yaml
-		const chartYamlPath = path.join(directory, 'Chart.yaml');
-		if (!fs.existsSync(chartYamlPath)) {
-			return false;
-		}
-
-		// Must have at least one of: values.yaml or templates/ directory
-		const valuesYamlPath = path.join(directory, 'values.yaml');
-		const templatesDir = path.join(directory, 'templates');
-
-		const hasValuesYaml = fs.existsSync(valuesYamlPath);
-		const hasTemplatesDir =
-			fs.existsSync(templatesDir) && fs.statSync(templatesDir).isDirectory();
-
-		return hasValuesYaml || hasTemplatesDir;
-	} catch (error) {
-		// If any error occurs (permission denied, etc.), assume not a Chart
-		return false;
-	}
+export async function isHelmChart(directory: string): Promise<boolean> {
+  try {
+    const chartYamlPath = path.join(directory, 'Chart.yaml');
+    const stats = await fs.stat(chartYamlPath);
+    return stats.isFile();
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Parses Chart.yaml content and extracts metadata
+ * Chart.yamlの内容を解析
  *
- * @param content - Content of Chart.yaml file
- * @returns Chart metadata, or undefined if parsing fails
+ * @param content - Chart.yamlの内容
+ * @returns パースされたメタデータ、または undefined
+ *
+ * @example
+ * const content = await fs.readFile('Chart.yaml', 'utf-8');
+ * const metadata = parseChartYaml(content);
+ * console.log(`Chart name: ${metadata?.name}`);
  */
 export function parseChartYaml(content: string): ChartMetadata | undefined {
-	try {
-		const parsed = yaml.load(content) as Record<string, unknown>;
+  try {
+    // シンプルなYAMLパース（正規表現ベース）
+    // YAMLパーサーは使わず、Helmテンプレート構文にも対応
+    const lines = content.split('\n');
+    const metadata: Partial<ChartMetadata> = {};
 
-		// Required fields
-		if (
-			typeof parsed.name !== 'string' ||
-			typeof parsed.version !== 'string' ||
-			typeof parsed.apiVersion !== 'string'
-		) {
-			return undefined;
-		}
+    for (const line of lines) {
+      // コメント行や空行をスキップ
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
 
-		const metadata: ChartMetadata = {
-			name: parsed.name,
-			version: parsed.version,
-			apiVersion: parsed.apiVersion,
-		};
+      // Helmテンプレート構文（{{ }}）を含む行はスキップ
+      if (trimmed.includes('{{')) {
+        continue;
+      }
 
-		// Optional fields
-		if (typeof parsed.description === 'string') {
-			metadata.description = parsed.description;
-		}
-		if (typeof parsed.appVersion === 'string') {
-			metadata.appVersion = parsed.appVersion;
-		}
-		if (typeof parsed.type === 'string') {
-			metadata.type = parsed.type;
-		}
+      // key: value 形式のパース
+      const match = line.match(/^(\w+):\s*(.+)$/);
+      if (match) {
+        const key = match[1];
+        const value = match[2].trim().replace(/^["']|["']$/g, ''); // クォート除去
 
-		return metadata;
-	} catch (error) {
-		return undefined;
-	}
+        switch (key) {
+          case 'name':
+            metadata.name = value;
+            break;
+          case 'version':
+            metadata.version = value;
+            break;
+          case 'description':
+            metadata.description = value;
+            break;
+          case 'apiVersion':
+            metadata.apiVersion = value;
+            break;
+          case 'type':
+            metadata.type = value;
+            break;
+          case 'appVersion':
+            metadata.appVersion = value;
+            break;
+        }
+      }
+    }
+
+    // 必須フィールドのチェック
+    if (metadata.name && metadata.version && metadata.apiVersion) {
+      return metadata as ChartMetadata;
+    }
+
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
- * Finds all Helm Charts in workspace folders
+ * ワークスペース内のすべてのHelm Chartを検出
  *
- * Recursively searches for directories containing Chart.yaml
+ * @param workspaceFolders - ワークスペースフォルダのパス配列
+ * @returns 検出されたHelm Chart配列
  *
- * @param workspaceFolders - Array of workspace folder paths
- * @param maxDepth - Maximum search depth (default: 5)
- * @returns Array of HelmChart objects
+ * @example
+ * const charts = await findHelmCharts(['/workspace']);
+ * for (const chart of charts) {
+ *   console.log(`Found chart: ${chart.name} at ${chart.rootDir}`);
+ * }
  */
-export function findHelmCharts(
-	workspaceFolders: string[],
-	maxDepth = 5,
-): HelmChart[] {
-	const charts: HelmChart[] = [];
+export async function findHelmCharts(workspaceFolders: string[]): Promise<HelmChart[]> {
+  const charts: HelmChart[] = [];
 
-	for (const workspaceFolder of workspaceFolders) {
-		findHelmChartsRecursive(workspaceFolder, 0, maxDepth, charts);
-	}
+  for (const workspaceFolder of workspaceFolders) {
+    try {
+      // Chart.yamlファイルを検索
+      const chartYamlUris = await findFiles('**/Chart.yaml', workspaceFolder);
 
-	return charts;
+      for (const chartYamlUri of chartYamlUris) {
+        const chartYamlPath = uriToFilePath(chartYamlUri);
+        const rootDir = path.dirname(chartYamlPath);
+
+        // Chart.yamlを読み込んで解析
+        let metadata: ChartMetadata | undefined;
+        try {
+          const content = await fs.readFile(chartYamlPath, 'utf-8');
+          metadata = parseChartYaml(content);
+        } catch {
+          // パースエラーは無視
+        }
+
+        if (!metadata) {
+          continue; // メタデータが取得できない場合はスキップ
+        }
+
+        // values.yamlの存在確認
+        const valuesYamlPath = path.join(rootDir, 'values.yaml');
+        let valuesYamlUri: string | undefined;
+        try {
+          const stats = await fs.stat(valuesYamlPath);
+          if (stats.isFile()) {
+            valuesYamlUri = filePathToUri(valuesYamlPath);
+          }
+        } catch {
+          // values.yamlが存在しない場合は undefined のまま
+        }
+
+        // templates/ディレクトリの存在確認
+        const templatesDir = path.join(rootDir, 'templates');
+        let templatesDirPath: string | undefined;
+        try {
+          const stats = await fs.stat(templatesDir);
+          if (stats.isDirectory()) {
+            templatesDirPath = templatesDir;
+          }
+        } catch {
+          // templates/が存在しない場合は undefined のまま
+        }
+
+        const chart: HelmChart = {
+          name: metadata.name,
+          chartYamlUri,
+          valuesYamlUri,
+          templatesDir: templatesDirPath,
+          rootDir,
+          metadata,
+        };
+
+        charts.push(chart);
+      }
+    } catch (error) {
+      // ワークスペースフォルダの処理エラーはログに記録してスキップ
+      console.error(`[HelmChartDetection] Error processing workspace folder ${workspaceFolder}:`, error);
+    }
+  }
+
+  return charts;
 }
 
 /**
- * Recursively finds Helm Charts in a directory
+ * ファイルURIが指定されたHelm Chartに属するかチェック
  *
- * @param directory - Directory to search
- * @param currentDepth - Current recursion depth
- * @param maxDepth - Maximum recursion depth
- * @param charts - Accumulator for found charts
- */
-function findHelmChartsRecursive(
-	directory: string,
-	currentDepth: number,
-	maxDepth: number,
-	charts: HelmChart[],
-): void {
-	// Stop if max depth reached
-	if (currentDepth > maxDepth) {
-		return;
-	}
-
-	// Check if current directory is a Helm Chart
-	if (isHelmChart(directory)) {
-		const chartYamlPath = path.join(directory, 'Chart.yaml');
-
-		try {
-			const content = fs.readFileSync(chartYamlPath, 'utf-8');
-			const metadata = parseChartYaml(content);
-
-			if (metadata) {
-				const valuesYamlPath = path.join(directory, 'values.yaml');
-				const templatesDir = path.join(directory, 'templates');
-
-				charts.push({
-					name: metadata.name,
-					chartYamlUri: filePathToUri(chartYamlPath),
-					valuesYamlUri: filePathToUri(valuesYamlPath),
-					templatesDir,
-					rootDir: directory,
-				});
-
-				// Don't search subdirectories of a Chart
-				// (nested Charts are not supported yet)
-				return;
-			}
-		} catch (error) {
-			// If Chart.yaml can't be read or parsed, continue searching
-		}
-	}
-
-	// Search subdirectories
-	try {
-		const entries = fs.readdirSync(directory, { withFileTypes: true });
-
-		for (const entry of entries) {
-			if (entry.isDirectory()) {
-				// Skip common directories that won't contain Charts
-				const skipDirs = [
-					'node_modules',
-					'.git',
-					'dist',
-					'build',
-					'out',
-					'.bun-cache',
-				];
-				if (skipDirs.includes(entry.name)) {
-					continue;
-				}
-
-				const subDir = path.join(directory, entry.name);
-				findHelmChartsRecursive(subDir, currentDepth + 1, maxDepth, charts);
-			}
-		}
-	} catch (error) {
-		// If directory can't be read, skip it
-	}
-}
-
-/**
- * Reads Chart.yaml from a Helm Chart and returns metadata
+ * @param fileUri - チェックするファイルのURI
+ * @param chart - Helm Chart
+ * @returns Chartに属する場合true
  *
- * @param chartRootDir - Root directory of Helm Chart
- * @returns Chart metadata, or undefined if Chart.yaml can't be read
+ * @example
+ * if (isFileInChart(fileUri, chart)) {
+ *   console.log('File belongs to chart:', chart.name);
+ * }
  */
-export function readChartMetadata(
-	chartRootDir: string,
-): ChartMetadata | undefined {
-	try {
-		const chartYamlPath = path.join(chartRootDir, 'Chart.yaml');
-		const content = fs.readFileSync(chartYamlPath, 'utf-8');
-		return parseChartYaml(content);
-	} catch (error) {
-		return undefined;
-	}
+export function isFileInChart(fileUri: string, chart: HelmChart): boolean {
+  // URIをファイルパスに変換
+  const filePath = fileUri.replace(/^file:\/\//, '');
+  const chartRoot = chart.rootDir;
+
+  // ファイルがChartのルートディレクトリ配下にあるかチェック
+  return filePath.startsWith(chartRoot);
 }

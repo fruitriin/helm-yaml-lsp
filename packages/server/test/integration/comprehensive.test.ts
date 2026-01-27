@@ -39,9 +39,9 @@ describe('Comprehensive Integration Tests', () => {
   });
 
   describe('Definition Provider - ローカルテンプレート参照', () => {
-    it('should jump to prepare-data-template definition from line 35', async () => {
-      // Line 35: template: prepare-data-template
-      const position = Position.create(34, 24); // "prepare-data-template" の位置
+    it('should jump to prepare-data-template definition from line 39', async () => {
+      // Line 39: template: prepare-data-template
+      const position = Position.create(38, 22); // "prepare-data-template" の位置
 
       const location = await definitionProvider.provideDefinition(document, position);
       expect(location).not.toBeNull();
@@ -49,33 +49,33 @@ describe('Comprehensive Integration Tests', () => {
       if (location && 'uri' in location) {
         expect(location.uri).toBe(document.uri);
         // "- name: prepare-data-template" の行を指している
-        expect(location.range.start.line).toBe(60); // Line 61のインデックス
+        expect(location.range.start.line).toBe(64); // Line 65のインデックス
       }
     });
 
-    it('should jump to process-data-template definition from line 43', async () => {
-      // Line 43: template: process-data-template
-      const position = Position.create(42, 24);
+    it('should jump to process-data-template definition from line 47', async () => {
+      // Line 47: template: process-data-template
+      const position = Position.create(46, 22);
 
       const location = await definitionProvider.provideDefinition(document, position);
       expect(location).not.toBeNull();
 
       if (location && 'uri' in location) {
         expect(location.uri).toBe(document.uri);
-        expect(location.range.start.line).toBe(85); // Line 86
+        expect(location.range.start.line).toBe(89); // Line 90
       }
     });
 
-    it('should jump to output-results-template definition from line 51', async () => {
-      // Line 51: template: output-results-template
-      const position = Position.create(50, 24);
+    it('should jump to output-results-template definition from line 55', async () => {
+      // Line 55: template: output-results-template
+      const position = Position.create(54, 22);
 
       const location = await definitionProvider.provideDefinition(document, position);
       expect(location).not.toBeNull();
 
       if (location && 'uri' in location) {
         expect(location.uri).toBe(document.uri);
-        expect(location.range.start.line).toBe(113); // Line 114
+        expect(location.range.start.line).toBe(117); // Line 118
       }
     });
   });
@@ -91,10 +91,10 @@ describe('Comprehensive Integration Tests', () => {
       // このテストは将来の実装確認用
     });
 
-    it('should jump to env parameter definition from line 78', async () => {
-      // Line 78: echo "Preparing data for {{inputs.parameters.env}}"
+    it('should jump to env parameter definition from line 82', async () => {
+      // Line 82: echo "Preparing data for {{inputs.parameters.env}}"
       // "env" の位置
-      const position = Position.create(77, 60);
+      const position = Position.create(81, 60);
 
       const location = await definitionProvider.provideDefinition(document, position);
       expect(location).not.toBeNull();
@@ -102,28 +102,28 @@ describe('Comprehensive Integration Tests', () => {
       if (location && 'uri' in location) {
         expect(location.uri).toBe(document.uri);
         // "- name: env" の行
-        expect(location.range.start.line).toBe(64);
+        expect(location.range.start.line).toBe(68);
       }
     });
 
-    it('should jump to input-data parameter definition from line 105', async () => {
-      // Line 105: echo "Processing: {{inputs.parameters.input-data}}"
-      const position = Position.create(104, 53);
+    it('should jump to input-data parameter definition from line 109', async () => {
+      // Line 109: echo "Processing: {{inputs.parameters.input-data}}"
+      const position = Position.create(108, 53);
 
       const location = await definitionProvider.provideDefinition(document, position);
       expect(location).not.toBeNull();
 
       if (location && 'uri' in location) {
         expect(location.uri).toBe(document.uri);
-        expect(location.range.start.line).toBe(89);
+        expect(location.range.start.line).toBe(93);
       }
     });
   });
 
   describe('Hover Provider - テンプレート', () => {
     it('should show hover info for prepare-data-template', async () => {
-      // Line 35: template: prepare-data-template
-      const position = Position.create(34, 24);
+      // Line 39: template: prepare-data-template
+      const position = Position.create(38, 22);
 
       const hover = await hoverProvider.provideHover(document, position);
       expect(hover).not.toBeNull();
@@ -139,8 +139,8 @@ describe('Comprehensive Integration Tests', () => {
 
   describe('Hover Provider - パラメータ', () => {
     it('should show hover info for env parameter', async () => {
-      // Line 78: {{inputs.parameters.env}}
-      const position = Position.create(77, 60);
+      // Line 82: {{inputs.parameters.env}}
+      const position = Position.create(81, 60);
 
       const hover = await hoverProvider.provideHover(document, position);
       expect(hover).not.toBeNull();
@@ -155,8 +155,8 @@ describe('Comprehensive Integration Tests', () => {
     });
 
     it('should show hover info for batch-size parameter with default value', async () => {
-      // Line 106: {{inputs.parameters.batch-size}}
-      const position = Position.create(105, 47);
+      // Line 110: {{inputs.parameters.batch-size}}
+      const position = Position.create(109, 47);
 
       const hover = await hoverProvider.provideHover(document, position);
       expect(hover).not.toBeNull();
@@ -172,8 +172,8 @@ describe('Comprehensive Integration Tests', () => {
 
   describe('Hover Provider - Workflow変数', () => {
     it('should show hover info for workflow.name', async () => {
-      // Line 79: {{workflow.name}}
-      const position = Position.create(78, 36);
+      // Line 83: {{workflow.name}}
+      const position = Position.create(82, 36);
 
       const hover = await hoverProvider.provideHover(document, position);
       expect(hover).not.toBeNull();
@@ -186,8 +186,8 @@ describe('Comprehensive Integration Tests', () => {
     });
 
     it('should show hover info for workflow.namespace', async () => {
-      // Line 79: {{workflow.namespace}}
-      const position = Position.create(78, 56);
+      // Line 83: {{workflow.namespace}}
+      const position = Position.create(82, 56);
 
       const hover = await hoverProvider.provideHover(document, position);
       expect(hover).not.toBeNull();
@@ -199,8 +199,8 @@ describe('Comprehensive Integration Tests', () => {
     });
 
     it('should show hover info for workflow.uid', async () => {
-      // Line 107: {{workflow.uid}}
-      const position = Position.create(106, 40);
+      // Line 111: {{workflow.uid}}
+      const position = Position.create(110, 40);
 
       const hover = await hoverProvider.provideHover(document, position);
       expect(hover).not.toBeNull();
@@ -264,14 +264,14 @@ describe('Comprehensive Integration Tests', () => {
     it('should detect non-existent parameter reference', async () => {
       const diagnostics = await diagnosticProvider.provideDiagnostics(document);
 
-      // Line 151: {{inputs.parameters.non-existent-param}}
+      // Line 155: {{inputs.parameters.non-existent-param}}
       const error = diagnostics.find(
         d => d.message.includes('non-existent-param') && d.severity === DiagnosticSeverity.Error
       );
 
       expect(error).toBeDefined();
       expect(error?.message).toContain("Parameter 'non-existent-param' not found");
-      expect(error?.range.start.line).toBe(150); // Line 151のインデックス
+      expect(error?.range.start.line).toBe(154); // Line 155のインデックス
     });
 
     it('should not report errors for valid references', async () => {
@@ -305,12 +305,12 @@ describe('Comprehensive Integration Tests', () => {
       // 2. Definition: テンプレート参照から定義へジャンプできる
       const definitionResult = await definitionProvider.provideDefinition(
         document,
-        Position.create(34, 24)
+        Position.create(38, 22)
       );
       expect(definitionResult).not.toBeNull();
 
       // 3. Hover: 情報が表示される
-      const hoverResult = await hoverProvider.provideHover(document, Position.create(34, 24));
+      const hoverResult = await hoverProvider.provideHover(document, Position.create(38, 22));
       expect(hoverResult).not.toBeNull();
 
       // 4. Completion: 補完候補が提供される

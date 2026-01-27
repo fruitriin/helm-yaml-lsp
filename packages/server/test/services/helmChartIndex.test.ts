@@ -1,301 +1,307 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
+/**
+ * Argo Workflows LSP - Helm Chart Index Test
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import * as fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { filePathToUri } from '@/utils/uriUtils';
-import { HelmChartIndex } from '@/services/helmChartIndex';
-import type { HelmChart } from '@/features/helmChartDetection';
+import { HelmChartIndex } from '../../src/services/helmChartIndex';
+import { filePathToUri } from '../../src/utils/uriUtils';
 
 describe('HelmChartIndex', () => {
-	let tempDir: string;
-	let index: HelmChartIndex;
-
-	beforeEach(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'helm-index-test-'));
-		index = new HelmChartIndex();
-	});
-
-	describe('initialize', () => {
-		it('should discover and index Helm Charts', async () => {
-			// Create Chart structure
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(tempDir)]);
-
-			expect(index.size).toBe(1);
-			const charts = index.getAllCharts();
-			expect(charts[0].name).toBe('test-chart');
-		});
-
-		it('should handle multiple workspace folders', async () => {
-			// Create first workspace with Chart
-			const workspace1 = path.join(tempDir, 'workspace1');
-			fs.mkdirSync(workspace1);
-			fs.writeFileSync(
-				path.join(workspace1, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart1\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(workspace1, 'values.yaml'), 'foo: bar');
-
-			// Create second workspace with Chart
-			const workspace2 = path.join(tempDir, 'workspace2');
-			fs.mkdirSync(workspace2);
-			fs.writeFileSync(
-				path.join(workspace2, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart2\nversion: 1.0.0',
-			);
-			fs.mkdirSync(path.join(workspace2, 'templates'));
-
-			await index.initialize([
-				filePathToUri(workspace1),
-				filePathToUri(workspace2),
-			]);
-
-			expect(index.size).toBe(2);
-		});
-
-		it('should clear previous Charts on re-initialization', async () => {
-			// First initialization
-			const chart1Dir = path.join(tempDir, 'chart1');
-			fs.mkdirSync(chart1Dir);
-			fs.writeFileSync(
-				path.join(chart1Dir, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart1\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(chart1Dir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(tempDir)]);
-			expect(index.size).toBe(1);
-
-			// Second initialization with different Chart
-			const newTempDir = fs.mkdtempSync(
-				path.join(os.tmpdir(), 'helm-index-test-'),
-			);
-			const chart2Dir = path.join(newTempDir, 'chart2');
-			fs.mkdirSync(chart2Dir);
-			fs.writeFileSync(
-				path.join(chart2Dir, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart2\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(chart2Dir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(newTempDir)]);
-			expect(index.size).toBe(1);
-			expect(index.getAllCharts()[0].name).toBe('chart2');
-		});
-
-		it('should handle workspace with no Charts', async () => {
-			await index.initialize([filePathToUri(tempDir)]);
-
-			expect(index.size).toBe(0);
-		});
-	});
-
-	describe('findChartForFile', () => {
-		beforeEach(async () => {
-			// Create Chart structure
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-			fs.mkdirSync(path.join(tempDir, 'templates'));
-
-			await index.initialize([filePathToUri(tempDir)]);
-		});
-
-		it('should find Chart for file in templates/', () => {
-			const templateFile = path.join(tempDir, 'templates', 'deployment.yaml');
-			fs.writeFileSync(templateFile, 'apiVersion: apps/v1');
-
-			const chart = index.findChartForFile(filePathToUri(templateFile));
-
-			expect(chart).toBeDefined();
-			expect(chart?.name).toBe('test-chart');
-		});
-
-		it('should find Chart for values.yaml', () => {
-			const valuesFile = path.join(tempDir, 'values.yaml');
-
-			const chart = index.findChartForFile(filePathToUri(valuesFile));
-
-			expect(chart).toBeDefined();
-			expect(chart?.name).toBe('test-chart');
-		});
-
-		it('should find Chart for Chart.yaml', () => {
-			const chartFile = path.join(tempDir, 'Chart.yaml');
-
-			const chart = index.findChartForFile(filePathToUri(chartFile));
-
-			expect(chart).toBeDefined();
-			expect(chart?.name).toBe('test-chart');
-		});
-
-		it('should return undefined for file outside Chart', () => {
-			const outsideFile = path.join(os.tmpdir(), 'outside.yaml');
-			fs.writeFileSync(outsideFile, 'foo: bar');
-
-			const chart = index.findChartForFile(filePathToUri(outsideFile));
-
-			expect(chart).toBeUndefined();
-		});
-
-		it('should handle nested template files', () => {
-			const nestedDir = path.join(tempDir, 'templates', 'subdir');
-			fs.mkdirSync(nestedDir);
-			const nestedFile = path.join(nestedDir, 'service.yaml');
-			fs.writeFileSync(nestedFile, 'apiVersion: v1');
-
-			const chart = index.findChartForFile(filePathToUri(nestedFile));
-
-			expect(chart).toBeDefined();
-			expect(chart?.name).toBe('test-chart');
-		});
-	});
-
-	describe('getChart', () => {
-		it('should return Chart by root directory', async () => {
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(tempDir)]);
-
-			const chart = index.getChart(tempDir);
-
-			expect(chart).toBeDefined();
-			expect(chart?.name).toBe('test-chart');
-		});
-
-		it('should return undefined for non-existent Chart', async () => {
-			await index.initialize([filePathToUri(tempDir)]);
-
-			const chart = index.getChart('/nonexistent/path');
-
-			expect(chart).toBeUndefined();
-		});
-	});
-
-	describe('updateChart', () => {
-		it('should update Chart metadata', async () => {
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: old-name\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(tempDir)]);
-
-			// Update Chart.yaml
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: new-name\nversion: 2.0.0',
-			);
-
-			const result = await index.updateChart(tempDir);
-
-			expect(result).toBe(true);
-			const chart = index.getChart(tempDir);
-			expect(chart?.name).toBe('new-name');
-		});
-
-		it('should return false when Chart not found', async () => {
-			const result = await index.updateChart('/nonexistent/path');
-
-			expect(result).toBe(false);
-		});
-
-		it('should return false when Chart.yaml is invalid', async () => {
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(tempDir)]);
-
-			// Make Chart.yaml invalid
-			fs.writeFileSync(path.join(tempDir, 'Chart.yaml'), 'invalid: yaml:');
-
-			const result = await index.updateChart(tempDir);
-
-			expect(result).toBe(false);
-		});
-	});
-
-	describe('addChart', () => {
-		it('should add a new Chart to the index', () => {
-			const chart: HelmChart = {
-				name: 'new-chart',
-				chartYamlUri: filePathToUri(path.join(tempDir, 'Chart.yaml')),
-				valuesYamlUri: filePathToUri(path.join(tempDir, 'values.yaml')),
-				templatesDir: path.join(tempDir, 'templates'),
-				rootDir: tempDir,
-			};
-
-			index.addChart(chart);
-
-			expect(index.size).toBe(1);
-			expect(index.getChart(tempDir)).toEqual(chart);
-		});
-	});
-
-	describe('removeChart', () => {
-		it('should remove a Chart from the index', async () => {
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(tempDir)]);
-			expect(index.size).toBe(1);
-
-			const result = index.removeChart(tempDir);
-
-			expect(result).toBe(true);
-			expect(index.size).toBe(0);
-		});
-
-		it('should return false when Chart not found', () => {
-			const result = index.removeChart('/nonexistent/path');
-
-			expect(result).toBe(false);
-		});
-	});
-
-	describe('clear', () => {
-		it('should remove all Charts from the index', async () => {
-			// Create two Charts
-			const chart1Dir = path.join(tempDir, 'chart1');
-			fs.mkdirSync(chart1Dir);
-			fs.writeFileSync(
-				path.join(chart1Dir, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart1\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(chart1Dir, 'values.yaml'), 'foo: bar');
-
-			const chart2Dir = path.join(tempDir, 'chart2');
-			fs.mkdirSync(chart2Dir);
-			fs.writeFileSync(
-				path.join(chart2Dir, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart2\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(chart2Dir, 'values.yaml'), 'foo: bar');
-
-			await index.initialize([filePathToUri(tempDir)]);
-			expect(index.size).toBe(2);
-
-			index.clear();
-
-			expect(index.size).toBe(0);
-		});
-	});
+  let testDir: string;
+  let helmChartIndex: HelmChartIndex;
+
+  beforeEach(async () => {
+    testDir = path.join(tmpdir(), `lsp-test-helm-index-${Date.now()}`);
+    await fs.mkdir(testDir, { recursive: true });
+    helmChartIndex = new HelmChartIndex();
+  });
+
+  afterEach(async () => {
+    await fs.rm(testDir, { recursive: true, force: true });
+    helmChartIndex.clear();
+  });
+
+  describe('initialize', () => {
+    it('should initialize with empty workspace', async () => {
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      expect(helmChartIndex.isInitialized()).toBe(true);
+      expect(helmChartIndex.getAllCharts().length).toBe(0);
+    });
+
+    it('should find and index a single Helm Chart', async () => {
+      const chartDir = path.join(testDir, 'my-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: my-chart\nversion: 1.0.0\n'
+      );
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      const charts = helmChartIndex.getAllCharts();
+      expect(charts.length).toBe(1);
+      expect(charts[0].name).toBe('my-chart');
+    });
+
+    it('should find and index multiple Helm Charts', async () => {
+      const chart1Dir = path.join(testDir, 'chart1');
+      const chart2Dir = path.join(testDir, 'chart2');
+
+      await fs.mkdir(chart1Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(chart1Dir, 'Chart.yaml'),
+        'apiVersion: v2\nname: chart1\nversion: 1.0.0\n'
+      );
+
+      await fs.mkdir(chart2Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(chart2Dir, 'Chart.yaml'),
+        'apiVersion: v2\nname: chart2\nversion: 2.0.0\n'
+      );
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      const charts = helmChartIndex.getAllCharts();
+      expect(charts.length).toBe(2);
+      expect(charts.map(c => c.name).sort()).toEqual(['chart1', 'chart2']);
+    });
+
+    it('should only initialize once', async () => {
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+      await helmChartIndex.initialize(); // 2回目
+
+      expect(helmChartIndex.isInitialized()).toBe(true);
+    });
+
+    it('should index Charts with values.yaml and templates/', async () => {
+      const chartDir = path.join(testDir, 'full-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: full-chart\nversion: 1.0.0\n'
+      );
+      await fs.writeFile(path.join(chartDir, 'values.yaml'), 'key: value\n');
+      await fs.mkdir(path.join(chartDir, 'templates'), { recursive: true });
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      const charts = helmChartIndex.getAllCharts();
+      expect(charts.length).toBe(1);
+      expect(charts[0].valuesYamlUri).toBeDefined();
+      expect(charts[0].templatesDir).toBeDefined();
+    });
+  });
+
+  describe('findChartForFile', () => {
+    beforeEach(async () => {
+      const chartDir = path.join(testDir, 'my-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: my-chart\nversion: 1.0.0\n'
+      );
+      await fs.mkdir(path.join(chartDir, 'templates'), { recursive: true });
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+    });
+
+    it('should find Chart for file in templates/', () => {
+      const fileUri = filePathToUri(path.join(testDir, 'my-chart', 'templates', 'workflow.yaml'));
+      const chart = helmChartIndex.findChartForFile(fileUri);
+
+      expect(chart).toBeDefined();
+      expect(chart?.name).toBe('my-chart');
+    });
+
+    it('should find Chart for Chart.yaml itself', () => {
+      const fileUri = filePathToUri(path.join(testDir, 'my-chart', 'Chart.yaml'));
+      const chart = helmChartIndex.findChartForFile(fileUri);
+
+      expect(chart).toBeDefined();
+      expect(chart?.name).toBe('my-chart');
+    });
+
+    it('should find Chart for values.yaml', () => {
+      const fileUri = filePathToUri(path.join(testDir, 'my-chart', 'values.yaml'));
+      const chart = helmChartIndex.findChartForFile(fileUri);
+
+      expect(chart).toBeDefined();
+      expect(chart?.name).toBe('my-chart');
+    });
+
+    it('should return undefined for file outside any Chart', () => {
+      const fileUri = filePathToUri(path.join(testDir, 'other-dir', 'file.yaml'));
+      const chart = helmChartIndex.findChartForFile(fileUri);
+
+      expect(chart).toBeUndefined();
+    });
+
+    it('should find correct Chart when multiple Charts exist', async () => {
+      const chart2Dir = path.join(testDir, 'chart2');
+      await fs.mkdir(chart2Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(chart2Dir, 'Chart.yaml'),
+        'apiVersion: v2\nname: chart2\nversion: 1.0.0\n'
+      );
+
+      // 再初期化
+      helmChartIndex.clear();
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      const file1Uri = filePathToUri(path.join(testDir, 'my-chart', 'templates', 'workflow.yaml'));
+      const file2Uri = filePathToUri(path.join(testDir, 'chart2', 'templates', 'workflow.yaml'));
+
+      const chart1 = helmChartIndex.findChartForFile(file1Uri);
+      const chart2 = helmChartIndex.findChartForFile(file2Uri);
+
+      expect(chart1?.name).toBe('my-chart');
+      expect(chart2?.name).toBe('chart2');
+    });
+  });
+
+  describe('getAllCharts', () => {
+    it('should return empty array if no Charts found', async () => {
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      const charts = helmChartIndex.getAllCharts();
+      expect(charts).toEqual([]);
+    });
+
+    it('should return all indexed Charts', async () => {
+      const chart1Dir = path.join(testDir, 'chart1');
+      const chart2Dir = path.join(testDir, 'chart2');
+
+      await fs.mkdir(chart1Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(chart1Dir, 'Chart.yaml'),
+        'apiVersion: v2\nname: chart1\nversion: 1.0.0\n'
+      );
+
+      await fs.mkdir(chart2Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(chart2Dir, 'Chart.yaml'),
+        'apiVersion: v2\nname: chart2\nversion: 2.0.0\n'
+      );
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      const charts = helmChartIndex.getAllCharts();
+      expect(charts.length).toBe(2);
+    });
+
+    it('should return a copy of the charts array', async () => {
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      const charts1 = helmChartIndex.getAllCharts();
+      const charts2 = helmChartIndex.getAllCharts();
+
+      expect(charts1).not.toBe(charts2); // 別の配列インスタンス
+      expect(charts1).toEqual(charts2); // 内容は同じ
+    });
+  });
+
+  describe('updateChart', () => {
+    it('should add a new Chart', async () => {
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      expect(helmChartIndex.getAllCharts().length).toBe(0);
+
+      // 新しいChartを作成
+      const chartDir = path.join(testDir, 'new-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: new-chart\nversion: 1.0.0\n'
+      );
+
+      await helmChartIndex.updateChart(chartDir);
+
+      const charts = helmChartIndex.getAllCharts();
+      expect(charts.length).toBe(1);
+      expect(charts[0].name).toBe('new-chart');
+    });
+
+    it('should update an existing Chart', async () => {
+      const chartDir = path.join(testDir, 'my-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: my-chart\nversion: 1.0.0\n'
+      );
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      expect(helmChartIndex.getAllCharts()[0].metadata?.version).toBe('1.0.0');
+
+      // Chart.yamlを更新
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: my-chart\nversion: 2.0.0\n'
+      );
+
+      await helmChartIndex.updateChart(chartDir);
+
+      const charts = helmChartIndex.getAllCharts();
+      expect(charts.length).toBe(1);
+      expect(charts[0].metadata?.version).toBe('2.0.0');
+    });
+
+    it('should remove Chart if Chart.yaml is deleted', async () => {
+      const chartDir = path.join(testDir, 'my-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: my-chart\nversion: 1.0.0\n'
+      );
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      expect(helmChartIndex.getAllCharts().length).toBe(1);
+
+      // Chart.yamlを削除
+      await fs.rm(path.join(chartDir, 'Chart.yaml'));
+
+      await helmChartIndex.updateChart(chartDir);
+
+      expect(helmChartIndex.getAllCharts().length).toBe(0);
+    });
+  });
+
+  describe('clear', () => {
+    it('should clear all Charts', async () => {
+      const chartDir = path.join(testDir, 'my-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: my-chart\nversion: 1.0.0\n'
+      );
+
+      helmChartIndex.setWorkspaceFolders([testDir]);
+      await helmChartIndex.initialize();
+
+      expect(helmChartIndex.getAllCharts().length).toBe(1);
+
+      helmChartIndex.clear();
+
+      expect(helmChartIndex.getAllCharts().length).toBe(0);
+      expect(helmChartIndex.isInitialized()).toBe(false);
+    });
+  });
 });

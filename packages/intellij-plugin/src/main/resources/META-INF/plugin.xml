@@ -1,0 +1,72 @@
+<idea-plugin>
+    <id>com.anthropic.helm-yaml-lsp</id>
+    <name>Helm YAML LSP</name>
+    <vendor email="support@anthropic.com" url="https://anthropic.com">Anthropic</vendor>
+
+    <description><![CDATA[
+    Language Server Protocol support for Helm, Argo Workflows, and Kubernetes YAML files.
+
+    <h3>Features</h3>
+    <ul>
+        <li>Go to definition for templates, values, ConfigMaps, and Secrets</li>
+        <li>Hover information with documentation</li>
+        <li>Auto-completion for template names, values, and parameters</li>
+        <li>Error diagnostics for invalid references</li>
+    </ul>
+
+    <h3>Supported File Types</h3>
+    <ul>
+        <li>Argo Workflows (Workflow, WorkflowTemplate, ClusterWorkflowTemplate)</li>
+        <li>Helm chart templates</li>
+        <li>Kubernetes ConfigMap and Secret references</li>
+    </ul>
+
+    <p>This plugin uses the same LSP server as the VSCode and Neovim extensions,
+    ensuring consistent behavior across all editors.</p>
+    ]]></description>
+
+    <change-notes><![CDATA[
+    <h3>0.1.0</h3>
+    <ul>
+        <li>Initial release</li>
+        <li>Support for Argo Workflows templates</li>
+        <li>Support for Helm chart templates and values</li>
+        <li>Support for ConfigMap and Secret references</li>
+    </ul>
+    ]]></change-notes>
+
+    <!-- 依存: IntelliJ Platform + LSP4IJ -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.redhat.devtools.lsp4ij</depends>
+
+    <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+        <!-- LSP4IJのサーバー定義 -->
+        <server
+            id="helmYamlLsp"
+            name="Helm YAML LSP"
+            factoryClass="com.anthropic.helm_yaml_lsp.lsp.HelmYamlLspServerFactory">
+            <description>Language Server for Helm, Argo Workflows, and Kubernetes YAML</description>
+        </server>
+
+        <!-- ファイルタイプとの関連付け -->
+        <fileTypeMapping
+            fileType="YAML"
+            serverId="helmYamlLsp"
+            languageId="yaml"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- 設定画面 -->
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.anthropic.helm_yaml_lsp.settings.HelmYamlLspConfigurable"
+            id="com.anthropic.helm_yaml_lsp.settings.HelmYamlLspConfigurable"
+            displayName="Helm YAML LSP"/>
+    </extensions>
+
+    <projectListeners>
+        <listener
+            class="com.anthropic.helm_yaml_lsp.HelmYamlLspProjectListener"
+            topic="com.intellij.openapi.project.ProjectManagerListener"/>
+    </projectListeners>
+</idea-plugin>

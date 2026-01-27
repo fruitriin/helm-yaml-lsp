@@ -1,266 +1,248 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
+/**
+ * Argo Workflows LSP - Helm Chart Detection Test
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import * as fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import {
-	findHelmCharts,
-	isHelmChart,
-	parseChartYaml,
-	readChartMetadata,
-} from '@/features/helmChartDetection';
+import { findHelmCharts, isFileInChart, isHelmChart, parseChartYaml } from '../../src/features/helmChartDetection';
+import { filePathToUri } from '../../src/utils/uriUtils';
 
-describe('Helm Chart Detection', () => {
-	let tempDir: string;
+describe('helmChartDetection', () => {
+  let testDir: string;
 
-	beforeEach(() => {
-		// Create a temporary directory for testing
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'helm-test-'));
-	});
+  beforeEach(async () => {
+    testDir = path.join(tmpdir(), `lsp-test-helm-${Date.now()}`);
+    await fs.mkdir(testDir, { recursive: true });
+  });
 
-	describe('parseChartYaml', () => {
-		it('should parse valid Chart.yaml with required fields', () => {
-			const content = `
-apiVersion: v2
-name: my-chart
-version: 1.0.0
-`;
-			const result = parseChartYaml(content);
+  afterEach(async () => {
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
 
-			expect(result).toBeDefined();
-			expect(result?.name).toBe('my-chart');
-			expect(result?.version).toBe('1.0.0');
-			expect(result?.apiVersion).toBe('v2');
-		});
+  describe('isHelmChart', () => {
+    it('should return true if Chart.yaml exists', async () => {
+      const chartDir = path.join(testDir, 'my-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(path.join(chartDir, 'Chart.yaml'), 'apiVersion: v2\nname: test\nversion: 1.0.0\n');
 
-		it('should parse Chart.yaml with optional fields', () => {
-			const content = `
-apiVersion: v2
-name: my-chart
-version: 1.0.0
-description: A sample Helm chart
-appVersion: "3.5.0"
-type: application
-`;
-			const result = parseChartYaml(content);
+      const result = await isHelmChart(chartDir);
+      expect(result).toBe(true);
+    });
 
-			expect(result).toBeDefined();
-			expect(result?.description).toBe('A sample Helm chart');
-			expect(result?.appVersion).toBe('3.5.0');
-			expect(result?.type).toBe('application');
-		});
+    it('should return false if Chart.yaml does not exist', async () => {
+      const result = await isHelmChart(testDir);
+      expect(result).toBe(false);
+    });
 
-		it('should return undefined for invalid YAML', () => {
-			const content = 'invalid: yaml: content:';
-			const result = parseChartYaml(content);
+    it('should return false if directory does not exist', async () => {
+      const result = await isHelmChart(path.join(testDir, 'non-existent'));
+      expect(result).toBe(false);
+    });
+  });
 
-			expect(result).toBeUndefined();
-		});
-
-		it('should return undefined when required fields are missing', () => {
-			const content = `
-apiVersion: v2
-version: 1.0.0
-`;
-			const result = parseChartYaml(content);
-
-			expect(result).toBeUndefined();
-		});
-
-		it('should return undefined when fields have wrong types', () => {
-			const content = `
-apiVersion: v2
-name: 123
-version: 1.0.0
-`;
-			const result = parseChartYaml(content);
-
-			expect(result).toBeUndefined();
-		});
-	});
-
-	describe('isHelmChart', () => {
-		it('should return true for valid Helm Chart with values.yaml', () => {
-			// Create Chart structure
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-
-			expect(isHelmChart(tempDir)).toBe(true);
-		});
-
-		it('should return true for valid Helm Chart with templates/', () => {
-			// Create Chart structure
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test\nversion: 1.0.0',
-			);
-			fs.mkdirSync(path.join(tempDir, 'templates'));
-
-			expect(isHelmChart(tempDir)).toBe(true);
-		});
-
-		it('should return true for valid Helm Chart with both', () => {
-			// Create Chart structure
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-			fs.mkdirSync(path.join(tempDir, 'templates'));
-
-			expect(isHelmChart(tempDir)).toBe(true);
-		});
-
-		it('should return false when Chart.yaml is missing', () => {
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-			fs.mkdirSync(path.join(tempDir, 'templates'));
-
-			expect(isHelmChart(tempDir)).toBe(false);
-		});
-
-		it('should return false when both values.yaml and templates/ are missing', () => {
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test\nversion: 1.0.0',
-			);
-
-			expect(isHelmChart(tempDir)).toBe(false);
-		});
-
-		it('should return false for non-existent directory', () => {
-			expect(isHelmChart('/nonexistent/path')).toBe(false);
-		});
-
-		it('should return false for a file path', () => {
-			const filePath = path.join(tempDir, 'somefile.txt');
-			fs.writeFileSync(filePath, 'content');
-
-			expect(isHelmChart(filePath)).toBe(false);
-		});
-	});
-
-	describe('findHelmCharts', () => {
-		it('should find a single Helm Chart', () => {
-			// Create Chart structure
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: test-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(tempDir, 'values.yaml'), 'foo: bar');
-
-			const charts = findHelmCharts([tempDir]);
-
-			expect(charts).toHaveLength(1);
-			expect(charts[0].name).toBe('test-chart');
-			expect(charts[0].rootDir).toBe(tempDir);
-		});
-
-		it('should find multiple Helm Charts', () => {
-			// Create first Chart
-			const chart1Dir = path.join(tempDir, 'chart1');
-			fs.mkdirSync(chart1Dir);
-			fs.writeFileSync(
-				path.join(chart1Dir, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart1\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(chart1Dir, 'values.yaml'), 'foo: bar');
-
-			// Create second Chart
-			const chart2Dir = path.join(tempDir, 'chart2');
-			fs.mkdirSync(chart2Dir);
-			fs.writeFileSync(
-				path.join(chart2Dir, 'Chart.yaml'),
-				'apiVersion: v2\nname: chart2\nversion: 1.0.0',
-			);
-			fs.mkdirSync(path.join(chart2Dir, 'templates'));
-
-			const charts = findHelmCharts([tempDir]);
-
-			expect(charts).toHaveLength(2);
-			expect(charts.map((c) => c.name).sort()).toEqual(['chart1', 'chart2']);
-		});
-
-		it('should not find Charts beyond max depth', () => {
-			// Create deeply nested Chart
-			const deepDir = path.join(tempDir, 'a', 'b', 'c', 'd', 'e', 'f');
-			fs.mkdirSync(deepDir, { recursive: true });
-			fs.writeFileSync(
-				path.join(deepDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: deep-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(deepDir, 'values.yaml'), 'foo: bar');
-
-			// Default maxDepth is 5
-			const charts = findHelmCharts([tempDir]);
-
-			expect(charts).toHaveLength(0);
-		});
-
-		it('should skip node_modules and .git directories', () => {
-			// Create Chart in node_modules (should be skipped)
-			const nodeModulesDir = path.join(tempDir, 'node_modules', 'some-chart');
-			fs.mkdirSync(nodeModulesDir, { recursive: true });
-			fs.writeFileSync(
-				path.join(nodeModulesDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: node-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(nodeModulesDir, 'values.yaml'), 'foo: bar');
-
-			// Create Chart in .git (should be skipped)
-			const gitDir = path.join(tempDir, '.git', 'some-chart');
-			fs.mkdirSync(gitDir, { recursive: true });
-			fs.writeFileSync(
-				path.join(gitDir, 'Chart.yaml'),
-				'apiVersion: v2\nname: git-chart\nversion: 1.0.0',
-			);
-			fs.writeFileSync(path.join(gitDir, 'values.yaml'), 'foo: bar');
-
-			const charts = findHelmCharts([tempDir]);
-
-			expect(charts).toHaveLength(0);
-		});
-
-		it('should return empty array when no Charts found', () => {
-			const charts = findHelmCharts([tempDir]);
-
-			expect(charts).toHaveLength(0);
-		});
-	});
-
-	describe('readChartMetadata', () => {
-		it('should read metadata from Chart.yaml', () => {
-			fs.writeFileSync(
-				path.join(tempDir, 'Chart.yaml'),
-				`
-apiVersion: v2
+  describe('parseChartYaml', () => {
+    it('should parse valid Chart.yaml', () => {
+      const content = `apiVersion: v2
 name: my-chart
 version: 1.0.0
 description: Test chart
-`,
-			);
+type: application
+appVersion: "1.0"
+`;
+      const metadata = parseChartYaml(content);
+      expect(metadata).toBeDefined();
+      expect(metadata?.name).toBe('my-chart');
+      expect(metadata?.version).toBe('1.0.0');
+      expect(metadata?.description).toBe('Test chart');
+      expect(metadata?.apiVersion).toBe('v2');
+      expect(metadata?.type).toBe('application');
+      expect(metadata?.appVersion).toBe('1.0');
+    });
 
-			const metadata = readChartMetadata(tempDir);
+    it('should handle quoted values', () => {
+      const content = `apiVersion: "v2"
+name: "my-chart"
+version: '1.0.0'
+`;
+      const metadata = parseChartYaml(content);
+      expect(metadata).toBeDefined();
+      expect(metadata?.name).toBe('my-chart');
+      expect(metadata?.version).toBe('1.0.0');
+      expect(metadata?.apiVersion).toBe('v2');
+    });
 
-			expect(metadata).toBeDefined();
-			expect(metadata?.name).toBe('my-chart');
-			expect(metadata?.version).toBe('1.0.0');
-			expect(metadata?.description).toBe('Test chart');
-		});
+    it('should skip comment lines', () => {
+      const content = `# This is a comment
+apiVersion: v2
+# Another comment
+name: my-chart
+version: 1.0.0
+`;
+      const metadata = parseChartYaml(content);
+      expect(metadata).toBeDefined();
+      expect(metadata?.name).toBe('my-chart');
+    });
 
-		it('should return undefined when Chart.yaml does not exist', () => {
-			const metadata = readChartMetadata(tempDir);
+    it('should skip Helm template syntax lines', () => {
+      const content = `apiVersion: v2
+name: {{ .Values.chartName }}
+version: 1.0.0
+`;
+      const metadata = parseChartYaml(content);
+      // name に Helm 構文が含まれているため、name がパースされない
+      // 必須フィールドが揃わないので undefined が返る
+      expect(metadata).toBeUndefined();
+    });
 
-			expect(metadata).toBeUndefined();
-		});
+    it('should return undefined if required fields are missing', () => {
+      const content = `apiVersion: v2
+description: Missing name and version
+`;
+      const metadata = parseChartYaml(content);
+      expect(metadata).toBeUndefined();
+    });
 
-		it('should return undefined when Chart.yaml is invalid', () => {
-			fs.writeFileSync(path.join(tempDir, 'Chart.yaml'), 'invalid: yaml:');
+    it('should return undefined for invalid YAML', () => {
+      const content = 'invalid: : yaml: content';
+      const metadata = parseChartYaml(content);
+      expect(metadata).toBeUndefined();
+    });
+  });
 
-			const metadata = readChartMetadata(tempDir);
+  describe('findHelmCharts', () => {
+    it('should find a single Helm Chart', async () => {
+      const chartDir = path.join(testDir, 'my-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: my-chart\nversion: 1.0.0\n'
+      );
+      await fs.writeFile(path.join(chartDir, 'values.yaml'), 'key: value\n');
+      await fs.mkdir(path.join(chartDir, 'templates'), { recursive: true });
 
-			expect(metadata).toBeUndefined();
-		});
-	});
+      const charts = await findHelmCharts([testDir]);
+      expect(charts.length).toBe(1);
+      expect(charts[0].name).toBe('my-chart');
+      expect(charts[0].rootDir).toBe(chartDir);
+      expect(charts[0].valuesYamlUri).toBeDefined();
+      expect(charts[0].templatesDir).toBeDefined();
+    });
+
+    it('should find multiple Helm Charts', async () => {
+      const chart1Dir = path.join(testDir, 'chart1');
+      const chart2Dir = path.join(testDir, 'chart2');
+
+      await fs.mkdir(chart1Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(chart1Dir, 'Chart.yaml'),
+        'apiVersion: v2\nname: chart1\nversion: 1.0.0\n'
+      );
+
+      await fs.mkdir(chart2Dir, { recursive: true });
+      await fs.writeFile(
+        path.join(chart2Dir, 'Chart.yaml'),
+        'apiVersion: v2\nname: chart2\nversion: 2.0.0\n'
+      );
+
+      const charts = await findHelmCharts([testDir]);
+      expect(charts.length).toBe(2);
+      expect(charts.map(c => c.name).sort()).toEqual(['chart1', 'chart2']);
+    });
+
+    it('should handle Charts without values.yaml or templates/', async () => {
+      const chartDir = path.join(testDir, 'minimal-chart');
+      await fs.mkdir(chartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: minimal-chart\nversion: 1.0.0\n'
+      );
+
+      const charts = await findHelmCharts([testDir]);
+      expect(charts.length).toBe(1);
+      expect(charts[0].name).toBe('minimal-chart');
+      expect(charts[0].valuesYamlUri).toBeUndefined();
+      expect(charts[0].templatesDir).toBeUndefined();
+    });
+
+    it('should skip directories without valid Chart.yaml', async () => {
+      const invalidChartDir = path.join(testDir, 'invalid-chart');
+      await fs.mkdir(invalidChartDir, { recursive: true });
+      await fs.writeFile(path.join(invalidChartDir, 'Chart.yaml'), 'invalid yaml content\n');
+
+      const charts = await findHelmCharts([testDir]);
+      expect(charts.length).toBe(0);
+    });
+
+    it('should handle nested Chart structures', async () => {
+      const parentChartDir = path.join(testDir, 'parent-chart');
+      const subChartDir = path.join(parentChartDir, 'charts', 'sub-chart');
+
+      await fs.mkdir(parentChartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(parentChartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: parent-chart\nversion: 1.0.0\n'
+      );
+
+      await fs.mkdir(subChartDir, { recursive: true });
+      await fs.writeFile(
+        path.join(subChartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: sub-chart\nversion: 1.0.0\n'
+      );
+
+      const charts = await findHelmCharts([testDir]);
+      expect(charts.length).toBe(2);
+      expect(charts.map(c => c.name).sort()).toEqual(['parent-chart', 'sub-chart']);
+    });
+  });
+
+  describe('isFileInChart', () => {
+    it('should return true if file is in Chart directory', () => {
+      const chart = {
+        name: 'my-chart',
+        chartYamlUri: filePathToUri('/workspace/my-chart/Chart.yaml'),
+        rootDir: '/workspace/my-chart',
+        metadata: {
+          name: 'my-chart',
+          version: '1.0.0',
+          apiVersion: 'v2',
+        },
+      };
+
+      const fileUri = filePathToUri('/workspace/my-chart/templates/workflow.yaml');
+      expect(isFileInChart(fileUri, chart)).toBe(true);
+    });
+
+    it('should return false if file is outside Chart directory', () => {
+      const chart = {
+        name: 'my-chart',
+        chartYamlUri: filePathToUri('/workspace/my-chart/Chart.yaml'),
+        rootDir: '/workspace/my-chart',
+        metadata: {
+          name: 'my-chart',
+          version: '1.0.0',
+          apiVersion: 'v2',
+        },
+      };
+
+      const fileUri = filePathToUri('/workspace/other-chart/templates/workflow.yaml');
+      expect(isFileInChart(fileUri, chart)).toBe(false);
+    });
+
+    it('should handle Chart.yaml itself', () => {
+      const chart = {
+        name: 'my-chart',
+        chartYamlUri: filePathToUri('/workspace/my-chart/Chart.yaml'),
+        rootDir: '/workspace/my-chart',
+        metadata: {
+          name: 'my-chart',
+          version: '1.0.0',
+          apiVersion: 'v2',
+        },
+      };
+
+      expect(isFileInChart(chart.chartYamlUri, chart)).toBe(true);
+    });
+  });
 });

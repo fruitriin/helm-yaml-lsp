@@ -1,180 +1,130 @@
 /**
- * Helm Chart Index Service
+ * Argo Workflows LSP - Helm Chart Index Service
  *
- * Manages indexing of Helm Charts in the workspace:
- * - Discovers Charts in workspace folders
- * - Tracks Chart.yaml metadata
- * - Maps files to their parent Chart
- * - Updates on Chart.yaml changes
+ * ワークスペース内のHelm Chartをインデックス化
  */
 
-import * as path from 'node:path';
 import type { HelmChart } from '@/features/helmChartDetection';
-import {
-	findHelmCharts,
-	readChartMetadata,
-} from '@/features/helmChartDetection';
-import { uriToFilePath } from '@/utils/uriUtils';
+import { findHelmCharts, isFileInChart } from '@/features/helmChartDetection';
 
 /**
- * Manages indexing of Helm Charts
+ * Helm Chartインデックスサービス
+ *
+ * ワークスペース内のHelm Chartをインデックス化し、
+ * ファイルからChartへの参照解決を提供
  */
 export class HelmChartIndex {
-	/** Map of Chart root directory -> HelmChart */
-	private charts: Map<string, HelmChart>;
+  private charts: HelmChart[] = [];
+  private workspaceFolders: string[] = [];
+  private initialized = false;
 
-	constructor() {
-		this.charts = new Map();
-	}
+  /**
+   * ワークスペースフォルダーの設定
+   *
+   * @param folders - ワークスペースフォルダーのパス配列
+   */
+  setWorkspaceFolders(folders: string[]): void {
+    this.workspaceFolders = folders;
+  }
 
-	/**
-	 * Initializes the index by discovering Charts in workspace folders
-	 *
-	 * @param workspaceFolders - Array of workspace folder URIs
-	 */
-	async initialize(workspaceFolders: string[]): Promise<void> {
-		console.log('[HelmChartIndex] Initializing...');
+  /**
+   * インデックスを初期化
+   *
+   * ワークスペース内のすべてのHelm Chartをスキャンし、インデックスを構築
+   *
+   * @example
+   * await helmChartIndex.initialize();
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
 
-		const workspacePaths = workspaceFolders.map((uri) => uriToFilePath(uri));
-		const discoveredCharts = findHelmCharts(workspacePaths);
+    console.error('[HelmChartIndex] Initializing...');
 
-		this.charts.clear();
-		for (const chart of discoveredCharts) {
-			this.charts.set(chart.rootDir, chart);
-		}
+    this.charts = await findHelmCharts(this.workspaceFolders);
 
-		console.log(
-			`[HelmChartIndex] Initialized with ${this.charts.size} Helm Chart(s)`,
-		);
-		for (const chart of this.charts.values()) {
-			console.log(`  - ${chart.name} (${chart.rootDir})`);
-		}
-	}
+    this.initialized = true;
+    console.error(`[HelmChartIndex] Initialized with ${this.charts.length} Helm Chart(s)`);
+    
+    for (const chart of this.charts) {
+      console.error(`[HelmChartIndex]   - ${chart.name} at ${chart.rootDir}`);
+    }
+  }
 
-	/**
-	 * Finds the Helm Chart that contains a given file
-	 *
-	 * @param fileUri - URI of file to check
-	 * @returns HelmChart if file is inside a Chart, undefined otherwise
-	 */
-	findChartForFile(fileUri: string): HelmChart | undefined {
-		const filePath = uriToFilePath(fileUri);
+  /**
+   * 指定されたファイルが属するHelm Chartを検索
+   *
+   * @param fileUri - ファイルURI
+   * @returns 見つかったHelm Chart、または undefined
+   *
+   * @example
+   * const chart = helmChartIndex.findChartForFile('file:///workspace/chart/templates/workflow.yaml');
+   * if (chart) {
+   *   console.log(`File belongs to chart: ${chart.name}`);
+   * }
+   */
+  findChartForFile(fileUri: string): HelmChart | undefined {
+    for (const chart of this.charts) {
+      if (isFileInChart(fileUri, chart)) {
+        return chart;
+      }
+    }
+    return undefined;
+  }
 
-		// Find the Chart whose rootDir is a parent of the file
-		for (const chart of this.charts.values()) {
-			// Normalize paths for comparison
-			const normalizedFilePath = path.normalize(filePath);
-			const normalizedChartDir = path.normalize(chart.rootDir);
+  /**
+   * すべてのHelm Chartを取得
+   *
+   * @returns すべてのHelm Chart配列
+   *
+   * @example
+   * const allCharts = helmChartIndex.getAllCharts();
+   * console.log(`Found ${allCharts.length} charts`);
+   */
+  getAllCharts(): HelmChart[] {
+    return [...this.charts];
+  }
 
-			// Check if file is inside Chart directory
-			if (
-				normalizedFilePath.startsWith(normalizedChartDir + path.sep) ||
-				normalizedFilePath === normalizedChartDir
-			) {
-				return chart;
-			}
-		}
+  /**
+   * 指定されたChartルートディレクトリのChartを更新
+   *
+   * @param chartRootDir - ChartのルートディレクトリPATH
+   *
+   * @example
+   * await helmChartIndex.updateChart('/workspace/my-chart');
+   */
+  async updateChart(chartRootDir: string): Promise<void> {
+    // 既存のChartを削除
+    this.charts = this.charts.filter(chart => chart.rootDir !== chartRootDir);
 
-		return undefined;
-	}
+    // 新しくスキャン
+    const updatedCharts = await findHelmCharts([chartRootDir]);
+    
+    if (updatedCharts.length > 0) {
+      this.charts.push(...updatedCharts);
+      console.error(`[HelmChartIndex] Updated chart at ${chartRootDir}`);
+    } else {
+      console.error(`[HelmChartIndex] Removed chart at ${chartRootDir}`);
+    }
+  }
 
-	/**
-	 * Gets all indexed Charts
-	 *
-	 * @returns Array of all HelmChart objects
-	 */
-	getAllCharts(): HelmChart[] {
-		return Array.from(this.charts.values());
-	}
+  /**
+   * インデックスをクリア
+   *
+   * @example
+   * helmChartIndex.clear();
+   */
+  clear(): void {
+    this.charts = [];
+    this.initialized = false;
+    console.error('[HelmChartIndex] Cleared index');
+  }
 
-	/**
-	 * Gets a specific Chart by root directory
-	 *
-	 * @param chartRootDir - Root directory of Chart
-	 * @returns HelmChart if found, undefined otherwise
-	 */
-	getChart(chartRootDir: string): HelmChart | undefined {
-		return this.charts.get(chartRootDir);
-	}
-
-	/**
-	 * Updates a Chart's metadata when Chart.yaml changes
-	 *
-	 * @param chartRootDir - Root directory of Chart
-	 * @returns true if Chart was updated, false if not found or update failed
-	 */
-	async updateChart(chartRootDir: string): Promise<boolean> {
-		const existingChart = this.charts.get(chartRootDir);
-		if (!existingChart) {
-			console.log(
-				`[HelmChartIndex] Cannot update: Chart not found at ${chartRootDir}`,
-			);
-			return false;
-		}
-
-		try {
-			const metadata = readChartMetadata(chartRootDir);
-			if (!metadata) {
-				console.log(
-					`[HelmChartIndex] Cannot update: Failed to read Chart.yaml at ${chartRootDir}`,
-				);
-				return false;
-			}
-
-			// Update Chart name (other fields stay the same)
-			existingChart.name = metadata.name;
-
-			console.log(`[HelmChartIndex] Updated Chart: ${metadata.name}`);
-			return true;
-		} catch (error) {
-			console.error(
-				`[HelmChartIndex] Error updating Chart at ${chartRootDir}:`,
-				error,
-			);
-			return false;
-		}
-	}
-
-	/**
-	 * Adds a new Chart to the index
-	 *
-	 * @param chart - HelmChart to add
-	 */
-	addChart(chart: HelmChart): void {
-		this.charts.set(chart.rootDir, chart);
-		console.log(`[HelmChartIndex] Added Chart: ${chart.name}`);
-	}
-
-	/**
-	 * Removes a Chart from the index
-	 *
-	 * @param chartRootDir - Root directory of Chart to remove
-	 * @returns true if Chart was removed, false if not found
-	 */
-	removeChart(chartRootDir: string): boolean {
-		const chart = this.charts.get(chartRootDir);
-		if (chart) {
-			this.charts.delete(chartRootDir);
-			console.log(`[HelmChartIndex] Removed Chart: ${chart.name}`);
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Clears all Charts from the index
-	 */
-	clear(): void {
-		this.charts.clear();
-		console.log('[HelmChartIndex] Cleared all Charts');
-	}
-
-	/**
-	 * Gets the number of indexed Charts
-	 *
-	 * @returns Number of Charts
-	 */
-	get size(): number {
-		return this.charts.size;
-	}
+  /**
+   * 初期化済みかどうか
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
 }

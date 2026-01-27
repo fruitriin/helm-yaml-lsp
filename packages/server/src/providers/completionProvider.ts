@@ -19,6 +19,11 @@ import {
   isHelmTemplate,
 } from '@/features/valuesReferenceFeatures';
 import { WORKFLOW_VARIABLES } from '@/features/workflowVariables';
+import { getAllFunctions } from '@/features/helmFunctions';
+import { extractChartPathForCompletion } from '@/features/chartReferenceFeatures';
+import { getAllChartVariables } from '@/features/chartVariables';
+import { extractReleaseCapabilitiesPathForCompletion } from '@/features/releaseCapabilitiesReferenceFeatures';
+import { getAllReleaseVariables, getAllCapabilitiesVariables } from '@/features/releaseCapabilitiesVariables';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
@@ -62,11 +67,28 @@ export class CompletionProvider {
         }
       }
 
+      // .Chart参照の補完
+      const chartPath = extractChartPathForCompletion(document, position);
+      if (chartPath !== undefined) {
+        return this.provideChartCompletion(chartPath);
+      }
+
+      // .Release/.Capabilities参照の補完
+      const releaseCapabilitiesPath = extractReleaseCapabilitiesPathForCompletion(document, position);
+      if (releaseCapabilitiesPath !== undefined) {
+        return this.provideReleaseCapabilitiesCompletion(releaseCapabilitiesPath);
+      }
+
       // include/template関数の補完
       if (this.helmTemplateIndex) {
         if (this.isHelmTemplateContext(linePrefix)) {
           return this.provideHelmTemplateCompletion(document);
         }
+      }
+
+      // Helm関数の補完（パイプライン後）
+      if (this.isPipelineContext(linePrefix)) {
+        return this.provideHelmFunctionCompletion();
       }
     }
 
@@ -339,6 +361,86 @@ export class CompletionProvider {
         documentation: documentation || undefined,
         insertText: templateDef.name,
       });
+    }
+
+    return { isIncomplete: false, items };
+  }
+
+  /**
+   * パイプラインコンテキスト（| の後）かどうかを判定
+   */
+  private isPipelineContext(linePrefix: string): boolean {
+    // {{ ... | の後にカーソルがある場合
+    return /\{\{[^}]*\|\s*$/.test(linePrefix);
+  }
+
+  /**
+   * Helm組み込み関数の補完を提供
+   */
+  private provideHelmFunctionCompletion(): CompletionList {
+    const items: CompletionItem[] = [];
+
+    // すべてのHelm関数を補完候補に追加
+    for (const fn of getAllFunctions()) {
+      items.push({
+        label: fn.name,
+        kind: CompletionItemKind.Function,
+        detail: `${fn.category} function`,
+        documentation: `${fn.description}\n\nSignature: ${fn.signature}`,
+        insertText: fn.name,
+      });
+    }
+
+    return { isIncomplete: false, items };
+  }
+
+  /**
+   * .Chart変数の補完を提供
+   */
+  private provideChartCompletion(chartPath: string): CompletionList {
+    const items: CompletionItem[] = [];
+
+    // すべてのChart変数を補完候補に追加
+    for (const chartVar of getAllChartVariables()) {
+      // chartPathでフィルタリング（プレフィックスマッチ）
+      if (chartVar.name.toLowerCase().startsWith(chartPath.toLowerCase())) {
+        items.push({
+          label: chartVar.name,
+          kind: CompletionItemKind.Property,
+          detail: 'Chart Variable',
+          documentation: chartVar.description,
+          insertText: chartVar.name,
+        });
+      }
+    }
+
+    return { isIncomplete: false, items };
+  }
+
+  /**
+   * .Release/.Capabilities変数の補完を提供
+   */
+  private provideReleaseCapabilitiesCompletion(
+    context: { type: 'release' | 'capabilities'; partialName: string },
+  ): CompletionList {
+    const items: CompletionItem[] = [];
+
+    // Release変数またはCapabilities変数を補完候補に追加
+    const variables = context.type === 'release'
+      ? getAllReleaseVariables()
+      : getAllCapabilitiesVariables();
+
+    for (const variable of variables) {
+      // partialNameでフィルタリング（プレフィックスマッチ）
+      if (variable.name.toLowerCase().startsWith(context.partialName.toLowerCase())) {
+        items.push({
+          label: variable.name,
+          kind: CompletionItemKind.Property,
+          detail: `${variable.category === 'release' ? 'Release' : 'Capabilities'} Variable`,
+          documentation: variable.description,
+          insertText: variable.name,
+        });
+      }
     }
 
     return { isIncomplete: false, items };

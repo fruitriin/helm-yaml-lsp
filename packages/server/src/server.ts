@@ -113,7 +113,8 @@ connection.onInitialized(async () => {
     await argoTemplateIndex.initialize();
 
     // Helm Chart Index初期化
-    await helmChartIndex.initialize(folders);
+    helmChartIndex.setWorkspaceFolders(folderPaths);
+    await helmChartIndex.initialize();
 
     // Values Index初期化
     const charts = helmChartIndex.getAllCharts();

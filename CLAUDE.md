@@ -3,7 +3,7 @@
 このプロジェクトは、Helm内に書かれたArgo Workflows YAMLに対してLSP（Language Server Protocol）を提供することを目的とする。
 
 **最終更新**: 2026-01-27
-**現在のステータス**: Phase 3 完了 ✅、Phase 4 計画中 ⏳
+**現在のステータス**: Phase 4 完了 ✅、Phase 5 計画中 ⏳
 
 ---
 
@@ -19,7 +19,9 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - **Neovim** - nvim-lspconfig経由で動作確認済み
 - **その他のLSPクライアント** - LSP標準プロトコルに準拠した任意のエディタ
 
-### 実装済み機能（Phase 3完了時点）
+### 実装済み機能（Phase 4完了時点）
+
+#### Argo Workflows機能（Phase 2-3）
 
 ✅ **Definition Provider（定義へのジャンプ）**
 - WorkflowTemplate/ClusterWorkflowTemplateのインデックス化
@@ -41,6 +43,45 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 ✅ **Diagnostic Provider（エラー検出）**
 - 存在しないテンプレート参照の検出
 - 存在しないパラメータ参照の検出
+
+#### Helm機能（Phase 4）
+
+✅ **Helm Chart検出とインデックス化**
+- Chart.yaml自動検出
+- values.yaml解析とインデックス化
+- templatesディレクトリのスキャン
+
+✅ **.Values参照のサポート**
+- `.Values.xxx` 参照の検出
+- values.yamlへの定義ジャンプ
+- ホバー情報表示（値、型、説明）
+- 入力補完
+- 存在しない値のエラー検出
+
+✅ **include/template関数のサポート**
+- `{{ define }}` ブロックの検出
+- `{{ include "name" }}` から定義へのジャンプ
+- テンプレート名の補完
+- ホバー情報表示
+
+✅ **Helm組み込み関数のサポート（70+ functions）**
+- 文字列関数（quote, indent, trim等）
+- 型変換関数（toYaml, toJson等）
+- リスト/辞書関数（list, dict等）
+- 数学関数（add, sub等）
+- パイプライン内の関数検出
+- ホバー情報（シグネチャ、説明、使用例）
+- 関数の入力補完
+
+✅ **.Chart変数のサポート**
+- `.Chart.Name`, `.Chart.Version` 等13変数
+- Chart.yamlへのジャンプ
+- ホバー情報と補完
+
+✅ **.Release/.Capabilities変数のサポート**
+- `.Release.Name`, `.Release.Namespace` 等6変数
+- `.Capabilities.KubeVersion` 等6変数
+- ホバー情報と補完
 
 ✅ **エディタ非依存性の実証**
 - VSCode API依存ゼロ
@@ -151,6 +192,8 @@ helm-yaml-lsp/
 ├── PHASE1_PLAN.md                   # Phase 1詳細計画
 ├── PHASE2_PLAN.md                   # Phase 2詳細計画
 ├── PHASE3_PLAN.md                   # Phase 3詳細計画
+├── PHASE4_PLAN.md                   # Phase 4詳細計画（Helm機能）
+├── PHASE5_PLAN.md                   # Phase 5詳細計画（ConfigMap/Secret）
 ├── progress.md                      # 進捗記録
 └── README.md
 ```
@@ -371,29 +414,57 @@ nvim samples/argo/workflow-templateref.yaml
 
 ---
 
-## 次のフェーズ（Phase 4）
+## Phase 4の完了状況 ✅
 
-### 実装予定機能: Helm機能のサポート
+Phase 4（Helm機能のサポート）はすべて完了しました：
 
-Phase 4では、プロジェクトの主要目的である「Helm内に書かれたArgo Workflows YAML」のサポートを実装します。
+- ✅ **Phase 4.1**: Helm Chart構造の検出とインデックス化
+- ✅ **Phase 4.2**: values.yaml解析とインデックス化
+- ✅ **Phase 4.3**: .Values参照のサポート（Definition/Hover/Completion/Diagnostics）
+- ✅ **Phase 4.4**: include/template関数のサポート
+- ✅ **Phase 4.5**: Helm組み込み関数のサポート（70+ functions）
+- ✅ **Phase 4.6**: Chart.yamlサポート（.Chart変数）
+- ✅ **Phase 4.7**: Release/Capabilities変数のサポート
+- ⏸️ **Phase 4.8**: values.schema.jsonサポート（将来拡張）
 
-1. **Phase 4.1**: Helm Chart構造の検出とインデックス化
-2. **Phase 4.2**: values.yaml解析とインデックス化
-3. **Phase 4.3**: .Values参照のサポート（Definition/Hover/Completion/Diagnostics）
-4. **Phase 4.4**: include/template関数のサポート
-5. **Phase 4.5**: Helm組み込み関数のサポート（toYaml, default等）
-6. **Phase 4.6**: Chart.yamlサポート（.Chart変数）
-7. **Phase 4.7**: Release/Capabilities変数のサポート（オプション）
-8. **Phase 4.8**: values.schema.jsonサポート（将来拡張）
-
-**完了基準**:
-- [ ] `.Values`参照が動作する（Definition/Hover/Completion/Diagnostics）
-- [ ] `include`/`template`関数が動作する
-- [ ] Helm組み込み関数のホバー情報が表示される
-- [ ] 全テストが通過する（300+ tests想定）
-- [ ] VSCodeとNeovim両方で動作確認できる
+**テスト結果**: 426 tests passed（Phase 3の173 testsから+253 tests増加）
 
 詳細は `PHASE4_PLAN.md` を参照。
+
+---
+
+## 次のフェーズ（Phase 5）
+
+### 実装予定機能: ConfigMap/Secretサポート
+
+Phase 5では、Argo WorkflowsおよびKubernetesで頻繁に使用されるConfigMap/Secretの参照機能を実装します。
+
+1. **Phase 5.1**: ConfigMap/Secret検出とインデックス化
+2. **Phase 5.2**: ConfigMap/Secret参照の検出
+3. **Phase 5.3**: Definition Provider統合（name→定義、key→dataキーへのジャンプ）
+4. **Phase 5.4**: Hover Provider統合（参照時の情報表示）
+5. **Phase 5.5**: Completion Provider統合（name補完、key補完）
+6. **Phase 5.6**: Diagnostics統合（存在しない参照の検出）
+
+**サポート対象**:
+- `configMapKeyRef` (env.valueFrom)
+- `secretKeyRef` (env.valueFrom)
+- `configMapRef` (envFrom)
+- `secretRef` (envFrom)
+- `volumeConfigMap` (volumes)
+- `volumeSecret` (volumes)
+
+**完了基準**:
+- [ ] ConfigMap/Secret定義が検出され、インデックス化される
+- [ ] configMapKeyRef.name から ConfigMap定義へジャンプできる
+- [ ] configMapKeyRef.key から dataキーへジャンプできる
+- [ ] ホバー情報が表示される
+- [ ] 入力補完が動作する
+- [ ] 存在しないConfigMap/key参照がエラー検出される
+- [ ] 全テストが通過する（526+ tests想定）
+- [ ] VSCodeとNeovim両方で動作確認できる
+
+詳細は `PHASE5_PLAN.md` を参照。
 
 ---
 
@@ -403,7 +474,8 @@ Phase 4では、プロジェクトの主要目的である「Helm内に書かれ
 
 - **progress.md** - 開発進捗の詳細記録
 - **PHASE3_PLAN.md** - Phase 3の詳細計画（完了）
-- **PHASE4_PLAN.md** - Phase 4の詳細計画（Helm機能）
+- **PHASE4_PLAN.md** - Phase 4の詳細計画（Helm機能、完了）
+- **PHASE5_PLAN.md** - Phase 5の詳細計画（ConfigMap/Secret）
 - **README.md** - プロジェクト概要とセットアップ
 - **samples/README.md** - サンプルファイルの説明
 
@@ -509,9 +581,13 @@ const range = Range.create(Position.create(0, 0), Position.create(1, 10));
 
 ## FAQ
 
-**Q: Phase 2で実装した機能は何ですか？**
+**Q: 現在どのフェーズまで完了していますか？**
 
-A: Definition Provider（定義へのジャンプ）機能です。templateRef参照からWorkflowTemplate/ClusterWorkflowTemplateの定義へジャンプできます。
+A: Phase 4（Helm機能のフルサポート）まで完了しています。426個のテストが通過し、Argo WorkflowsとHelm両方の機能が実装されています。
+
+**Q: Phase 4で実装した機能は何ですか？**
+
+A: Helm機能の包括的なサポートです。`.Values`参照、`include`/`template`関数、70以上のHelm組み込み関数、`.Chart`変数、`.Release`/`.Capabilities`変数のすべてがサポートされています。
 
 **Q: VSCodeとNeovim以外のエディタでも動作しますか？**
 
@@ -519,11 +595,11 @@ A: はい。LSP標準プロトコルに準拠しているため、LSPクライ�
 
 **Q: テストはどのように実行しますか？**
 
-A: `bun run test` を実行してください。116個のテストが実行され、すべて通過するはずです。
+A: `bun run test` を実行してください。426個のテストが実行され、すべて通過するはずです。
 
-**Q: 新機能を追加する場合、どこから始めればよいですか？**
+**Q: 次に実装する機能は何ですか？**
 
-A: `PHASE3_PLAN.md` を確認してください。Phase 3.1（Hover Provider）から実装することを推奨します。
+A: Phase 5でConfigMap/Secretサポートを実装予定です。`configMapKeyRef`や`secretKeyRef`から定義へのジャンプ、補完、エラー検出を提供します。詳細は`PHASE5_PLAN.md`を参照してください。
 
 **Q: エディタ非依存性はどのように検証されていますか？**
 

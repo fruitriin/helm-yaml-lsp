@@ -2,11 +2,11 @@
 
 Argo Workflows Language Server Protocol implementation for Helm and YAML files.
 
-**現在のステータス**: Phase 2 完了 ✅
+**現在のステータス**: Phase 4 完了 ✅ (Helm機能サポート完了)
 
 📋 **開発進捗**: [progress.md](./progress.md)
 📘 **開発ガイド**: [CLAUDE.md](./CLAUDE.md)
-🗺️ **計画書**: [PHASE1_PLAN.md](./PHASE1_PLAN.md) | [PHASE2_PLAN.md](./PHASE2_PLAN.md) | [PHASE3_PLAN.md](./PHASE3_PLAN.md)
+🗺️ **計画書**: [PHASE1_PLAN.md](./PHASE1_PLAN.md) | [PHASE2_PLAN.md](./PHASE2_PLAN.md) | [PHASE3_PLAN.md](./PHASE3_PLAN.md) | [PHASE4_PLAN.md](./PHASE4_PLAN.md)
 
 ---
 
@@ -20,25 +20,39 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - **Neovim** - nvim-lspconfig経由（動作確認済み）
 - **その他** - LSP標準プロトコルに準拠した任意のエディタ
 
-### 実装済み機能（Phase 2完了時点）
+### 実装済み機能（Phase 4完了時点）
 
-✅ **Definition Provider（定義へのジャンプ）**
+✅ **Argo Workflows機能**
 - WorkflowTemplate/ClusterWorkflowTemplateの自動インデックス化
 - `templateRef`参照から定義へのジャンプ
-- ファイル変更の自動追跡とインデックス更新
-- Helmテンプレートの検出と対応
+- ローカルテンプレート参照（同一ファイル内）
+- パラメータ定義と参照（inputs/outputs.parameters）
+- Workflow変数のサポート（workflow.name等）
+
+✅ **Helm機能**
+- Helm Chart構造の自動検出
+- values.yamlの解析とインデックス化
+- `.Values`参照のサポート（Definition/Hover/Completion/Diagnostics）
+- `{{ include }}` / `{{ template }}`関数のサポート
+- _helpers.tplファイルのサポート
+
+✅ **LSP機能**
+- **Definition Provider**: 定義へのジャンプ（F12 / gd）
+- **Hover Provider**: ホバー情報の表示
+- **Completion Provider**: 入力補完
+- **Diagnostic Provider**: エラー検出と表示
 
 **操作方法**:
-- VSCode: `F12`キーで定義へ移動
-- Neovim: `gd`キーで定義へ移動
+- VSCode: `F12`（定義へ移動）、ホバー、Ctrl+Space（補完）
+- Neovim: `gd`（定義へ移動）、`K`（ホバー）、LSP補完
 
 ---
 
-## 対応構文の進捗
+## サポート構文
 
-### Phase 2で実装済み ✅
+### Argo Workflows構文 ✅
 
-#### WorkflowTemplate参照
+#### 1. WorkflowTemplate参照
 
 ```yaml
 # WorkflowTemplate定義（別ファイル）
@@ -68,7 +82,7 @@ spec:
               template: hello   # ← F12/gd でジャンプ可能 ✅
 ```
 
-#### ClusterWorkflowTemplate参照
+#### 2. ClusterWorkflowTemplate参照 ✅
 
 ```yaml
 # ClusterWorkflowTemplate定義
@@ -89,9 +103,7 @@ templateRef:
   clusterScope: true
 ```
 
-### Phase 3で実装予定 🚧
-
-#### ローカルテンプレート参照（同一ファイル内）
+#### 3. ローカルテンプレート参照 ✅
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -101,14 +113,14 @@ spec:
   templates:
     - name: main
       steps:
-        - - template: hello   # ← 🚧 ジャンプ予定（Phase 3.6）
+        - - template: hello   # ← ジャンプ可能 ✅
 
     - name: hello             # ← ジャンプ先
       container:
         image: alpine
 ```
 
-#### パラメータ参照
+#### 4. パラメータ参照 ✅
 
 ```yaml
 spec:
@@ -116,44 +128,108 @@ spec:
     - name: main
       inputs:
         parameters:
-          - name: message     # ← 🚧 定義（Phase 3.2）
+          - name: message     # ← 定義（ジャンプ先） ✅
             default: "Hello"
       container:
         image: alpine
         args:
-          - "{{inputs.parameters.message}}"  # ← 🚧 参照（Phase 3.2）
+          - "{{inputs.parameters.message}}"  # ← 参照（ジャンプ、ホバー、補完） ✅
 ```
 
-#### Workflow変数
+#### 5. Workflow変数 ✅
 
 ```yaml
-# 🚧 Phase 3.3で実装予定
+# 以下の変数をサポート（ホバーで説明表示、補完可能）
 {{workflow.name}}                    # Workflow名
 {{workflow.namespace}}               # 名前空間
+{{workflow.uid}}                     # Workflow UID
 {{workflow.parameters.xxx}}          # Workflowパラメータ
-{{item}}                             # withItems/withParamの現在のアイテム
-{{tasks.xxx.outputs.xxx}}            # タスクの出力参照
+{{workflow.serviceAccountName}}      # サービスアカウント
+{{workflow.creationTimestamp}}       # 作成日時
+{{workflow.duration}}                # 実行時間
+{{workflow.priority}}                # 優先度
 ```
 
-#### ConfigMap/Secret参照
+### Helm構文 ✅
+
+#### 6. values.yaml参照 ✅
 
 ```yaml
-# ConfigMap定義
+# values.yaml
+namespace: argo
+workflow:
+  image:
+    repository: alpine    # ← 定義（ジャンプ先）
+    tag: latest
+```
+
+```yaml
+# templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  namespace: {{ .Values.namespace }}           # ← ジャンプ、ホバー、補完可能 ✅
+spec:
+  templates:
+    - name: main
+      container:
+        image: {{ .Values.workflow.image.repository }}  # ← ネストされた値も対応 ✅
+```
+
+#### 7. Helmテンプレート関数 ✅
+
+```yaml
+# templates/_helpers.tpl
+{{- define "mychart.name" -}}     # ← 定義（ジャンプ先）
+{{ .Chart.Name }}
+{{- end -}}
+
+{{- define "mychart.labels" -}}   # ← 定義
+app: {{ include "mychart.name" . }}
+{{- end -}}
+```
+
+```yaml
+# templates/workflow.yaml
+metadata:
+  name: {{ include "mychart.name" . }}      # ← ジャンプ、ホバー、補完可能 ✅
+  labels:
+    {{- include "mychart.labels" . | nindent 4 }}  # ← パイプ記法も対応 ✅
+```
+
+#### 8. エラー検出 ✅
+
+```yaml
+# 存在しない値への参照を検出
+namespace: {{ .Values.nonExistent }}    # ← エラー: 値が存在しません ❌
+
+# 存在しないテンプレート参照を検出
+name: {{ include "missing.template" . }}  # ← エラー: テンプレートが存在しません ❌
+
+# 存在しないパラメータ参照を検出
+args: ["{{inputs.parameters.missing}}"]   # ← エラー: パラメータが存在しません ❌
+```
+
+### 未実装機能（将来拡張候補）
+
+#### ConfigMap/Secret参照 🚧
+
+```yaml
+# 将来の拡張候補
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: my-config
 data:
-  key: value              # ← 🚧 定義（Phase 3.7）
+  key: value              # ← 🚧 定義（将来）
 
 ---
-# Workflow（参照元）
 env:
   - name: CONFIG
     valueFrom:
       configMapKeyRef:
         name: my-config
-        key: key          # ← 🚧 参照（Phase 3.7）
+        key: key          # ← 🚧 参照（将来）
 ```
 
 ---
@@ -178,8 +254,11 @@ helm-yaml-lsp/
 │   │   │   │   ├── fileWatcher.ts
 │   │   │   │   └── argoTemplateIndex.ts
 │   │   │   └── providers/
-│   │   │       └── definitionProvider.ts
-│   │   ├── test/                    # 116 tests
+│   │   │       ├── definitionProvider.ts
+│   │   │       ├── hoverProvider.ts
+│   │   │       ├── completionProvider.ts
+│   │   │       └── diagnosticProvider.ts
+│   │   ├── test/                    # 320 tests
 │   │   └── package.json
 │   ├── vscode-client/               # VSCode拡張
 │   │   └── src/extension.ts
@@ -251,7 +330,7 @@ bun run build
 bun run watch
 
 # テスト実行
-bun run test                # 116 tests
+bun run test                # 320 tests
 ```
 
 ### コード品質チェック
@@ -305,21 +384,38 @@ nvim samples/argo/workflow-templateref.yaml
 - ファイル監視（LSP標準）
 - YAMLパーサー層
 - テンプレートインデックス
-- **Definition Provider** ← 現在ここ
+- **Definition Provider**
 
 **テスト**: 116 tests passed
 **動作確認**: VSCode ✅ | Neovim ✅
 
-### Phase 3: 追加機能の実装 🚧
+### Phase 3: Argo Workflows追加機能 ✅
 
-予定機能（詳細は [PHASE3_PLAN.md](./PHASE3_PLAN.md)）:
+実装完了（詳細は [PHASE3_PLAN.md](./PHASE3_PLAN.md)）:
 
-1. **Hover Provider** - ホバー情報の表示
-2. **パラメータ機能** - パラメータ定義と参照
-3. **Completion Provider** - 入力補完
-4. **Diagnostics** - エラー検出
-5. **ローカルテンプレート参照**
-6. **ConfigMap/Secret参照**
+1. **Hover Provider** - テンプレート、パラメータ、Workflow変数
+2. **パラメータ機能** - inputs/outputs.parametersの定義と参照
+3. **Workflow変数** - workflow.name等8つの組み込み変数
+4. **Completion Provider** - テンプレート名、パラメータ名、変数の補完
+5. **Diagnostic Provider** - 存在しないテンプレート/パラメータ参照の検出
+6. **ローカルテンプレート参照** - 同一ファイル内のテンプレート
+
+**テスト**: 173 tests passed
+**動作確認**: VSCode ✅ | Neovim ✅
+
+### Phase 4: Helm機能のサポート ✅
+
+実装完了（詳細は [PHASE4_PLAN.md](./PHASE4_PLAN.md)）:
+
+1. **Helm Chart検出** - Chart.yaml + values.yaml + templates/の自動検出
+2. **values.yaml解析** - ネストされた値のフラット化とインデックス化
+3. **.Values参照** - Definition/Hover/Completion/Diagnosticsの完全サポート
+4. **include/template関数** - Helmテンプレート定義の検出とジャンプ
+5. **統合テスト** - Helm + Argo Workflows統合テスト（14 tests）
+
+**テスト**: 320 tests passed（+105 tests）
+**動作確認**: VSCode ✅ | Neovim ✅
+**サンプル**: `samples/helm/` - 実際のHelm Chart構造
 
 ---
 
@@ -346,7 +442,7 @@ bun run check:write         # 自動修正
 ### テスト
 
 ```bash
-bun run test                # 全テスト実行（116 tests）
+bun run test                # 全テスト実行（320 tests）
 bun run test:packages       # 各パッケージのテスト
 bun run test:all            # 統合 + パッケージテスト
 ```
@@ -365,7 +461,8 @@ bun run package             # VSIXパッケージ作成
 - **[CLAUDE.md](./CLAUDE.md)** - Claude Code向け開発ガイド
 - **[PHASE1_PLAN.md](./PHASE1_PLAN.md)** - Phase 1詳細計画
 - **[PHASE2_PLAN.md](./PHASE2_PLAN.md)** - Phase 2詳細計画
-- **[PHASE3_PLAN.md](./PHASE3_PLAN.md)** - Phase 3詳細計画
+- **[PHASE3_PLAN.md](./PHASE3_PLAN.md)** - Phase 3詳細計画（Argo Workflows追加機能）
+- **[PHASE4_PLAN.md](./PHASE4_PLAN.md)** - Phase 4詳細計画（Helm機能）
 - **[samples/README.md](./samples/README.md)** - サンプルファイルの説明
 
 ---
@@ -422,4 +519,4 @@ MIT License
 
 ---
 
-**開発状況**: Phase 2完了（Definition Provider実装済み） | Phase 3準備中
+**開発状況**: Phase 4完了（Helm機能サポート完了） | 320 tests passed ✅

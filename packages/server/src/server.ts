@@ -22,6 +22,9 @@ import { DefinitionProvider } from '@/providers/definitionProvider';
 import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import { HelmChartIndex } from '@/services/helmChartIndex';
+import { ValuesIndex } from '@/services/valuesIndex';
+import { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 import { FileWatcher } from '@/services/fileWatcher';
 // "@/" エイリアスを使用した型定義のインポート
 import { defaultSettings, type ServerSettings } from '@/types';
@@ -37,11 +40,14 @@ const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 // サービスインスタンス
 const argoTemplateIndex = new ArgoTemplateIndex();
+const helmChartIndex = new HelmChartIndex();
+const valuesIndex = new ValuesIndex();
+const helmTemplateIndex = new HelmTemplateIndex();
 const fileWatcher = new FileWatcher(connection);
-const definitionProvider = new DefinitionProvider(argoTemplateIndex);
-const hoverProvider = new HoverProvider(argoTemplateIndex);
-const completionProvider = new CompletionProvider();
-const diagnosticProvider = new DiagnosticProvider(argoTemplateIndex);
+const definitionProvider = new DefinitionProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex);
+const hoverProvider = new HoverProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex);
+const completionProvider = new CompletionProvider(helmChartIndex, valuesIndex, helmTemplateIndex);
+const diagnosticProvider = new DiagnosticProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex);
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -99,11 +105,22 @@ connection.onInitialized(async () => {
   // ワークスペースフォルダーを取得
   const workspaceFolders = await connection.workspace.getWorkspaceFolders();
   if (workspaceFolders) {
-    const folders = workspaceFolders.map(folder => uriToFilePath(folder.uri));
-    argoTemplateIndex.setWorkspaceFolders(folders);
+    const folders = workspaceFolders.map(folder => folder.uri);
+    const folderPaths = folders.map(uri => uriToFilePath(uri));
 
-    // 初期インデックス構築
+    // Argo Template Index初期化
+    argoTemplateIndex.setWorkspaceFolders(folderPaths);
     await argoTemplateIndex.initialize();
+
+    // Helm Chart Index初期化
+    await helmChartIndex.initialize(folders);
+
+    // Values Index初期化
+    const charts = helmChartIndex.getAllCharts();
+    await valuesIndex.initialize(charts);
+
+    // Helm Template Index初期化
+    await helmTemplateIndex.initialize(charts);
   }
 
   // ファイル監視を開始
@@ -114,9 +131,30 @@ connection.onInitialized(async () => {
       argoTemplateIndex.removeFile(uri);
     }
 
-    // Chart.yamlの変更時はキャッシュをクリア
+    // Chart.yamlの変更時はキャッシュをクリアし、HelmChartIndexを更新
     if (uri.endsWith('Chart.yaml') || uri.endsWith('Chart.yml')) {
       clearChartYamlCache();
+
+      // Chart.yamlが変更された場合、その親ディレクトリのChartを更新
+      const filePath = uriToFilePath(uri);
+      const chartRootDir = filePath.substring(0, filePath.lastIndexOf('/Chart.yaml'));
+      if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
+        await helmChartIndex.updateChart(chartRootDir);
+      }
+    }
+
+    // values.yamlの変更時はValuesIndexを更新
+    if (uri.endsWith('values.yaml') || uri.endsWith('values.yml')) {
+      if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
+        await valuesIndex.updateValuesFile(uri);
+      }
+    }
+
+    // Helmテンプレートファイルの変更時はHelmTemplateIndexを更新
+    if (uri.includes('/templates/') && (uri.endsWith('.yaml') || uri.endsWith('.yml') || uri.endsWith('.tpl'))) {
+      if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
+        await helmTemplateIndex.updateTemplateFile(uri);
+      }
     }
   });
 

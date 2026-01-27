@@ -9,7 +9,15 @@ import { type Diagnostic, DiagnosticSeverity } from 'vscode-languageserver-types
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
 import { findAllParameterReferences, findParameterDefinitions } from '@/features/parameterFeatures';
 import { findAllTemplateReferences, findTemplateDefinitions } from '@/features/templateFeatures';
+import {
+  findAllValuesReferences,
+  isHelmTemplate,
+} from '@/features/valuesReferenceFeatures';
+import { findAllTemplateReferences as findAllHelmTemplateReferences } from '@/features/helmTemplateFeatures';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import type { HelmChartIndex } from '@/services/helmChartIndex';
+import type { ValuesIndex } from '@/services/valuesIndex';
+import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 
 /**
  * Diagnostic Provider
@@ -18,7 +26,12 @@ import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
  * 存在しない参照やエラーを検出
  */
 export class DiagnosticProvider {
-  constructor(private templateIndex: ArgoTemplateIndex) {}
+  constructor(
+    private templateIndex: ArgoTemplateIndex,
+    private helmChartIndex?: HelmChartIndex,
+    private valuesIndex?: ValuesIndex,
+    private helmTemplateIndex?: HelmTemplateIndex,
+  ) {}
 
   /**
    * 診断情報を提供
@@ -32,6 +45,21 @@ export class DiagnosticProvider {
    */
   async provideDiagnostics(document: TextDocument): Promise<Diagnostic[]> {
     const diagnostics: Diagnostic[] = [];
+
+    // Helm template機能の検証
+    if (isHelmTemplate(document) && this.helmChartIndex) {
+      // .Values参照の検証
+      if (this.valuesIndex) {
+        const valuesDiagnostics = this.validateValuesReferences(document);
+        diagnostics.push(...valuesDiagnostics);
+      }
+
+      // include/template参照の検証
+      if (this.helmTemplateIndex) {
+        const helmTemplateDiagnostics = this.validateHelmTemplateReferences(document);
+        diagnostics.push(...helmTemplateDiagnostics);
+      }
+    }
 
     // Argo Workflowドキュメントでない場合はスキップ
     if (!isArgoWorkflowDocument(document)) {
@@ -136,6 +164,82 @@ export class DiagnosticProvider {
       // steps.xxx.outputs.parameters または tasks.xxx.outputs.parameters の場合
       // TODO: ステップ/タスクのoutputsパラメータへの参照検証
       // これは将来の拡張として実装
+    }
+
+    return diagnostics;
+  }
+
+  /**
+   * .Values参照の検証
+   */
+  private validateValuesReferences(document: TextDocument): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+
+    if (!this.helmChartIndex || !this.valuesIndex) {
+      return diagnostics;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+    if (!chart) {
+      return diagnostics;
+    }
+
+    // すべての.Values参照を取得
+    const references = findAllValuesReferences(document);
+
+    for (const ref of references) {
+      // values.yamlから値定義を検索
+      const valueDef = this.valuesIndex.findValue(chart.name, ref.valuePath);
+
+      if (!valueDef) {
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: ref.range,
+          message: `Value '.Values.${ref.valuePath}' not found in values.yaml (${chart.name})`,
+          source: 'argo-workflows-lsp',
+        });
+      }
+    }
+
+    return diagnostics;
+  }
+
+  /**
+   * Helm include/template参照の検証
+   */
+  private validateHelmTemplateReferences(document: TextDocument): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+
+    if (!this.helmChartIndex || !this.helmTemplateIndex) {
+      return diagnostics;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+    if (!chart) {
+      return diagnostics;
+    }
+
+    // すべてのinclude/template参照を取得
+    const references = findAllHelmTemplateReferences(document);
+
+    for (const ref of references) {
+      // テンプレート定義を検索
+      const templateDef = this.helmTemplateIndex.findTemplate(
+        chart.name,
+        ref.templateName,
+      );
+
+      if (!templateDef) {
+        const functionType = ref.type === 'include' ? 'include' : 'template';
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: ref.range,
+          message: `Template '${ref.templateName}' not found (Helm ${functionType}, ${chart.name})`,
+          source: 'argo-workflows-lsp',
+        });
+      }
     }
 
     return diagnostics;

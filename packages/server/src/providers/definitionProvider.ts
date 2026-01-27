@@ -16,7 +16,15 @@ import {
   findTemplateDefinitions,
   findTemplateReferenceAtPosition,
 } from '@/features/templateFeatures';
+import {
+  findValuesReference,
+  isHelmTemplate,
+} from '@/features/valuesReferenceFeatures';
+import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import type { HelmChartIndex } from '@/services/helmChartIndex';
+import type { ValuesIndex } from '@/services/valuesIndex';
+import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 
 /**
  * Definition Provider
@@ -25,7 +33,12 @@ import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
  * テンプレート参照から定義へのジャンプを提供
  */
 export class DefinitionProvider {
-  constructor(private templateIndex: ArgoTemplateIndex) {}
+  constructor(
+    private templateIndex: ArgoTemplateIndex,
+    private helmChartIndex?: HelmChartIndex,
+    private valuesIndex?: ValuesIndex,
+    private helmTemplateIndex?: HelmTemplateIndex,
+  ) {}
 
   /**
    * 定義を提供
@@ -44,6 +57,25 @@ export class DefinitionProvider {
     document: TextDocument,
     position: Position
   ): Promise<Location | Location[] | null> {
+    // Helm template機能を検出
+    if (isHelmTemplate(document) && this.helmChartIndex) {
+      // .Values参照を検出
+      if (this.valuesIndex) {
+        const valuesRef = findValuesReference(document, position);
+        if (valuesRef) {
+          return this.handleValuesReference(document, valuesRef);
+        }
+      }
+
+      // include/template参照を検出
+      if (this.helmTemplateIndex) {
+        const helmTemplateRef = findHelmTemplateReferenceAtPosition(document, position);
+        if (helmTemplateRef) {
+          return this.handleHelmTemplateReference(document, helmTemplateRef);
+        }
+      }
+    }
+
     // Argo Workflowドキュメントでない場合はスキップ
     if (!isArgoWorkflowDocument(document)) {
       return null;
@@ -59,6 +91,62 @@ export class DefinitionProvider {
     const parameterRef = findParameterReferenceAtPosition(document, position);
     if (parameterRef) {
       return this.handleParameterReference(document, parameterRef);
+    }
+
+    return null;
+  }
+
+  /**
+   * .Values参照を処理
+   */
+  private handleValuesReference(
+    document: TextDocument,
+    valuesRef: ReturnType<typeof findValuesReference>,
+  ): Location | null {
+    if (!valuesRef || !this.helmChartIndex || !this.valuesIndex) {
+      return null;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+    if (!chart) {
+      return null;
+    }
+
+    // values.yamlから値定義を検索
+    const valueDef = this.valuesIndex.findValue(chart.name, valuesRef.valuePath);
+    if (valueDef) {
+      return Location.create(valueDef.uri, valueDef.range);
+    }
+
+    return null;
+  }
+
+  /**
+   * Helm include/template参照を処理
+   */
+  private handleHelmTemplateReference(
+    document: TextDocument,
+    helmTemplateRef: ReturnType<typeof findHelmTemplateReferenceAtPosition>,
+  ): Location | null {
+    if (!helmTemplateRef || !this.helmChartIndex || !this.helmTemplateIndex) {
+      return null;
+    }
+
+    // ファイルが属するChartを特定
+    const chart = this.helmChartIndex.findChartForFile(document.uri);
+    if (!chart) {
+      return null;
+    }
+
+    // テンプレート定義を検索
+    const templateDef = this.helmTemplateIndex.findTemplate(
+      chart.name,
+      helmTemplateRef.templateName,
+    );
+
+    if (templateDef) {
+      return Location.create(templateDef.uri, templateDef.range);
     }
 
     return null;

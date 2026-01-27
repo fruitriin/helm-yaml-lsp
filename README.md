@@ -2,11 +2,11 @@
 
 Argo Workflows Language Server Protocol implementation for Helm and YAML files.
 
-**現在のステータス**: Phase 4 完了 ✅ (Helm機能サポート完了)
+**現在のステータス**: Phase 5 完了 ✅ (ConfigMap/Secret) | Phase 6 進行中 🔨 (IntelliJ Plugin)
 
 📋 **開発進捗**: [progress.md](./progress.md)
 📘 **開発ガイド**: [CLAUDE.md](./CLAUDE.md)
-🗺️ **計画書**: [PHASE1_PLAN.md](./PHASE1_PLAN.md) | [PHASE2_PLAN.md](./PHASE2_PLAN.md) | [PHASE3_PLAN.md](./PHASE3_PLAN.md) | [PHASE4_PLAN.md](./PHASE4_PLAN.md)
+🗺️ **計画書**: [PHASE1](./PHASE1_PLAN.md) | [PHASE2](./PHASE2_PLAN.md) | [PHASE3](./PHASE3_PLAN.md) | [PHASE4](./PHASE4_PLAN.md) | [PHASE5](./PHASE5_PLAN.md) | [PHASE6](./PHASE6_PLAN.md)
 
 ---
 
@@ -16,11 +16,12 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 
 ### 対応エディタ
 
-- **VSCode** - 主要ターゲット（動作確認済み）
-- **Neovim** - nvim-lspconfig経由（動作確認済み）
+- **VSCode** - 主要ターゲット（実装済み ✅）
+- **Neovim** - nvim-lspconfig経由（実装済み ✅）
+- **IntelliJ IDEA / JetBrains** - プラグイン開発中（基本実装完了 🔨）
 - **その他** - LSP標準プロトコルに準拠した任意のエディタ
 
-### 実装済み機能（Phase 4完了時点）
+### 実装済み機能（Phase 5完了時点）
 
 ✅ **Argo Workflows機能**
 - WorkflowTemplate/ClusterWorkflowTemplateの自動インデックス化
@@ -34,7 +35,16 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - values.yamlの解析とインデックス化
 - `.Values`参照のサポート（Definition/Hover/Completion/Diagnostics）
 - `{{ include }}` / `{{ template }}`関数のサポート
+- Helm組み込み関数のサポート（70+ functions）
+- `.Chart`, `.Release`, `.Capabilities`変数のサポート
 - _helpers.tplファイルのサポート
+
+✅ **ConfigMap/Secret機能**
+- ConfigMap/Secret定義の自動検出
+- `configMapKeyRef` / `secretKeyRef`参照のサポート
+- `configMapRef` / `secretRef`（envFrom）のサポート
+- `volumeConfigMap` / `volumeSecret`のサポート
+- マルチライン値のプレビュー表示
 
 ✅ **LSP機能**
 - **Definition Provider**: 定義へのジャンプ（F12 / gd）

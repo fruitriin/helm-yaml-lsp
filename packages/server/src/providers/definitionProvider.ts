@@ -22,11 +22,13 @@ import {
 } from '@/features/valuesReferenceFeatures';
 import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
 import { findChartReference } from '@/features/chartReferenceFeatures';
+import { findConfigMapReferenceAtPosition } from '@/features/configMapReferenceFeatures';
 import { filePathToUri } from '@/utils/uriUtils';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ConfigMapIndex } from '@/services/configMapIndex';
 
 /**
  * Definition Provider
@@ -40,6 +42,7 @@ export class DefinitionProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
+    private configMapIndex?: ConfigMapIndex,
   ) {}
 
   /**
@@ -81,6 +84,14 @@ export class DefinitionProvider {
       const chartRef = findChartReference(document, position);
       if (chartRef) {
         return this.handleChartReference(document, chartRef);
+      }
+    }
+
+    // ConfigMap/Secret参照を検出
+    if (this.configMapIndex) {
+      const configMapRef = findConfigMapReferenceAtPosition(document, position);
+      if (configMapRef) {
+        return this.handleConfigMapReference(configMapRef);
       }
     }
 
@@ -345,6 +356,35 @@ export class DefinitionProvider {
 
     if (parameter) {
       return Location.create(document.uri, parameter.range);
+    }
+
+    return null;
+  }
+
+  /**
+   * ConfigMap/Secret参照を処理
+   */
+  private handleConfigMapReference(
+    ref: ReturnType<typeof findConfigMapReferenceAtPosition>,
+  ): Location | null {
+    if (!ref || !this.configMapIndex) {
+      return null;
+    }
+
+    // name参照の場合：ConfigMap/Secret定義へジャンプ
+    if (ref.referenceType === 'name') {
+      const configMap = this.configMapIndex.findConfigMap(ref.name, ref.kind);
+      if (configMap) {
+        return Location.create(configMap.uri, configMap.nameRange);
+      }
+    }
+
+    // key参照の場合：dataキーへジャンプ
+    if (ref.referenceType === 'key' && ref.keyName) {
+      const key = this.configMapIndex.findKey(ref.name, ref.keyName, ref.kind);
+      if (key) {
+        return Location.create(key.uri, key.range);
+      }
     }
 
     return null;

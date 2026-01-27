@@ -14,10 +14,12 @@ import {
   isHelmTemplate,
 } from '@/features/valuesReferenceFeatures';
 import { findAllTemplateReferences as findAllHelmTemplateReferences } from '@/features/helmTemplateFeatures';
+import { findAllConfigMapReferences } from '@/features/configMapReferenceFeatures';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ConfigMapIndex } from '@/services/configMapIndex';
 
 /**
  * Diagnostic Provider
@@ -31,6 +33,7 @@ export class DiagnosticProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
+    private configMapIndex?: ConfigMapIndex,
   ) {}
 
   /**
@@ -59,6 +62,12 @@ export class DiagnosticProvider {
         const helmTemplateDiagnostics = this.validateHelmTemplateReferences(document);
         diagnostics.push(...helmTemplateDiagnostics);
       }
+    }
+
+    // ConfigMap/Secret参照の検証
+    if (this.configMapIndex) {
+      const configMapDiagnostics = this.validateConfigMapReferences(document);
+      diagnostics.push(...configMapDiagnostics);
     }
 
     // Argo Workflowドキュメントでない場合はスキップ
@@ -239,6 +248,56 @@ export class DiagnosticProvider {
           message: `Template '${ref.templateName}' not found (Helm ${functionType}, ${chart.name})`,
           source: 'argo-workflows-lsp',
         });
+      }
+    }
+
+    return diagnostics;
+  }
+
+  /**
+   * ConfigMap/Secret参照の検証
+   */
+  private validateConfigMapReferences(document: TextDocument): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+
+    if (!this.configMapIndex) {
+      return diagnostics;
+    }
+
+    // すべてのConfigMap/Secret参照を取得
+    const references = findAllConfigMapReferences(document);
+
+    for (const ref of references) {
+      // name参照の検証
+      if (ref.referenceType === 'name') {
+        const configMap = this.configMapIndex.findConfigMap(ref.name, ref.kind);
+        if (!configMap) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: ref.range,
+            message: `${ref.kind} '${ref.name}' not found`,
+            source: 'argo-workflows-lsp',
+          });
+        }
+      }
+
+      // key参照の検証
+      if (ref.referenceType === 'key' && ref.keyName) {
+        const configMap = this.configMapIndex.findConfigMap(ref.name, ref.kind);
+        if (!configMap) {
+          // ConfigMap/Secret自体が存在しない場合はスキップ（name参照で既にエラーが出ている）
+          continue;
+        }
+
+        const key = this.configMapIndex.findKey(ref.name, ref.keyName, ref.kind);
+        if (!key) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: ref.range,
+            message: `Key '${ref.keyName}' not found in ${ref.kind} '${ref.name}'`,
+            source: 'argo-workflows-lsp',
+          });
+        }
       }
     }
 

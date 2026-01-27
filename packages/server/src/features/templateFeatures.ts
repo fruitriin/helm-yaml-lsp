@@ -88,9 +88,19 @@ export function findTemplateDefinitions(document: TextDocument): TemplateDefinit
       continue;
     }
 
+    // 非Argo Workflowのkind（ConfigMap, Secret等）を検出してリセット
+    const nonArgoKindMatch = line.match(/^kind:\s*['"]?(\w+)['"]?/);
+    if (nonArgoKindMatch && !currentKind) {
+      // Argo Workflows以外のkindを検出した場合、状態をリセット
+      currentWorkflowName = undefined;
+      inTemplatesSection = false;
+      continue;
+    }
+
     // metadata.name: の検出（リテラル名のみ、Helm構文 {{ }} を含まない）
+    // currentKindが設定されている場合のみ処理
     const metadataNameMatch = line.match(/^\s*name:\s*['"]?([\w-]+)['"]?\s*$/);
-    if (metadataNameMatch && !inTemplatesSection) {
+    if (metadataNameMatch && !inTemplatesSection && currentKind) {
       const potentialName = metadataNameMatch[1];
       // Helm構文を含まない場合のみworkflowNameとして使用
       if (!line.includes('{{')) {
@@ -99,9 +109,9 @@ export function findTemplateDefinitions(document: TextDocument): TemplateDefinit
       continue;
     }
 
-    // templates: の検出
+    // templates: の検出（Argo Workflowの場合のみ）
     const templatesMatch = line.match(/^(\s*)templates:/);
-    if (templatesMatch) {
+    if (templatesMatch && currentKind) {
       inTemplatesSection = true;
       templatesIndent = templatesMatch[1].length;
       continue;
@@ -120,17 +130,19 @@ export function findTemplateDefinitions(document: TextDocument): TemplateDefinit
     // (ステップ名、パラメータ名、templateRef名などは除外)
     if (inTemplatesSection) {
       // テンプレート定義は templates: の直下のリスト要素のみ
-      // 期待されるインデント: templatesIndent + 4 (2 for list indent + 2 for content)
-      // パターン: "    - name: xxx" where leading spaces = templatesIndent + 4
-      const expectedTemplateIndent = templatesIndent + 4;
+      // 期待されるインデント: templatesIndent (同じレベル) から templatesIndent + 6
+      // 標準: "  templates:" の場合、"  - name:" または "    - name:"
+      // 非標準: "      - name:" (後方互換性のため許容)
+      const minTemplateIndent = templatesIndent;
+      const maxTemplateIndent = templatesIndent + 6;
 
       // "- name:" パターンをチェック（リスト要素の最初のキーがname）
       const templateNameMatch = line.match(/^(\s*)-\s*name:\s*['"]?([\w-]+)['"]?/);
       if (templateNameMatch) {
         const matchIndent = templateNameMatch[1].length;
         // インデントがテンプレート定義レベルと一致するか確認
-        // (多少の誤差を許容: expectedTemplateIndent ± 2)
-        if (Math.abs(matchIndent - expectedTemplateIndent) <= 2) {
+        // templatesIndentより大きく、妥当な範囲内であること
+        if (matchIndent >= minTemplateIndent && matchIndent <= maxTemplateIndent) {
           const templateName = templateNameMatch[2];
           const nameStart = line.indexOf(templateName);
 
@@ -283,20 +295,26 @@ export function findAllTemplateReferences(document: TextDocument): TemplateRefer
   const text = document.getText();
   const lines = text.split('\n');
 
-  // テンプレートの種類を検出（Workflow, CronWorkflow等）
+  // 複数のYAMLドキュメントを処理するため、現在のkindを追跡
   let kind: ArgoWorkflowKind | undefined;
-  for (let i = 0; i < lines.length; i++) {
-    const kindMatch = lines[i].match(
-      /kind:\s*['"]?(Workflow|CronWorkflow|WorkflowTemplate|ClusterWorkflowTemplate)['"]?/
-    );
-    if (kindMatch) {
-      kind = kindMatch[1] as ArgoWorkflowKind;
-      break;
-    }
-  }
 
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
     const line = lines[lineNum];
+
+    // YAMLドキュメント区切り（---）でkindをリセット
+    if (line.trim() === '---') {
+      kind = undefined;
+      continue;
+    }
+
+    // kind: の検出（各YAMLドキュメントごとに更新）
+    const kindMatch = line.match(
+      /^kind:\s*['"]?(Workflow|CronWorkflow|WorkflowTemplate|ClusterWorkflowTemplate)['"]?/
+    );
+    if (kindMatch) {
+      kind = kindMatch[1] as ArgoWorkflowKind;
+      continue;
+    }
 
     // template: フィールドを検出
     const templateMatch = line.match(/^\s*template:\s*['"]?([\w-]+)['"]?/);

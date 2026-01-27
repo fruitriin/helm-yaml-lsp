@@ -1,0 +1,36 @@
+# テスト用: 単一ファイルで複数YAMLドキュメントを含む簡易版
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: simple-templates
+  namespace: default
+spec:
+  templates:
+  - name: hello
+    container:
+      image: busybox
+      command: [echo, "hello"]
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: simple-workflow
+  namespace: default
+spec:
+  entrypoint: main
+  templates:
+  - name: main
+    steps:
+    - - name: step1
+        # ✅ これがエラーになるか確認
+        templateRef:
+          name: simple-templates
+          template: hello
+
+  - name: local-template
+    container:
+      image: busybox
+      command: [echo, "local"]

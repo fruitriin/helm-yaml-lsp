@@ -1,6 +1,37 @@
+# ========================================
+# Helm YAML LSP - デモ用Values設定
+# ========================================
+
 # デプロイ先の Namespace
 namespace: argo  # K8s namespace
 
+# ------------------------------------------
+# アプリケーション基本設定
+# ------------------------------------------
+app:
+  name: "Demo Application"
+  version: "1.0.0"
+  environment: production
+  logLevel: info
+
+# ------------------------------------------
+# ConfigMap/Secret設定（Phase 5デモ用）
+# ------------------------------------------
+config:
+  server:
+    host: "0.0.0.0"
+    port: 8080
+  database:
+    driver: postgres
+    poolSize: 10
+
+secrets:
+  username: "admin"
+  apiKey: "demo-api-key-123456"
+
+# ------------------------------------------
+# Workflow設定
+# ------------------------------------------
 workflow:
   # ワークフローの有効/無効
   enabled: true
@@ -12,6 +43,15 @@ workflow:
   schedule: "0 * * * *"
   concurrencyPolicy: Replace
 
+  # データ処理設定
+  dataset:
+    name: "customer-data"
+    maxRecords: 1000
+    batchSize: 50
+
+# ------------------------------------------
+# WorkflowTemplate設定
+# ------------------------------------------
 workflowTemplate:
   enabled: true
   templates:
@@ -19,6 +59,12 @@ workflowTemplate:
       message: "Hello from Helm!"
     whalesay:
       image: docker/whalesay:latest
+    processData:
+      defaultBatchSize: 100
+      timeout: "300s"
 
+# ------------------------------------------
+# ClusterWorkflowTemplate設定
+# ------------------------------------------
 clusterWorkflowTemplate:
   enabled: false

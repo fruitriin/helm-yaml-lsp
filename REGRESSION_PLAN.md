@@ -1,14 +1,16 @@
 # Regression Test Plan - Multi-Document YAML Support
 
-**Date**: 2026-01-27
-**Version**: Phase 5 Post-Fix
-**Status**: Completed ✅
+**Date**: 2026-01-27 (Updated: 2026-01-28)
+**Version**: Phase 5 Post-Fix (Revised with IDE Diagnostics API)
+**Status**: Completed ✅ (Enhanced with IDE Diagnostics API)
 
 ---
 
 ## 概要
 
 このドキュメントは、複数YAMLドキュメント（`---`区切り）を1つのファイルに含む場合の問題を修正し、リグレッションを防ぐためのテスト計画を記録します。
+
+**2026-01-28更新**: IDE Diagnostics API (`mcp__ide__getDiagnostics`) を活用した自動診断チェックを中核テストに追加し、手動確認の手間を大幅に削減しました。
 
 ---
 
@@ -254,78 +256,104 @@ it('should not confuse ConfigMap with WorkflowTemplate', () => {
 
 ## リグレッションテストの実行方法
 
-### ⭐ 中核テスト: VSCode拡張機能での実機テスト
+### ⭐ 中核テスト: IDE Diagnostics APIを使った自動診断テスト
 
-**最重要**: 自動テストだけでなく、実際のVSCode環境でLSPサーバーの診断機能を確認することを中核とします。
+**最重要**: 自動テストだけでなく、実際のVSCode環境でLSPサーバーの診断機能を**IDE Diagnostics API**を使って自動的に確認することを中核とします。
 
 #### 前提条件
 
-1. VSCodeに本拡張機能がインストールされている
+1. VSCode Extension Development Hostが起動している（F5キー）
 2. LSPサーバーがビルド済み（`bun run build`）
+3. Claude Codeから`mcp__ide__getDiagnostics` APIを使用できる
 
 #### テスト手順
 
-**1. Argo版デモファイルの診断テスト**
+**Phase 1: IDE Diagnostics APIによる自動診断チェック**
 
-```bash
-# VSCodeでArgo版デモファイルを開く
-code samples/argo/demo-workflow.yaml
+Claude Codeから以下のMCP関数を実行：
+
+```typescript
+// Argo版デモファイルの診断取得
+mcp__ide__getDiagnostics({
+  uri: "file:///Users/riin/workspace/helm-yaml-lsp/samples/argo/demo-workflow.yaml"
+})
+
+// Helm版デモファイルの診断取得
+mcp__ide__getDiagnostics({
+  uri: "file:///Users/riin/workspace/helm-yaml-lsp/samples/helm/templates/demo-workflow.yaml"
+})
 ```
 
-**診断チェックリスト**:
-- [ ] **Diagnostics（診断）**: エラー・警告が0件
-- [ ] **Line 129-175**: ConfigMap/Secret参照にエラーが表示されない
-  - `configMapKeyRef.name: app-config` → ✅ エラーなし
-  - `secretKeyRef.name: app-secrets` → ✅ エラーなし
-- [ ] **Line 211, 215**: Volume参照にエラーが表示されない
-  - `volumes.configMap.name: app-config` → ✅ エラーなし
-  - `volumes.secret.secretName: app-secrets` → ✅ エラーなし
-- [ ] **Line 225, 245**: ローカルテンプレート参照にエラーが表示されない
-  - `template: init-step` → ✅ エラーなし
-  - `template: validate-step` → ✅ エラーなし
-- [ ] **Line 234, 258, 263**: WorkflowTemplate参照にエラーが表示されない
-  - `templateRef.template: process-data` → ✅ エラーなし
-  - `templateRef.template: use-configmap` → ✅ エラーなし
-  - `templateRef.template: use-secrets` → ✅ エラーなし
-- [ ] **Line 314**: envFrom参照にエラーが表示されない
-  - `envFrom.configMapRef.name: app-config` → ✅ エラーなし
+**期待される結果**:
+- **diagnostics配列が空** （`diagnostics: []`）
+- エラー・警告が**0件**
 
-**機能テスト**:
+**実際の診断結果をJSON形式で記録**:
+```json
+{
+  "uri": "file:///..../demo-workflow.yaml",
+  "linesInFile": 349,
+  "diagnostics": []  // ← 空配列であることを確認
+}
+```
+
+**❌ もしエラーが検出された場合の対応**:
+
+診断APIで以下のようなエラーが検出された場合：
+```json
+{
+  "message": "ConfigMap 'app-config' not found",
+  "severity": "Error",
+  "range": {"start": {"line": 128, "character": 18}, "end": {"line": 128, "character": 28}},
+  "source": "argo-workflows-lsp"
+}
+```
+
+→ **修正が必要**。該当箇所を特定し、原因を調査する。
+
+**診断チェックリスト（自動）**:
+- [ ] **Argo版**: `diagnostics`配列が空（エラー0件）
+- [ ] **Helm版**: `diagnostics`配列が空（エラー0件）
+- [ ] **ConfigMap/Secret参照**: "ConfigMap 'app-config' not found" エラーがない
+- [ ] **Template参照**: "Template 'xxx' not found" エラーがない
+- [ ] **Values参照**: ".Values.xxx not found" エラーがない（Helm版のみ）
+
+**Phase 2: 手動機能テスト（IDE Diagnostics APIでカバーできない部分）**
+
+以下の機能は手動で確認：
+
+**1. Argo版デモファイル (`samples/argo/demo-workflow.yaml`)**
+
 - [ ] **F12 (定義ジャンプ)**:
-  - ConfigMap名 → L35 (metadata.name: app-config)
-  - Secret名 → L59 (metadata.name: app-secrets)
-  - dataキー → L39, L40等（各キー定義）
-  - テンプレート名 → L85, L113等（テンプレート定義）
+  - Line 129: `app-config` → L35 (metadata.name: app-config)
+  - Line 164: `app-secrets` → L59 (metadata.name: app-secrets)
+  - Line 225: `init-step` → L268 (template定義)
+  - Line 234: `process-data` → L113 (WorkflowTemplate内定義)
 - [ ] **ホバー情報**:
-  - ConfigMap名 → 名前、キー数、キーリスト表示
-  - Secret名 → 名前、キー数（値は`[hidden]`）
-  - テンプレート名 → テンプレートの説明表示
-  - workflow変数 → 各変数の説明表示
+  - Line 129: `app-config` → ConfigMap名、キー数、キーリスト表示
+  - Line 164: `app-secrets` → Secret名、キー数（値は`[hidden]`）
+  - Line 225: `init-step` → テンプレート説明表示
 - [ ] **補完（Ctrl+Space）**:
-  - ConfigMap/Secret名の補完
-  - dataキーの補完
-  - テンプレート名の補完
+  - `configMapKeyRef.name:` → `app-config`が候補に表示される
+  - `secretKeyRef.name:` → `app-secrets`が候補に表示される
+  - `template:` → `init-step`, `validate-step`が候補に表示される
 
-**2. Helm版デモファイルの診断テスト**
+**2. Helm版デモファイル (`samples/helm/templates/demo-workflow.yaml`)**
 
-```bash
-# VSCodeでHelm版デモファイルを開く
-code samples/helm/templates/demo-workflow.yaml
-```
-
-**診断チェックリスト**:
-- [ ] **Diagnostics（診断）**: エラー・警告が0件
-- [ ] **ConfigMap/Secret参照**: 全てエラーなし（Argo版と同様）
-- [ ] **テンプレート参照**: 全てエラーなし（Argo版と同様）
-- [ ] **Helm固有機能**:
-  - `.Values.*`参照 → エラーなし、values.yamlへジャンプ可能
-  - `include "xxx"`参照 → エラーなし、_helpers.tplへジャンプ可能
-  - Helm組み込み関数（`quote`, `indent`, `toYaml`等） → ホバー情報表示
-  - `.Chart.*`変数 → Chart.yamlへジャンプ可能
-  - `.Release.*`変数 → ホバー情報表示
+- [ ] **F12 (定義ジャンプ)**:
+  - `.Values.workflow.name` → values.yamlへジャンプ
+  - `include "myhelm.fullname"` → _helpers.tplへジャンプ
+  - `.Chart.Name` → Chart.yamlへジャンプ
+- [ ] **ホバー情報**:
+  - `.Values.xxx` → 値、型、説明表示
+  - `quote` → Helm組み込み関数の説明表示
+  - `.Release.Name` → Release変数の説明表示
+- [ ] **補完（Ctrl+Space）**:
+  - `.Values.` → values.yaml内のキーが候補に表示される
+  - `include "` → 定義済みテンプレート名が候補に表示される
 
 **スクリーンショット記録（推奨）**:
-- 診断結果（Problems パネル）
+- IDE Diagnostics APIのJSON出力
 - 定義ジャンプの動作
 - ホバー情報の表示
 
@@ -425,7 +453,43 @@ bun test packages/server/test/features/templateFeatures-multidoc.test.ts
 
 ## 今後の推奨事項
 
-### 1. CI/CDでのリグレッションテスト
+### 1. IDE Diagnostics APIを使った自動テストスクリプト
+
+**推奨**: IDE Diagnostics APIを使った自動診断チェックスクリプトを作成し、リグレッション検出を自動化する。
+
+**実装例（TypeScript）**:
+```typescript
+// packages/server/test/integration/ide-diagnostics.test.ts
+import { describe, it, expect } from 'bun:test';
+import { mcp__ide__getDiagnostics } from '@mcp/ide';
+
+describe('IDE Diagnostics Integration Test', () => {
+  it('should have zero diagnostics for Argo demo file', async () => {
+    const result = await mcp__ide__getDiagnostics({
+      uri: 'file:///Users/riin/workspace/helm-yaml-lsp/samples/argo/demo-workflow.yaml'
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.diagnostics.length).toBe(0);
+  });
+
+  it('should have zero diagnostics for Helm demo file', async () => {
+    const result = await mcp__ide__getDiagnostics({
+      uri: 'file:///Users/riin/workspace/helm-yaml-lsp/samples/helm/templates/demo-workflow.yaml'
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.diagnostics.length).toBe(0);
+  });
+});
+```
+
+**利点**:
+- 手動確認不要でリグレッション検出
+- CI/CDに統合可能（Extension Development Host起動が必要）
+- 診断結果の自動記録
+
+### 2. CI/CDでのリグレッションテスト
 
 ```yaml
 # .github/workflows/test.yml (example)
@@ -443,6 +507,7 @@ jobs:
       - run: bun run build
       - run: bun run test
       - run: bun run check
+      # TODO: IDE Diagnostics APIテストの統合（VSCode headless mode検討）
 ```
 
 ### 2. 複数YAMLドキュメントのテストカバレッジ拡大
@@ -461,15 +526,16 @@ jobs:
 
 ---
 
-## Claude Code実行手順（VSCode実機テスト）
+## Claude Code実行手順（IDE Diagnostics API使用）
 
 ### 準備
 
 ```bash
-# 1. ビルド
+# 1. メインプロジェクトでビルド（worktreeではなく）
+cd /Users/riin/workspace/helm-yaml-lsp
 bun run build
 
-# 2. VSCodeでプロジェクトを開く
+# 2. VSCodeでプロジェクトを開く（まだの場合）
 code /Users/riin/workspace/helm-yaml-lsp
 ```
 
@@ -477,54 +543,152 @@ code /Users/riin/workspace/helm-yaml-lsp
 
 #### Step 1: Extension Development Hostの起動
 
-1. VSCodeでF5キーを押す
+1. メインプロジェクト (`/Users/riin/workspace/helm-yaml-lsp`) で**F5キー**を押す
 2. "Extension Development Host"ウィンドウが起動する
 3. 拡張機能が自動的にロードされる
 
-#### Step 2: Argo版デモファイルのテスト
+#### Step 2: デモファイルを開く
+
+Extension Development Hostで以下のファイルを開く：
 
 ```bash
-# Extension Development Hostで実行
-# Command Palette (Cmd+Shift+P) > "File: Open File..."
-# または直接:
+# Argo版デモファイル
 File > Open File > samples/argo/demo-workflow.yaml
-```
 
-**確認方法**:
-1. ファイルを開いた直後、左下のステータスバーに「Argo Workflows Language Server」が表示される
-2. Problems パネル（View > Problems、または Cmd+Shift+M）を開く
-3. エラー・警告が**0件**であることを確認
-4. ファイル内に赤波線が表示されていないことを確認
-
-**診断結果の記録**:
-```
-# 以下のコマンドで診断結果をJSON形式で取得
-# Command Palette > "Developer: Show Diagnostics"
-# または、Problems パネルから右クリック > "Copy"
-```
-
-#### Step 3: Helm版デモファイルのテスト
-
-```bash
-# Extension Development Hostで実行
+# Helm版デモファイル（同時に開いてもOK）
 File > Open File > samples/helm/templates/demo-workflow.yaml
 ```
 
-**確認方法**: Step 2と同様
+**確認ポイント**:
+- ファイルを開いた直後、左下のステータスバーに「Argo Workflows Language Server」が表示される
+- LSPサーバーが起動していることを確認
 
-#### Step 4: 機能テスト（任意）
+#### Step 3: IDE Diagnostics APIで診断チェック（自動）
+
+Claude Codeから以下を実行：
+
+**テストケース1: 正常動作版（エラー0件を期待）**
+
+```typescript
+// 1. Argo版 - 正常動作版
+mcp__ide__getDiagnostics({
+  uri: "file:///Users/riin/workspace/helm-yaml-lsp/samples/argo/demo-workflow-valid.yaml"
+})
+
+// 2. Helm版 - 正常動作版
+mcp__ide__getDiagnostics({
+  uri: "file:///Users/riin/workspace/helm-yaml-lsp/samples/helm/templates/demo-workflow.yaml"
+})
+```
+
+**期待される結果**:
+```json
+{
+  "uri": "file:///.../demo-workflow-valid.yaml",
+  "linesInFile": 349,
+  "diagnostics": []  // ✅ 空配列（エラー0件）
+}
+```
+
+**もしエラーが検出された場合** → **リグレッション発生**。コードを確認し、修正が必要。
+
+---
+
+**テストケース2: エラー検出版（エラーが検出されることを確認）**
+
+```typescript
+// 意図的にエラーを含むファイルで診断実行
+mcp__ide__getDiagnostics({
+  uri: "file:///Users/riin/workspace/helm-yaml-lsp/samples/argo/demo-workflow-invalid.yaml"
+})
+```
+
+**期待される結果**:
+```json
+{
+  "uri": "file:///.../demo-workflow-invalid.yaml",
+  "diagnostics": [
+    {
+      "message": "ConfigMap 'missing-configmap' not found",
+      "severity": "Error",
+      "range": {"start": {"line": 85, "character": 18}, ...}
+    },
+    {
+      "message": "Secret 'missing-secret' not found",
+      "severity": "Error",
+      ...
+    },
+    {
+      "message": "Template 'non-existent-template' not found in this Workflow",
+      "severity": "Error",
+      ...
+    }
+    // ... 他のエラー
+  ]
+}
+```
+
+**期待されるエラー数**: 8個程度
+- ❌ ConfigMap 'missing-configmap' not found (2箇所)
+- ❌ Secret 'missing-secret' not found (2箇所)
+- ❌ Template 'non-existent-template' not found (1箇所)
+- ❌ Template 'missing-template' not found in WorkflowTemplate (1箇所)
+- ❌ ConfigMap key 'invalid.key' not found (1箇所)
+- ❌ その他
+
+**もしエラーが検出されない場合** → **診断機能が正しく動作していない**。修正が必要。
+
+#### Step 4: コード変更後の再テスト手順
+
+**重要**: コードに変更を加えた場合、以下の手順で再テストを実行：
+
+1. **メインプロジェクトで変更を加える**:
+   ```bash
+   cd /Users/riin/workspace/helm-yaml-lsp
+   # packages/server/src/... を編集
+   ```
+
+2. **ビルド**:
+   ```bash
+   bun run build
+   ```
+
+3. **Extension Development Hostをリロード**:
+   - Extension Development Hostウィンドウで`Cmd+R`（macOS）または`Ctrl+R`（Windows/Linux）
+   - または、Command Palette > "Developer: Reload Window"
+
+4. **デモファイルを再度開く**（リロード後）:
+   ```bash
+   File > Open File > samples/argo/demo-workflow.yaml
+   ```
+
+5. **IDE Diagnostics APIで再度診断チェック**（Step 3を繰り返す）
+
+#### Step 5: 手動機能テスト（任意だが推奨）
 
 デモファイル内で以下の操作を試す：
 
+**Argo版 (`samples/argo/demo-workflow.yaml`)**:
+
 1. **定義ジャンプ（F12）**:
-   - L129の`app-config`にカーソルを置いてF12 → L35にジャンプ
-   - L225の`init-step`にカーソルを置いてF12 → L268にジャンプ
+   - Line 129: `app-config` → Line 35にジャンプするか確認
+   - Line 225: `init-step` → Line 268にジャンプするか確認
 
 2. **ホバー情報**:
-   - L129の`app-config`にマウスホバー → ConfigMapの内容表示
+   - Line 129: `app-config` にマウスホバー → ConfigMapの内容が表示されるか確認
 
 3. **補完（Ctrl+Space）**:
-   - 新しい`configMapKeyRef`を入力時、`name:`の値で補完候補が表示される
+   - 新しい`configMapKeyRef.name:`を入力時 → `app-config`が候補に表示されるか確認
+
+**Helm版 (`samples/helm/templates/demo-workflow.yaml`)**:
+
+1. **定義ジャンプ（F12）**:
+   - `.Values.workflow.name` → values.yamlにジャンプするか確認
+   - `include "myhelm.fullname"` → _helpers.tplにジャンプするか確認
+
+2. **ホバー情報**:
+   - `.Values.workflow.name` → 値、型が表示されるか確認
+   - `quote` → Helm関数の説明が表示されるか確認
 
 ---
 
@@ -540,11 +704,24 @@ File > Open File > samples/helm/templates/demo-workflow.yaml
 - [x] デモファイルの作成
 - [x] 全テストの通過確認（444 pass、0 fail）
 
-### VSCode実機テスト（中核）
+### IDE Diagnostics APIテスト（中核）
 
 - [ ] Extension Development Hostの起動確認
-- [ ] Argo版demo-workflow.yamlの診断テスト（エラー0件）
-- [ ] Helm版demo-workflow.yamlの診断テスト（エラー0件）
+
+**テストケース1: 正常動作版（エラー0件を期待）**
+- [ ] `demo-workflow-valid.yaml` を開く
+- [ ] **IDE Diagnostics API実行**: Argo版 (`demo-workflow-valid.yaml`) → エラー0件を確認
+- [ ] **IDE Diagnostics API実行**: Helm版 (`demo-workflow.yaml`) → エラー0件を確認
+- [ ] 診断結果をJSON形式で記録（`diagnostics: []`であることを確認）
+
+**テストケース2: エラー検出版（エラーが検出されることを確認）**
+- [ ] `demo-workflow-invalid.yaml` を開く
+- [ ] **IDE Diagnostics API実行**: `demo-workflow-invalid.yaml` → 8個程度のエラーを確認
+- [ ] エラー内容が期待通りか確認（ConfigMap/Secret/Template not found）
+- [ ] 診断結果をJSON形式で記録
+
+### 手動機能テスト（推奨）
+
 - [ ] 定義ジャンプ（F12）の動作確認
 - [ ] ホバー情報の表示確認
 - [ ] 補完機能の動作確認
@@ -592,6 +769,9 @@ bun run typecheck
 
 ---
 
-**最終更新日**: 2026-01-27
+**最終更新日**: 2026-01-28
 **作成者**: Claude Sonnet 4.5
 **ステータス**: 修正完了、テスト通過 ✅
+**改訂履歴**:
+- 2026-01-27: 初版作成（複数YAMLドキュメント問題修正）
+- 2026-01-28: IDE Diagnostics APIを使った自動診断チェックを追加

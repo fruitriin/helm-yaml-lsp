@@ -62,8 +62,26 @@ samples/
 |-----------|------|----------|
 | [comprehensive-workflow.yaml](argo/comprehensive-workflow.yaml) | すべての主要機能を含む包括的なサンプル | ローカルテンプレート参照、パラメータ（inputs/outputs）、Workflow変数、コメント付き定義 |
 | **[demo-workflow.yaml](argo/demo-workflow.yaml)** | **Phase 5完了版・全機能デモ** | **Argo Workflows全機能 + ConfigMap/Secret参照を上から順に確認できる包括的デモ** |
+| **[demo-workflow-valid.yaml](argo/demo-workflow-valid.yaml)** | **リグレッションテスト用・正常動作版** | **診断エラー0件が期待されるファイル。全ての参照が正しく解決される** |
+| **[demo-workflow-invalid.yaml](argo/demo-workflow-invalid.yaml)** | **リグレッションテスト用・エラー検出版** | **意図的にエラーを含むファイル。診断機能が正しくエラーを検出することを確認** |
 
 **注意**: テストフィクスチャー版（`packages/server/test/fixtures/comprehensive-workflow.yaml`）には意図的なエラーケースが含まれています。正常なサンプルを参照する場合は上記のファイルを使用してください。
+
+### リグレッションテスト用ファイル
+
+**テスト目的**: LSPサーバーの診断機能が正しく動作することを確認します。
+
+| ファイル名 | 目的 | 期待される診断結果 |
+|-----------|------|------------------|
+| [demo-workflow-valid.yaml](argo/demo-workflow-valid.yaml) | 正常動作の確認 | `diagnostics: []` (エラー0件) |
+| [demo-workflow-invalid.yaml](argo/demo-workflow-invalid.yaml) | エラー検出の確認 | 8個程度のエラー検出（ConfigMap/Secret/Template not found） |
+
+**使用方法**:
+1. Extension Development Hostでファイルを開く
+2. IDE Diagnostics API (`mcp__ide__getDiagnostics`) で診断実行
+3. 診断結果が期待通りであることを確認
+
+詳細は [regression_plan.md](../regression_plan.md) を参照してください。
 
 ### 推奨デモファイル ⭐
 

@@ -49,10 +49,12 @@
   },
   "scripts": {
     "build": "bun build src/extension.ts --outdir dist --target node --format cjs --external vscode --sourcemap=external",
+    "build:test": "tsc -p test-integration/tsconfig.json",
     "watch": "bun build src/extension.ts --outdir dist --target node --format cjs --external vscode --sourcemap=external --watch",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist test-integration/out",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "test:integration": "bun run build && bun run build:test && node test-integration/out/runTest.js",
     "lint": "biome lint src",
     "format": "biome format src",
     "package": "bun run build && vsce package --no-dependencies"
@@ -61,7 +63,11 @@
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^2.22.0"
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^2.22.0",
+    "glob": "^13.0.0",
+    "mocha": "^11.7.5"
   }
 }

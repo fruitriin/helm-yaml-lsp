@@ -230,6 +230,32 @@ connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
   return item;
 });
 
+// ドキュメントを開いたときの処理
+documents.onDidOpen(async event => {
+  connection.console.log(`Document opened: ${event.document.uri}`);
+
+  // 開かれたファイルをインデックスに追加
+  const uri = event.document.uri;
+
+  // ArgoTemplateIndexに追加
+  await argoTemplateIndex.updateFile(uri);
+
+  // ConfigMapIndexに追加
+  await configMapIndex.updateFile(uri);
+
+  // HelmChartIndexに追加（Helmファイルの場合）
+  if (helmChartIndex) {
+    const filePath = uriToFilePath(uri);
+    if (filePath) {
+      await helmChartIndex.reindexChart(filePath);
+    }
+  }
+
+  // 診断を実行
+  const diagnostics = await diagnosticProvider.provideDiagnostics(event.document);
+  connection.sendDiagnostics({ uri: event.document.uri, diagnostics });
+});
+
 // ドキュメント変更時の処理
 documents.onDidChangeContent(async change => {
   connection.console.log(`Document changed: ${change.document.uri}`);

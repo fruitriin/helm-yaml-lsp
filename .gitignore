@@ -4,6 +4,7 @@ node_modules/
 # Build outputs
 dist/
 *.vsix
+packages/vscode-client/test-integration/out/
 
 # Test
 .vscode-test/
@@ -19,5 +20,8 @@ dist/
 
 # Git submodule (managed separately)
 vscode-kubernetes-tools-argo/
+
+# Claude Code work directory
+.work/
 
 # Note: bun.lockb should be committed for dependency version locking

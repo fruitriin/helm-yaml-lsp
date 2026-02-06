@@ -10,8 +10,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { findConfigMapDefinitions } from '@/features/configMapFeatures';
 
 describe('ConfigMap Features - Multi-document YAML', () => {
-	it('should find ConfigMap and Secret in multi-document YAML file', () => {
-		const content = `---
+  it('should find ConfigMap and Secret in multi-document YAML file', () => {
+    const content = `---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -54,29 +54,29 @@ spec:
   entrypoint: main
 `;
 
-		const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-		const definitions = findConfigMapDefinitions(document);
+    const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+    const definitions = findConfigMapDefinitions(document);
 
-		// Should find exactly 2 definitions: ConfigMap and Secret
-		expect(definitions.length).toBe(2);
+    // Should find exactly 2 definitions: ConfigMap and Secret
+    expect(definitions.length).toBe(2);
 
-		// Check ConfigMap
-		const configMap = definitions.find((d) => d.kind === 'ConfigMap');
-		expect(configMap).toBeDefined();
-		expect(configMap?.name).toBe('app-config');
-		expect(configMap?.keys.length).toBe(2);
-		expect(configMap?.keys.map((k) => k.keyName)).toEqual(['app.name', 'app.version']);
+    // Check ConfigMap
+    const configMap = definitions.find(d => d.kind === 'ConfigMap');
+    expect(configMap).toBeDefined();
+    expect(configMap?.name).toBe('app-config');
+    expect(configMap?.keys.length).toBe(2);
+    expect(configMap?.keys.map(k => k.keyName)).toEqual(['app.name', 'app.version']);
 
-		// Check Secret
-		const secret = definitions.find((d) => d.kind === 'Secret');
-		expect(secret).toBeDefined();
-		expect(secret?.name).toBe('app-secrets');
-		expect(secret?.keys.length).toBe(2);
-		expect(secret?.keys.map((k) => k.keyName)).toEqual(['username', 'password']);
-	});
+    // Check Secret
+    const secret = definitions.find(d => d.kind === 'Secret');
+    expect(secret).toBeDefined();
+    expect(secret?.name).toBe('app-secrets');
+    expect(secret?.keys.length).toBe(2);
+    expect(secret?.keys.map(k => k.keyName)).toEqual(['username', 'password']);
+  });
 
-	it('should not confuse Workflow name with ConfigMap name', () => {
-		const content = `---
+  it('should not confuse Workflow name with ConfigMap name', () => {
+    const content = `---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -93,12 +93,12 @@ spec:
   entrypoint: main
 `;
 
-		const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-		const definitions = findConfigMapDefinitions(document);
+    const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+    const definitions = findConfigMapDefinitions(document);
 
-		// Should find only 1 ConfigMap, not the Workflow
-		expect(definitions.length).toBe(1);
-		expect(definitions[0].kind).toBe('ConfigMap');
-		expect(definitions[0].name).toBe('my-config');
-	});
+    // Should find only 1 ConfigMap, not the Workflow
+    expect(definitions.length).toBe(1);
+    expect(definitions[0].kind).toBe('ConfigMap');
+    expect(definitions[0].name).toBe('my-config');
+  });
 });

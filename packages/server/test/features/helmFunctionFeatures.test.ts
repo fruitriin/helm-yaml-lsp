@@ -6,8 +6,8 @@ import { describe, expect, it } from 'bun:test';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver-types';
 import {
-  findHelmFunctionReference,
   findAllHelmFunctionReferences,
+  findHelmFunctionReference,
 } from '../../src/features/helmFunctionFeatures';
 
 describe('helmFunctionFeatures', () => {

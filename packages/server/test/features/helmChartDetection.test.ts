@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { findHelmCharts, isFileInChart, isHelmChart, parseChartYaml } from '../../src/features/helmChartDetection';
+import {
+  findHelmCharts,
+  isFileInChart,
+  isHelmChart,
+  parseChartYaml,
+} from '../../src/features/helmChartDetection';
 import { filePathToUri } from '../../src/utils/uriUtils';
 
 describe('helmChartDetection', () => {
@@ -25,7 +30,10 @@ describe('helmChartDetection', () => {
     it('should return true if Chart.yaml exists', async () => {
       const chartDir = path.join(testDir, 'my-chart');
       await fs.mkdir(chartDir, { recursive: true });
-      await fs.writeFile(path.join(chartDir, 'Chart.yaml'), 'apiVersion: v2\nname: test\nversion: 1.0.0\n');
+      await fs.writeFile(
+        path.join(chartDir, 'Chart.yaml'),
+        'apiVersion: v2\nname: test\nversion: 1.0.0\n'
+      );
 
       const result = await isHelmChart(chartDir);
       expect(result).toBe(true);

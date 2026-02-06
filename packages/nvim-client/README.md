@@ -40,7 +40,17 @@ require('argo-workflows-lsp').setup({
         vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
         vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
         vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
-    end
+    end,
+    -- サーバー設定（オプション）
+    settings = {
+        argoWorkflowsLSP = {
+            maxNumberOfProblems = 1000,
+            enableHover = true,
+            enableDefinition = true,
+            enableCompletion = true,
+            enableDiagnostics = true,  -- エラー診断を無効にする場合はfalseに設定
+        }
+    }
 })
 ```
 

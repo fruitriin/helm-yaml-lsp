@@ -7,9 +7,9 @@
  * - {{ required "msg" .Values.foo }}
  */
 
+import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Position, Range } from 'vscode-languageserver-types';
 import { Range as LSPRange } from 'vscode-languageserver-types';
-import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 /**
  * Represents a Helm function reference
@@ -34,7 +34,7 @@ export type HelmFunctionReference = {
  */
 export function findHelmFunctionReference(
   document: TextDocument,
-  position: Position,
+  position: Position
 ): HelmFunctionReference | undefined {
   const line = document.getText({
     start: { line: position.line, character: 0 },
@@ -64,9 +64,7 @@ export function findHelmFunctionReference(
  * @param document - Text document
  * @returns Array of HelmFunctionReference objects
  */
-export function findAllHelmFunctionReferences(
-  document: TextDocument,
-): HelmFunctionReference[] {
+export function findAllHelmFunctionReferences(document: TextDocument): HelmFunctionReference[] {
   const references: HelmFunctionReference[] = [];
   const lineCount = document.lineCount;
 
@@ -96,7 +94,7 @@ export function findAllHelmFunctionReferences(
  */
 function findAllHelmFunctionReferencesInLine(
   line: string,
-  lineNumber: number,
+  lineNumber: number
 ): HelmFunctionReference[] {
   const references: HelmFunctionReference[] = [];
 
@@ -121,7 +119,7 @@ function findAllHelmFunctionReferencesInLine(
 
     const range = LSPRange.create(
       { line: lineNumber, character: startChar },
-      { line: lineNumber, character: endChar },
+      { line: lineNumber, character: endChar }
     );
 
     references.push({
@@ -139,9 +137,13 @@ function findAllHelmFunctionReferencesInLine(
 
   while ((match = callPattern.exec(line)) !== null) {
     const functionName = match[1];
-    
+
     // Skip common keywords that are not functions
-    if (['if', 'else', 'with', 'range', 'end', 'define', 'template', 'include', 'block'].includes(functionName)) {
+    if (
+      ['if', 'else', 'with', 'range', 'end', 'define', 'template', 'include', 'block'].includes(
+        functionName
+      )
+    ) {
       continue;
     }
 
@@ -152,7 +154,7 @@ function findAllHelmFunctionReferencesInLine(
     const alreadyCaptured = references.some(
       ref => ref.range.start.character === startChar && ref.range.end.character === endChar
     );
-    
+
     if (alreadyCaptured) {
       continue;
     }
@@ -163,11 +165,16 @@ function findAllHelmFunctionReferencesInLine(
     // Extract arguments (everything between function name and }})
     const afterFunction = line.substring(endChar);
     const argsMatch = afterFunction.match(/^([^}]+)/);
-    const args = argsMatch ? argsMatch[1].trim().split(/\s+/).filter(a => a) : undefined;
+    const args = argsMatch
+      ? argsMatch[1]
+          .trim()
+          .split(/\s+/)
+          .filter(a => a)
+      : undefined;
 
     const range = LSPRange.create(
       { line: lineNumber, character: startChar },
-      { line: lineNumber, character: endChar },
+      { line: lineNumber, character: endChar }
     );
 
     references.push({

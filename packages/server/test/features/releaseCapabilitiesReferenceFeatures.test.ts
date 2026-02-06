@@ -6,9 +6,9 @@ import { describe, expect, it } from 'bun:test';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver-types';
 import {
-  findReleaseCapabilitiesReference,
-  findAllReleaseCapabilitiesReferences,
   extractReleaseCapabilitiesPathForCompletion,
+  findAllReleaseCapabilitiesReferences,
+  findReleaseCapabilitiesReference,
 } from '../../src/features/releaseCapabilitiesReferenceFeatures';
 
 describe('releaseCapabilitiesReferenceFeatures', () => {

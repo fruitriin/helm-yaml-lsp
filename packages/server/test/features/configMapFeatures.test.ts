@@ -7,9 +7,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { findConfigMapDefinitions } from '@/features/configMapFeatures';
 
 describe('ConfigMap Features', () => {
-	describe('findConfigMapDefinitions', () => {
-		it('should detect ConfigMap definition', () => {
-			const content = `
+  describe('findConfigMapDefinitions', () => {
+    it('should detect ConfigMap definition', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -20,24 +20,19 @@ data:
   api-endpoint: "https://api.example.com"
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions.length).toBe(1);
-			expect(definitions[0].name).toBe('app-config');
-			expect(definitions[0].kind).toBe('ConfigMap');
-			expect(definitions[0].keys.length).toBe(2);
-			expect(definitions[0].keys[0].keyName).toBe('database-url');
-			expect(definitions[0].keys[1].keyName).toBe('api-endpoint');
-		});
+      expect(definitions.length).toBe(1);
+      expect(definitions[0].name).toBe('app-config');
+      expect(definitions[0].kind).toBe('ConfigMap');
+      expect(definitions[0].keys.length).toBe(2);
+      expect(definitions[0].keys[0].keyName).toBe('database-url');
+      expect(definitions[0].keys[1].keyName).toBe('api-endpoint');
+    });
 
-		it('should detect Secret definition', () => {
-			const content = `
+    it('should detect Secret definition', () => {
+      const content = `
 apiVersion: v1
 kind: Secret
 metadata:
@@ -48,23 +43,18 @@ data:
   db-password: cGFzc3dvcmQxMjM=
 `;
 
-			const document = TextDocument.create(
-				'file:///test/secret.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/secret.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions.length).toBe(1);
-			expect(definitions[0].name).toBe('app-secrets');
-			expect(definitions[0].kind).toBe('Secret');
-			expect(definitions[0].keys.length).toBe(1);
-			expect(definitions[0].keys[0].keyName).toBe('db-password');
-		});
+      expect(definitions.length).toBe(1);
+      expect(definitions[0].name).toBe('app-secrets');
+      expect(definitions[0].kind).toBe('Secret');
+      expect(definitions[0].keys.length).toBe(1);
+      expect(definitions[0].keys[0].keyName).toBe('db-password');
+    });
 
-		it('should extract keys from data section', () => {
-			const content = `
+    it('should extract keys from data section', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -75,24 +65,15 @@ data:
   key3: value3
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions[0].keys.length).toBe(3);
-			expect(definitions[0].keys.map((k) => k.keyName)).toEqual([
-				'key1',
-				'key2',
-				'key3',
-			]);
-		});
+      expect(definitions[0].keys.length).toBe(3);
+      expect(definitions[0].keys.map(k => k.keyName)).toEqual(['key1', 'key2', 'key3']);
+    });
 
-		it('should extract keys from stringData section', () => {
-			const content = `
+    it('should extract keys from stringData section', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -102,21 +83,16 @@ stringData:
   password: secret
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions[0].keys.length).toBe(2);
-			expect(definitions[0].keys[0].keyName).toBe('username');
-			expect(definitions[0].keys[1].keyName).toBe('password');
-		});
+      expect(definitions[0].keys.length).toBe(2);
+      expect(definitions[0].keys[0].keyName).toBe('username');
+      expect(definitions[0].keys[1].keyName).toBe('password');
+    });
 
-		it('should handle multiline values', () => {
-			const content = `
+    it('should handle multiline values', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -128,25 +104,20 @@ data:
       host: 0.0.0.0
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions[0].keys.length).toBe(1);
-			expect(definitions[0].keys[0].keyName).toBe('config.yaml');
-			// Multiline value should be extracted
-			expect(definitions[0].keys[0].value).toBeDefined();
-			expect(definitions[0].keys[0].value).toContain('server:');
-			expect(definitions[0].keys[0].value).toContain('port: 8080');
-			expect(definitions[0].keys[0].value).toContain('host: 0.0.0.0');
-		});
+      expect(definitions[0].keys.length).toBe(1);
+      expect(definitions[0].keys[0].keyName).toBe('config.yaml');
+      // Multiline value should be extracted
+      expect(definitions[0].keys[0].value).toBeDefined();
+      expect(definitions[0].keys[0].value).toContain('server:');
+      expect(definitions[0].keys[0].value).toContain('port: 8080');
+      expect(definitions[0].keys[0].value).toContain('host: 0.0.0.0');
+    });
 
-		it('should handle multiple keys including multiline', () => {
-			const content = `
+    it('should handle multiple keys including multiline', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -159,25 +130,20 @@ data:
   another-key: another-value
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions[0].keys.length).toBe(3);
-			expect(definitions[0].keys[0].keyName).toBe('simple-key');
-			expect(definitions[0].keys[0].value).toBe('simple-value');
-			expect(definitions[0].keys[1].keyName).toBe('config.yaml');
-			expect(definitions[0].keys[1].value).toContain('server:');
-			expect(definitions[0].keys[2].keyName).toBe('another-key');
-			expect(definitions[0].keys[2].value).toBe('another-value');
-		});
+      expect(definitions[0].keys.length).toBe(3);
+      expect(definitions[0].keys[0].keyName).toBe('simple-key');
+      expect(definitions[0].keys[0].value).toBe('simple-value');
+      expect(definitions[0].keys[1].keyName).toBe('config.yaml');
+      expect(definitions[0].keys[1].value).toContain('server:');
+      expect(definitions[0].keys[2].keyName).toBe('another-key');
+      expect(definitions[0].keys[2].value).toBe('another-value');
+    });
 
-		it('should handle folded multiline values (>)', () => {
-			const content = `
+    it('should handle folded multiline values (>)', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -189,23 +155,18 @@ data:
     multiple lines
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions[0].keys.length).toBe(1);
-			expect(definitions[0].keys[0].keyName).toBe('description');
-			expect(definitions[0].keys[0].value).toBeDefined();
-			expect(definitions[0].keys[0].value).toContain('This is a long');
-			expect(definitions[0].keys[0].value).toContain('multiple lines');
-		});
+      expect(definitions[0].keys.length).toBe(1);
+      expect(definitions[0].keys[0].keyName).toBe('description');
+      expect(definitions[0].keys[0].value).toBeDefined();
+      expect(definitions[0].keys[0].value).toContain('This is a long');
+      expect(definitions[0].keys[0].value).toContain('multiple lines');
+    });
 
-		it('should handle multiple definitions separated by ---', () => {
-			const content = `
+    it('should handle multiple definitions separated by ---', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -221,42 +182,32 @@ data:
   key2: value2
 `;
 
-			const document = TextDocument.create(
-				'file:///test/multi.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/multi.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions.length).toBe(2);
-			expect(definitions[0].name).toBe('config1');
-			expect(definitions[0].kind).toBe('ConfigMap');
-			expect(definitions[1].name).toBe('secret1');
-			expect(definitions[1].kind).toBe('Secret');
-		});
+      expect(definitions.length).toBe(2);
+      expect(definitions[0].name).toBe('config1');
+      expect(definitions[0].kind).toBe('ConfigMap');
+      expect(definitions[1].name).toBe('secret1');
+      expect(definitions[1].kind).toBe('Secret');
+    });
 
-		it('should return empty array for non-ConfigMap/Secret documents', () => {
-			const content = `
+    it('should return empty array for non-ConfigMap/Secret documents', () => {
+      const content = `
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   name: test-workflow
 `;
 
-			const document = TextDocument.create(
-				'file:///test/workflow.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/workflow.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions.length).toBe(0);
-		});
+      expect(definitions.length).toBe(0);
+    });
 
-		it('should handle empty data section', () => {
-			const content = `
+    it('should handle empty data section', () => {
+      const content = `
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -264,20 +215,15 @@ metadata:
 data:
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			expect(definitions.length).toBe(1);
-			expect(definitions[0].keys.length).toBe(0);
-		});
+      expect(definitions.length).toBe(1);
+      expect(definitions[0].keys.length).toBe(0);
+    });
 
-		it('should return correct ranges for name and keys', () => {
-			const content = `apiVersion: v1
+    it('should return correct ranges for name and keys', () => {
+      const content = `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: test-config
@@ -285,21 +231,16 @@ data:
   mykey: myvalue
 `;
 
-			const document = TextDocument.create(
-				'file:///test/configmap.yaml',
-				'yaml',
-				1,
-				content,
-			);
-			const definitions = findConfigMapDefinitions(document);
+      const document = TextDocument.create('file:///test/configmap.yaml', 'yaml', 1, content);
+      const definitions = findConfigMapDefinitions(document);
 
-			// Check name range
-			expect(definitions[0].nameRange.start.line).toBe(3);
-			expect(definitions[0].nameRange.start.character).toBeGreaterThan(0);
+      // Check name range
+      expect(definitions[0].nameRange.start.line).toBe(3);
+      expect(definitions[0].nameRange.start.character).toBeGreaterThan(0);
 
-			// Check key range
-			expect(definitions[0].keys[0].range.start.line).toBe(5);
-			expect(definitions[0].keys[0].range.start.character).toBeGreaterThan(0);
-		});
-	});
+      // Check key range
+      expect(definitions[0].keys[0].range.start.line).toBe(5);
+      expect(definitions[0].keys[0].range.start.character).toBeGreaterThan(0);
+    });
+  });
 });

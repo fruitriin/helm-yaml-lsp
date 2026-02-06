@@ -47,6 +47,7 @@ export interface ServerSettings {
   enableHover: boolean;
   enableDefinition: boolean;
   enableCompletion: boolean;
+  enableDiagnostics: boolean;
 }
 
 /**
@@ -57,4 +58,5 @@ export const defaultSettings: ServerSettings = {
   enableHover: true,
   enableDefinition: true,
   enableCompletion: true,
+  enableDiagnostics: true,
 };

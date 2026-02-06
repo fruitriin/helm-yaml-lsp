@@ -211,7 +211,10 @@ export async function findHelmCharts(workspaceFolders: string[]): Promise<HelmCh
       }
     } catch (error) {
       // ワークスペースフォルダの処理エラーはログに記録してスキップ
-      console.error(`[HelmChartDetection] Error processing workspace folder ${workspaceFolder}:`, error);
+      console.error(
+        `[HelmChartDetection] Error processing workspace folder ${workspaceFolder}:`,
+        error
+      );
     }
   }
 

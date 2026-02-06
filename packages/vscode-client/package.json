@@ -33,6 +33,30 @@
           "default": 1000,
           "description": "Controls the maximum number of problems produced by the server."
         },
+        "argoWorkflowsLSP.enableDiagnostics": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable diagnostics (error detection) for Argo Workflows and Helm templates."
+        },
+        "argoWorkflowsLSP.enableHover": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable hover information."
+        },
+        "argoWorkflowsLSP.enableDefinition": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable go-to-definition feature."
+        },
+        "argoWorkflowsLSP.enableCompletion": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable auto-completion feature."
+        },
         "argoWorkflowsLSP.trace.server": {
           "scope": "window",
           "type": "string",

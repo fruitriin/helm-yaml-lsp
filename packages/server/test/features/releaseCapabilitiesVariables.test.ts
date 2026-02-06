@@ -4,12 +4,12 @@
 
 import { describe, expect, it } from 'bun:test';
 import {
-  findReleaseVariable,
   findCapabilitiesVariable,
-  getAllReleaseVariableNames,
+  findReleaseVariable,
   getAllCapabilitiesVariableNames,
-  getAllReleaseVariables,
   getAllCapabilitiesVariables,
+  getAllReleaseVariableNames,
+  getAllReleaseVariables,
 } from '../../src/features/releaseCapabilitiesVariables';
 
 describe('releaseCapabilitiesVariables', () => {

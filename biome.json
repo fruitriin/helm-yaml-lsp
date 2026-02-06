@@ -48,7 +48,8 @@
         "noDoubleEquals": "warn",
         "noExplicitAny": "off",
         "noImplicitAnyLet": "error",
-        "noWith": "error"
+        "noWith": "error",
+        "noAssignInExpressions": "off"
       }
     }
   },

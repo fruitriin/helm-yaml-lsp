@@ -10,8 +10,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { findTemplateDefinitions } from '@/features/templateFeatures';
 
 describe('Template Features - Multi-document YAML', () => {
-	it('should find templates in WorkflowTemplate after ConfigMap/Secret', () => {
-		const content = `---
+  it('should find templates in WorkflowTemplate after ConfigMap/Secret', () => {
+    const content = `---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -67,40 +67,40 @@ spec:
       image: busybox
 `;
 
-		const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-		const definitions = findTemplateDefinitions(document);
+    const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+    const definitions = findTemplateDefinitions(document);
 
-		console.log('\nFound templates:');
-		for (const def of definitions) {
-			console.log(`  - ${def.name} (kind: ${def.kind}, workflow: ${def.workflowName})`);
-		}
+    console.log('\nFound templates:');
+    for (const def of definitions) {
+      console.log(`  - ${def.name} (kind: ${def.kind}, workflow: ${def.workflowName})`);
+    }
 
-		// Should find 6 templates total:
-		// 3 from WorkflowTemplate: process-data, use-configmap, use-secrets
-		// 2 from Workflow: main, local-template
-		expect(definitions.length).toBeGreaterThanOrEqual(5);
+    // Should find 6 templates total:
+    // 3 from WorkflowTemplate: process-data, use-configmap, use-secrets
+    // 2 from Workflow: main, local-template
+    expect(definitions.length).toBeGreaterThanOrEqual(5);
 
-		// Check WorkflowTemplate templates
-		const workflowTemplateTemplates = definitions.filter(
-			(d) => d.kind === 'WorkflowTemplate' && d.workflowName === 'demo-templates'
-		);
-		expect(workflowTemplateTemplates.length).toBe(3);
-		expect(workflowTemplateTemplates.map((t) => t.name)).toEqual([
-			'process-data',
-			'use-configmap',
-			'use-secrets',
-		]);
+    // Check WorkflowTemplate templates
+    const workflowTemplateTemplates = definitions.filter(
+      d => d.kind === 'WorkflowTemplate' && d.workflowName === 'demo-templates'
+    );
+    expect(workflowTemplateTemplates.length).toBe(3);
+    expect(workflowTemplateTemplates.map(t => t.name)).toEqual([
+      'process-data',
+      'use-configmap',
+      'use-secrets',
+    ]);
 
-		// Check Workflow templates
-		const workflowTemplates = definitions.filter(
-			(d) => d.kind === 'Workflow' && d.workflowName === 'demo-workflow'
-		);
-		expect(workflowTemplates.length).toBe(2);
-		expect(workflowTemplates.map((t) => t.name)).toEqual(['main', 'local-template']);
-	});
+    // Check Workflow templates
+    const workflowTemplates = definitions.filter(
+      d => d.kind === 'Workflow' && d.workflowName === 'demo-workflow'
+    );
+    expect(workflowTemplates.length).toBe(2);
+    expect(workflowTemplates.map(t => t.name)).toEqual(['main', 'local-template']);
+  });
 
-	it('should not confuse ConfigMap with WorkflowTemplate', () => {
-		const content = `---
+  it('should not confuse ConfigMap with WorkflowTemplate', () => {
+    const content = `---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -120,13 +120,13 @@ spec:
       image: busybox
 `;
 
-		const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-		const definitions = findTemplateDefinitions(document);
+    const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+    const definitions = findTemplateDefinitions(document);
 
-		// Should find only 1 template from WorkflowTemplate
-		expect(definitions.length).toBe(1);
-		expect(definitions[0].name).toBe('hello');
-		expect(definitions[0].kind).toBe('WorkflowTemplate');
-		expect(definitions[0].workflowName).toBe('my-templates');
-	});
+    // Should find only 1 template from WorkflowTemplate
+    expect(definitions.length).toBe(1);
+    expect(definitions[0].name).toBe('hello');
+    expect(definitions[0].kind).toBe('WorkflowTemplate');
+    expect(definitions[0].workflowName).toBe('my-templates');
+  });
 });

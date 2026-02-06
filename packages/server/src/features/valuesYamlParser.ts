@@ -10,38 +10,31 @@
 
 import * as yaml from 'js-yaml';
 import type { Range } from 'vscode-languageserver-types';
-import { Position, Range as LSPRange } from 'vscode-languageserver-types';
+import { Range as LSPRange, Position } from 'vscode-languageserver-types';
 
 /**
  * Value type enumeration
  */
-export type ValueType =
-	| 'string'
-	| 'number'
-	| 'boolean'
-	| 'array'
-	| 'object'
-	| 'null'
-	| 'unknown';
+export type ValueType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'null' | 'unknown';
 
 /**
  * Represents a value definition in values.yaml
  */
 export type ValueDefinition = {
-	/** Dot-notation path (e.g., "image.repository", "replicaCount") */
-	path: string;
-	/** The actual value */
-	value: unknown;
-	/** Inferred type of the value */
-	valueType: ValueType;
-	/** Range in values.yaml file */
-	range: Range;
-	/** URI of values.yaml file */
-	uri: string;
-	/** Documentation extracted from comments */
-	description?: string;
-	/** Parent path (e.g., "image" for "image.repository") */
-	parentPath?: string;
+  /** Dot-notation path (e.g., "image.repository", "replicaCount") */
+  path: string;
+  /** The actual value */
+  value: unknown;
+  /** Inferred type of the value */
+  valueType: ValueType;
+  /** Range in values.yaml file */
+  range: Range;
+  /** URI of values.yaml file */
+  uri: string;
+  /** Documentation extracted from comments */
+  description?: string;
+  /** Parent path (e.g., "image" for "image.repository") */
+  parentPath?: string;
 };
 
 /**
@@ -51,37 +44,34 @@ export type ValueDefinition = {
  * @param uri - URI of values.yaml file
  * @returns Array of ValueDefinition objects
  */
-export function parseValuesYaml(
-	content: string,
-	uri: string,
-): ValueDefinition[] {
-	try {
-		const parsed = yaml.load(content);
+export function parseValuesYaml(content: string, uri: string): ValueDefinition[] {
+  try {
+    const parsed = yaml.load(content);
 
-		if (typeof parsed !== 'object' || parsed === null) {
-			return [];
-		}
+    if (typeof parsed !== 'object' || parsed === null) {
+      return [];
+    }
 
-		const definitions: ValueDefinition[] = [];
-		const lines = content.split('\n');
+    const definitions: ValueDefinition[] = [];
+    const lines = content.split('\n');
 
-		// Extract comments for each line
-		const lineComments = extractLineComments(lines);
+    // Extract comments for each line
+    const lineComments = extractLineComments(lines);
 
-		extractValueDefinitions(
-			parsed as Record<string, unknown>,
-			'',
-			uri,
-			lines,
-			lineComments,
-			definitions,
-		);
+    extractValueDefinitions(
+      parsed as Record<string, unknown>,
+      '',
+      uri,
+      lines,
+      lineComments,
+      definitions
+    );
 
-		return definitions;
-	} catch (error) {
-		console.error('[ValuesYamlParser] Failed to parse values.yaml:', error);
-		return [];
-	}
+    return definitions;
+  } catch (error) {
+    console.error('[ValuesYamlParser] Failed to parse values.yaml:', error);
+    return [];
+  }
 }
 
 /**
@@ -91,40 +81,35 @@ export function parseValuesYaml(
  * @returns Map of line number to comment text
  */
 function extractLineComments(lines: string[]): Map<number, string> {
-	const comments = new Map<number, string>();
+  const comments = new Map<number, string>();
 
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
 
-		// Check for inline comment (e.g., "foo: bar  # comment")
-		const inlineMatch = line.match(/^[^#]*#\s*(.+)$/);
-		if (inlineMatch) {
-			comments.set(i, inlineMatch[1].trim());
-			continue;
-		}
+    // Check for inline comment (e.g., "foo: bar  # comment")
+    const inlineMatch = line.match(/^[^#]*#\s*(.+)$/);
+    if (inlineMatch) {
+      comments.set(i, inlineMatch[1].trim());
+      continue;
+    }
 
-		// Check for above-line comment (e.g., "# comment\nfoo: bar")
-		const commentMatch = line.match(/^\s*#\s*(.+)$/);
-		if (commentMatch) {
-			// Associate with next non-comment, non-empty line
-			for (let j = i + 1; j < lines.length; j++) {
-				const nextLine = lines[j];
-				if (nextLine.trim() && !nextLine.trim().startsWith('#')) {
-					const existingComment = comments.get(j);
-					const newComment = commentMatch[1].trim();
-					comments.set(
-						j,
-						existingComment
-							? `${newComment}\n${existingComment}`
-							: newComment,
-					);
-					break;
-				}
-			}
-		}
-	}
+    // Check for above-line comment (e.g., "# comment\nfoo: bar")
+    const commentMatch = line.match(/^\s*#\s*(.+)$/);
+    if (commentMatch) {
+      // Associate with next non-comment, non-empty line
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextLine = lines[j];
+        if (nextLine.trim() && !nextLine.trim().startsWith('#')) {
+          const existingComment = comments.get(j);
+          const newComment = commentMatch[1].trim();
+          comments.set(j, existingComment ? `${newComment}\n${existingComment}` : newComment);
+          break;
+        }
+      }
+    }
+  }
 
-	return comments;
+  return comments;
 }
 
 /**
@@ -138,46 +123,46 @@ function extractLineComments(lines: string[]): Map<number, string> {
  * @param definitions - Accumulator for value definitions
  */
 function extractValueDefinitions(
-	obj: Record<string, unknown>,
-	pathPrefix: string,
-	uri: string,
-	lines: string[],
-	lineComments: Map<number, string>,
-	definitions: ValueDefinition[],
+  obj: Record<string, unknown>,
+  pathPrefix: string,
+  uri: string,
+  lines: string[],
+  lineComments: Map<number, string>,
+  definitions: ValueDefinition[]
 ): void {
-	for (const [key, value] of Object.entries(obj)) {
-		const path = pathPrefix ? `${pathPrefix}.${key}` : key;
-		const valueType = inferType(value);
+  for (const [key, value] of Object.entries(obj)) {
+    const path = pathPrefix ? `${pathPrefix}.${key}` : key;
+    const valueType = inferType(value);
 
-		// Find line number for this key
-		const lineNumber = findKeyLine(lines, key, pathPrefix);
-		const range = createRange(lineNumber, key);
+    // Find line number for this key
+    const lineNumber = findKeyLine(lines, key, pathPrefix);
+    const range = createRange(lineNumber, key);
 
-		// Get comment for this line
-		const description = lineComments.get(lineNumber);
+    // Get comment for this line
+    const description = lineComments.get(lineNumber);
 
-		definitions.push({
-			path,
-			value,
-			valueType,
-			range,
-			uri,
-			description,
-			parentPath: pathPrefix || undefined,
-		});
+    definitions.push({
+      path,
+      value,
+      valueType,
+      range,
+      uri,
+      description,
+      parentPath: pathPrefix || undefined,
+    });
 
-		// Recursively process nested objects
-		if (valueType === 'object' && value !== null) {
-			extractValueDefinitions(
-				value as Record<string, unknown>,
-				path,
-				uri,
-				lines,
-				lineComments,
-				definitions,
-			);
-		}
-	}
+    // Recursively process nested objects
+    if (valueType === 'object' && value !== null) {
+      extractValueDefinitions(
+        value as Record<string, unknown>,
+        path,
+        uri,
+        lines,
+        lineComments,
+        definitions
+      );
+    }
+  }
 }
 
 /**
@@ -187,28 +172,28 @@ function extractValueDefinitions(
  * @returns ValueType
  */
 function inferType(value: unknown): ValueType {
-	if (value === null) {
-		return 'null';
-	}
+  if (value === null) {
+    return 'null';
+  }
 
-	if (Array.isArray(value)) {
-		return 'array';
-	}
+  if (Array.isArray(value)) {
+    return 'array';
+  }
 
-	const type = typeof value;
+  const type = typeof value;
 
-	switch (type) {
-		case 'string':
-			return 'string';
-		case 'number':
-			return 'number';
-		case 'boolean':
-			return 'boolean';
-		case 'object':
-			return 'object';
-		default:
-			return 'unknown';
-	}
+  switch (type) {
+    case 'string':
+      return 'string';
+    case 'number':
+      return 'number';
+    case 'boolean':
+      return 'boolean';
+    case 'object':
+      return 'object';
+    default:
+      return 'unknown';
+  }
 }
 
 /**
@@ -219,25 +204,21 @@ function inferType(value: unknown): ValueType {
  * @param pathPrefix - Current path prefix (for nested keys)
  * @returns Line number (0-based), or 0 if not found
  */
-function findKeyLine(
-	lines: string[],
-	key: string,
-	pathPrefix: string,
-): number {
-	// Calculate expected indentation based on path depth
-	const depth = pathPrefix ? pathPrefix.split('.').length : 0;
-	const expectedIndent = '  '.repeat(depth);
+function findKeyLine(lines: string[], key: string, pathPrefix: string): number {
+  // Calculate expected indentation based on path depth
+  const depth = pathPrefix ? pathPrefix.split('.').length : 0;
+  const expectedIndent = '  '.repeat(depth);
 
-	// Look for "key:" pattern with correct indentation
-	const pattern = new RegExp(`^${expectedIndent}${escapeRegExp(key)}:\\s*`);
+  // Look for "key:" pattern with correct indentation
+  const pattern = new RegExp(`^${expectedIndent}${escapeRegExp(key)}:\\s*`);
 
-	for (let i = 0; i < lines.length; i++) {
-		if (pattern.test(lines[i])) {
-			return i;
-		}
-	}
+  for (let i = 0; i < lines.length; i++) {
+    if (pattern.test(lines[i])) {
+      return i;
+    }
+  }
 
-	return 0; // Default to first line if not found
+  return 0; // Default to first line if not found
 }
 
 /**
@@ -248,11 +229,11 @@ function findKeyLine(
  * @returns LSP Range
  */
 function createRange(lineNumber: number, key: string): Range {
-	// Find indentation
-	const start = Position.create(lineNumber, 0);
-	const end = Position.create(lineNumber, key.length);
+  // Find indentation
+  const start = Position.create(lineNumber, 0);
+  const end = Position.create(lineNumber, key.length);
 
-	return LSPRange.create(start, end);
+  return LSPRange.create(start, end);
 }
 
 /**
@@ -262,7 +243,7 @@ function createRange(lineNumber: number, key: string): Range {
  * @returns Escaped string
  */
 function escapeRegExp(str: string): string {
-	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -275,17 +256,17 @@ function escapeRegExp(str: string): string {
  * @returns Matching definitions
  */
 export function findValuesByPrefix(
-	definitions: ValueDefinition[],
-	prefix: string,
+  definitions: ValueDefinition[],
+  prefix: string
 ): ValueDefinition[] {
-	const normalizedPrefix = prefix.toLowerCase();
+  const normalizedPrefix = prefix.toLowerCase();
 
-	return definitions.filter((def) => {
-		return (
-			def.path.toLowerCase().startsWith(normalizedPrefix) ||
-			def.path.toLowerCase() === normalizedPrefix
-		);
-	});
+  return definitions.filter(def => {
+    return (
+      def.path.toLowerCase().startsWith(normalizedPrefix) ||
+      def.path.toLowerCase() === normalizedPrefix
+    );
+  });
 }
 
 /**
@@ -296,8 +277,8 @@ export function findValuesByPrefix(
  * @returns ValueDefinition if found, undefined otherwise
  */
 export function findValueByPath(
-	definitions: ValueDefinition[],
-	path: string,
+  definitions: ValueDefinition[],
+  path: string
 ): ValueDefinition | undefined {
-	return definitions.find((def) => def.path === path);
+  return definitions.find(def => def.path === path);
 }

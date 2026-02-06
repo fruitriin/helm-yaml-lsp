@@ -22,11 +22,11 @@ import { DefinitionProvider } from '@/providers/definitionProvider';
 import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
-import { HelmChartIndex } from '@/services/helmChartIndex';
-import { ValuesIndex } from '@/services/valuesIndex';
-import { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 import { ConfigMapIndex } from '@/services/configMapIndex';
 import { FileWatcher } from '@/services/fileWatcher';
+import { HelmChartIndex } from '@/services/helmChartIndex';
+import { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import { ValuesIndex } from '@/services/valuesIndex';
 // "@/" エイリアスを使用した型定義のインポート
 import { defaultSettings, type ServerSettings } from '@/types';
 import { uriToFilePath } from '@/utils/uriUtils';
@@ -46,10 +46,33 @@ const valuesIndex = new ValuesIndex();
 const helmTemplateIndex = new HelmTemplateIndex();
 const configMapIndex = new ConfigMapIndex();
 const fileWatcher = new FileWatcher(connection);
-const definitionProvider = new DefinitionProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
-const hoverProvider = new HoverProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
-const completionProvider = new CompletionProvider(helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
-const diagnosticProvider = new DiagnosticProvider(argoTemplateIndex, helmChartIndex, valuesIndex, helmTemplateIndex, configMapIndex);
+const definitionProvider = new DefinitionProvider(
+  argoTemplateIndex,
+  helmChartIndex,
+  valuesIndex,
+  helmTemplateIndex,
+  configMapIndex
+);
+const hoverProvider = new HoverProvider(
+  argoTemplateIndex,
+  helmChartIndex,
+  valuesIndex,
+  helmTemplateIndex,
+  configMapIndex
+);
+const completionProvider = new CompletionProvider(
+  helmChartIndex,
+  valuesIndex,
+  helmTemplateIndex,
+  configMapIndex
+);
+const diagnosticProvider = new DiagnosticProvider(
+  argoTemplateIndex,
+  helmChartIndex,
+  valuesIndex,
+  helmTemplateIndex,
+  configMapIndex
+);
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -157,7 +180,10 @@ connection.onInitialized(async () => {
     }
 
     // Helmテンプレートファイルの変更時はHelmTemplateIndexを更新
-    if (uri.includes('/templates/') && (uri.endsWith('.yaml') || uri.endsWith('.yml') || uri.endsWith('.tpl'))) {
+    if (
+      uri.includes('/templates/') &&
+      (uri.endsWith('.yaml') || uri.endsWith('.yml') || uri.endsWith('.tpl'))
+    ) {
       if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
         await helmTemplateIndex.updateTemplateFile(uri);
       }
@@ -247,22 +273,33 @@ documents.onDidOpen(async event => {
   if (helmChartIndex) {
     const filePath = uriToFilePath(uri);
     if (filePath) {
-      await helmChartIndex.reindexChart(filePath);
+      const chartDir = filePath.substring(0, filePath.lastIndexOf('/'));
+      await helmChartIndex.updateChart(chartDir);
     }
   }
 
-  // 診断を実行
-  const diagnostics = await diagnosticProvider.provideDiagnostics(event.document);
-  connection.sendDiagnostics({ uri: event.document.uri, diagnostics });
+  // 診断を実行（設定で有効な場合のみ）
+  if (_globalSettings.enableDiagnostics) {
+    const diagnostics = await diagnosticProvider.provideDiagnostics(event.document);
+    connection.sendDiagnostics({ uri: event.document.uri, diagnostics });
+  } else {
+    // 診断が無効な場合は空の配列を送信してクリア
+    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+  }
 });
 
 // ドキュメント変更時の処理
 documents.onDidChangeContent(async change => {
   connection.console.log(`Document changed: ${change.document.uri}`);
 
-  // 診断を実行
-  const diagnostics = await diagnosticProvider.provideDiagnostics(change.document);
-  connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
+  // 診断を実行（設定で有効な場合のみ）
+  if (_globalSettings.enableDiagnostics) {
+    const diagnostics = await diagnosticProvider.provideDiagnostics(change.document);
+    connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
+  } else {
+    // 診断が無効な場合は空の配列を送信してクリア
+    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: [] });
+  }
 });
 
 // ドキュメントマネージャーをリッスン

@@ -6,7 +6,10 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { Location, type Position } from 'vscode-languageserver-types';
+import { findChartReference } from '@/features/chartReferenceFeatures';
+import { findConfigMapReferenceAtPosition } from '@/features/configMapReferenceFeatures';
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
+import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
 import {
   findParameterDefinitions,
   findParameterReferenceAtPosition,
@@ -16,19 +19,12 @@ import {
   findTemplateDefinitions,
   findTemplateReferenceAtPosition,
 } from '@/features/templateFeatures';
-import {
-  findValuesReference,
-  isHelmTemplate,
-} from '@/features/valuesReferenceFeatures';
-import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
-import { findChartReference } from '@/features/chartReferenceFeatures';
-import { findConfigMapReferenceAtPosition } from '@/features/configMapReferenceFeatures';
-import { filePathToUri } from '@/utils/uriUtils';
+import { findValuesReference, isHelmTemplate } from '@/features/valuesReferenceFeatures';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
-import type { HelmChartIndex } from '@/services/helmChartIndex';
-import type { ValuesIndex } from '@/services/valuesIndex';
-import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
+import type { HelmChartIndex } from '@/services/helmChartIndex';
+import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ValuesIndex } from '@/services/valuesIndex';
 
 /**
  * Definition Provider
@@ -42,7 +38,7 @@ export class DefinitionProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
-    private configMapIndex?: ConfigMapIndex,
+    private configMapIndex?: ConfigMapIndex
   ) {}
 
   /**
@@ -120,7 +116,7 @@ export class DefinitionProvider {
    */
   private handleValuesReference(
     document: TextDocument,
-    valuesRef: ReturnType<typeof findValuesReference>,
+    valuesRef: ReturnType<typeof findValuesReference>
   ): Location | null {
     if (!valuesRef || !this.helmChartIndex || !this.valuesIndex) {
       return null;
@@ -146,7 +142,7 @@ export class DefinitionProvider {
    */
   private handleHelmTemplateReference(
     document: TextDocument,
-    helmTemplateRef: ReturnType<typeof findHelmTemplateReferenceAtPosition>,
+    helmTemplateRef: ReturnType<typeof findHelmTemplateReferenceAtPosition>
   ): Location | null {
     if (!helmTemplateRef || !this.helmChartIndex || !this.helmTemplateIndex) {
       return null;
@@ -161,7 +157,7 @@ export class DefinitionProvider {
     // テンプレート定義を検索
     const templateDef = this.helmTemplateIndex.findTemplate(
       chart.name,
-      helmTemplateRef.templateName,
+      helmTemplateRef.templateName
     );
 
     if (templateDef) {
@@ -178,7 +174,7 @@ export class DefinitionProvider {
    */
   private handleChartReference(
     document: TextDocument,
-    chartRef: ReturnType<typeof findChartReference>,
+    chartRef: ReturnType<typeof findChartReference>
   ): Location | null {
     if (!chartRef || !this.helmChartIndex) {
       return null;
@@ -365,7 +361,7 @@ export class DefinitionProvider {
    * ConfigMap/Secret参照を処理
    */
   private handleConfigMapReference(
-    ref: ReturnType<typeof findConfigMapReferenceAtPosition>,
+    ref: ReturnType<typeof findConfigMapReferenceAtPosition>
   ): Location | null {
     if (!ref || !this.configMapIndex) {
       return null;

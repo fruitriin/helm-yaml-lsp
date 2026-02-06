@@ -44,10 +44,12 @@ function M.setup(opts)
 						or vim.fn.getcwd()
 				end,
 				settings = {
-					argoWorkflows = {
-						helm = {
-							enabled = true,
-						},
+					argoWorkflowsLSP = {
+						maxNumberOfProblems = 1000,
+						enableHover = true,
+						enableDefinition = true,
+						enableCompletion = true,
+						enableDiagnostics = true,
 					},
 				},
 				single_file_support = true,

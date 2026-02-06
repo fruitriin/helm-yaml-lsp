@@ -6,9 +6,9 @@ import { describe, expect, it } from 'bun:test';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver-types';
 import {
-  findChartReference,
-  findAllChartReferences,
   extractChartPathForCompletion,
+  findAllChartReferences,
+  findChartReference,
 } from '../../src/features/chartReferenceFeatures';
 
 describe('chartReferenceFeatures', () => {

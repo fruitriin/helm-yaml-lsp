@@ -7,9 +7,9 @@
  * - {{ if .Chart.AppVersion }}
  */
 
+import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Position, Range } from 'vscode-languageserver-types';
 import { Range as LSPRange } from 'vscode-languageserver-types';
-import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 /**
  * Represents a Chart variable reference
@@ -34,7 +34,7 @@ export type ChartReference = {
  */
 export function findChartReference(
   document: TextDocument,
-  position: Position,
+  position: Position
 ): ChartReference | undefined {
   const line = document.getText({
     start: { line: position.line, character: 0 },
@@ -114,7 +114,7 @@ function findAllChartReferencesInLine(line: string, lineNumber: number): ChartRe
 
     const range = LSPRange.create(
       { line: lineNumber, character: startChar },
-      { line: lineNumber, character: endChar },
+      { line: lineNumber, character: endChar }
     );
 
     references.push({
@@ -189,7 +189,7 @@ function extractFullExpression(line: string, startPos: number): string {
  */
 export function extractChartPathForCompletion(
   document: TextDocument,
-  position: Position,
+  position: Position
 ): string | undefined {
   const line = document.getText({
     start: { line: position.line, character: 0 },

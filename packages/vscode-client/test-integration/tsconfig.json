@@ -1,16 +1,16 @@
 {
-	"compilerOptions": {
-		"module": "commonjs",
-		"target": "ES2022",
-		"lib": ["ES2022"],
-		"sourceMap": true,
-		"rootDir": ".",
-		"outDir": "out",
-		"strict": true,
-		"skipLibCheck": true,
-		"esModuleInterop": true,
-		"types": ["mocha", "node"]
-	},
-	"include": ["**/*.ts"],
-	"exclude": ["node_modules", "out"]
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "sourceMap": true,
+    "rootDir": ".",
+    "outDir": "out",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["mocha", "node"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "out"]
 }

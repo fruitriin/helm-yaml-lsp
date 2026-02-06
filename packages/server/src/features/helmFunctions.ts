@@ -517,9 +517,7 @@ export const HELM_FUNCTIONS: readonly HelmFunction[] = [
 /**
  * Map of function names to HelmFunction objects for fast lookup
  */
-const FUNCTION_MAP = new Map<string, HelmFunction>(
-  HELM_FUNCTIONS.map(fn => [fn.name, fn])
-);
+const FUNCTION_MAP = new Map<string, HelmFunction>(HELM_FUNCTIONS.map(fn => [fn.name, fn]));
 
 /**
  * Finds a Helm function by name

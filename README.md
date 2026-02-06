@@ -489,6 +489,62 @@ bun run package             # VSIXパッケージ作成
 
 ---
 
+## 設定
+
+### VSCode
+
+VSCodeの設定（`settings.json`）で以下のオプションを設定できます：
+
+```json
+{
+  // エラー診断の有効/無効（デフォルト: true）
+  "argoWorkflowsLSP.enableDiagnostics": true,
+
+  // ホバー情報の有効/無効（デフォルト: true）
+  "argoWorkflowsLSP.enableHover": true,
+
+  // 定義ジャンプの有効/無効（デフォルト: true）
+  "argoWorkflowsLSP.enableDefinition": true,
+
+  // 自動補完の有効/無効（デフォルト: true）
+  "argoWorkflowsLSP.enableCompletion": true,
+
+  // エラー数の上限（デフォルト: 1000）
+  "argoWorkflowsLSP.maxNumberOfProblems": 1000
+}
+```
+
+#### 診断機能（エラー検出）を無効にする
+
+エラーの赤波線表示が不要な場合：
+
+```json
+{
+  "argoWorkflowsLSP.enableDiagnostics": false
+}
+```
+
+### Neovim
+
+Neovimの設定（`init.lua`）で以下のように設定できます：
+
+```lua
+require('argo-workflows-lsp').setup({
+  server_path = '/path/to/server.js',
+  settings = {
+    argoWorkflowsLSP = {
+      maxNumberOfProblems = 1000,
+      enableHover = true,
+      enableDefinition = true,
+      enableCompletion = true,
+      enableDiagnostics = true,  -- エラー診断を無効にする場合はfalseに設定
+    }
+  }
+})
+```
+
+---
+
 ## エディタ非依存性
 
 このプロジェクトは**VSCode API依存ゼロ**を実現しています：

@@ -7,9 +7,9 @@
  * - {{ .Capabilities.KubeVersion }}
  */
 
+import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Position, Range } from 'vscode-languageserver-types';
 import { Range as LSPRange } from 'vscode-languageserver-types';
-import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 /**
  * Represents a Release/Capabilities variable reference
@@ -36,7 +36,7 @@ export type ReleaseCapabilitiesReference = {
  */
 export function findReleaseCapabilitiesReference(
   document: TextDocument,
-  position: Position,
+  position: Position
 ): ReleaseCapabilitiesReference | undefined {
   const line = document.getText({
     start: { line: position.line, character: 0 },
@@ -67,7 +67,7 @@ export function findReleaseCapabilitiesReference(
  * @returns Array of ReleaseCapabilitiesReference objects
  */
 export function findAllReleaseCapabilitiesReferences(
-  document: TextDocument,
+  document: TextDocument
 ): ReleaseCapabilitiesReference[] {
   const references: ReleaseCapabilitiesReference[] = [];
   const lineCount = document.lineCount;
@@ -94,7 +94,7 @@ export function findAllReleaseCapabilitiesReferences(
  */
 function findAllReleaseCapabilitiesReferencesInLine(
   line: string,
-  lineNumber: number,
+  lineNumber: number
 ): ReleaseCapabilitiesReference[] {
   const references: ReleaseCapabilitiesReference[] = [];
 
@@ -113,7 +113,7 @@ function findAllReleaseCapabilitiesReferencesInLine(
 
     const range = LSPRange.create(
       { line: lineNumber, character: startChar },
-      { line: lineNumber, character: endChar },
+      { line: lineNumber, character: endChar }
     );
 
     references.push({
@@ -139,7 +139,7 @@ function findAllReleaseCapabilitiesReferencesInLine(
 
     const range = LSPRange.create(
       { line: lineNumber, character: startChar },
-      { line: lineNumber, character: endChar },
+      { line: lineNumber, character: endChar }
     );
 
     references.push({
@@ -200,7 +200,7 @@ function extractFullExpression(line: string, startPos: number): string {
  */
 export function extractReleaseCapabilitiesPathForCompletion(
   document: TextDocument,
-  position: Position,
+  position: Position
 ): { type: 'release' | 'capabilities'; partialName: string } | undefined {
   const line = document.getText({
     start: { line: position.line, character: 0 },

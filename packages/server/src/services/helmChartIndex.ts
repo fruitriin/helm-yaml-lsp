@@ -46,7 +46,7 @@ export class HelmChartIndex {
 
     this.initialized = true;
     console.error(`[HelmChartIndex] Initialized with ${this.charts.length} Helm Chart(s)`);
-    
+
     for (const chart of this.charts) {
       console.error(`[HelmChartIndex]   - ${chart.name} at ${chart.rootDir}`);
     }
@@ -100,7 +100,7 @@ export class HelmChartIndex {
 
     // 新しくスキャン
     const updatedCharts = await findHelmCharts([chartRootDir]);
-    
+
     if (updatedCharts.length > 0) {
       this.charts.push(...updatedCharts);
       console.error(`[HelmChartIndex] Updated chart at ${chartRootDir}`);

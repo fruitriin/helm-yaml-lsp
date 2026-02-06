@@ -6,20 +6,17 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { type Diagnostic, DiagnosticSeverity } from 'vscode-languageserver-types';
+import { findAllConfigMapReferences } from '@/features/configMapReferenceFeatures';
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
+import { findAllTemplateReferences as findAllHelmTemplateReferences } from '@/features/helmTemplateFeatures';
 import { findAllParameterReferences, findParameterDefinitions } from '@/features/parameterFeatures';
 import { findAllTemplateReferences, findTemplateDefinitions } from '@/features/templateFeatures';
-import {
-  findAllValuesReferences,
-  isHelmTemplate,
-} from '@/features/valuesReferenceFeatures';
-import { findAllTemplateReferences as findAllHelmTemplateReferences } from '@/features/helmTemplateFeatures';
-import { findAllConfigMapReferences } from '@/features/configMapReferenceFeatures';
+import { findAllValuesReferences, isHelmTemplate } from '@/features/valuesReferenceFeatures';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
-import type { HelmChartIndex } from '@/services/helmChartIndex';
-import type { ValuesIndex } from '@/services/valuesIndex';
-import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
+import type { HelmChartIndex } from '@/services/helmChartIndex';
+import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ValuesIndex } from '@/services/valuesIndex';
 
 /**
  * Diagnostic Provider
@@ -33,7 +30,7 @@ export class DiagnosticProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
-    private configMapIndex?: ConfigMapIndex,
+    private configMapIndex?: ConfigMapIndex
   ) {}
 
   /**
@@ -235,10 +232,7 @@ export class DiagnosticProvider {
 
     for (const ref of references) {
       // テンプレート定義を検索
-      const templateDef = this.helmTemplateIndex.findTemplate(
-        chart.name,
-        ref.templateName,
-      );
+      const templateDef = this.helmTemplateIndex.findTemplate(chart.name, ref.templateName);
 
       if (!templateDef) {
         const functionType = ref.type === 'include' ? 'include' : 'template';

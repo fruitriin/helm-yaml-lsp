@@ -11,23 +11,23 @@ import {
   type CompletionList,
   type Position,
 } from 'vscode-languageserver-types';
-import { isArgoWorkflowDocument } from '@/features/documentDetection';
-import { findParameterDefinitions } from '@/features/parameterFeatures';
-import { findTemplateDefinitions } from '@/features/templateFeatures';
-import {
-  extractValuePathForCompletion,
-  isHelmTemplate,
-} from '@/features/valuesReferenceFeatures';
-import { WORKFLOW_VARIABLES } from '@/features/workflowVariables';
-import { getAllFunctions } from '@/features/helmFunctions';
 import { extractChartPathForCompletion } from '@/features/chartReferenceFeatures';
 import { getAllChartVariables } from '@/features/chartVariables';
+import { isArgoWorkflowDocument } from '@/features/documentDetection';
+import { getAllFunctions } from '@/features/helmFunctions';
+import { findParameterDefinitions } from '@/features/parameterFeatures';
 import { extractReleaseCapabilitiesPathForCompletion } from '@/features/releaseCapabilitiesReferenceFeatures';
-import { getAllReleaseVariables, getAllCapabilitiesVariables } from '@/features/releaseCapabilitiesVariables';
-import type { HelmChartIndex } from '@/services/helmChartIndex';
-import type { ValuesIndex } from '@/services/valuesIndex';
-import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import {
+  getAllCapabilitiesVariables,
+  getAllReleaseVariables,
+} from '@/features/releaseCapabilitiesVariables';
+import { findTemplateDefinitions } from '@/features/templateFeatures';
+import { extractValuePathForCompletion, isHelmTemplate } from '@/features/valuesReferenceFeatures';
+import { WORKFLOW_VARIABLES } from '@/features/workflowVariables';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
+import type { HelmChartIndex } from '@/services/helmChartIndex';
+import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ValuesIndex } from '@/services/valuesIndex';
 
 /**
  * Completion Provider
@@ -40,7 +40,7 @@ export class CompletionProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
-    private configMapIndex?: ConfigMapIndex,
+    private configMapIndex?: ConfigMapIndex
   ) {}
   /**
    * 補完候補を提供
@@ -76,7 +76,10 @@ export class CompletionProvider {
       }
 
       // .Release/.Capabilities参照の補完
-      const releaseCapabilitiesPath = extractReleaseCapabilitiesPathForCompletion(document, position);
+      const releaseCapabilitiesPath = extractReleaseCapabilitiesPathForCompletion(
+        document,
+        position
+      );
       if (releaseCapabilitiesPath !== undefined) {
         return this.provideReleaseCapabilitiesCompletion(releaseCapabilitiesPath);
       }
@@ -430,15 +433,15 @@ export class CompletionProvider {
   /**
    * .Release/.Capabilities変数の補完を提供
    */
-  private provideReleaseCapabilitiesCompletion(
-    context: { type: 'release' | 'capabilities'; partialName: string },
-  ): CompletionList {
+  private provideReleaseCapabilitiesCompletion(context: {
+    type: 'release' | 'capabilities';
+    partialName: string;
+  }): CompletionList {
     const items: CompletionItem[] = [];
 
     // Release変数またはCapabilities変数を補完候補に追加
-    const variables = context.type === 'release'
-      ? getAllReleaseVariables()
-      : getAllCapabilitiesVariables();
+    const variables =
+      context.type === 'release' ? getAllReleaseVariables() : getAllCapabilitiesVariables();
 
     for (const variable of variables) {
       // partialNameでフィルタリング（プレフィックスマッチ）
@@ -462,21 +465,32 @@ export class CompletionProvider {
   private getConfigMapContext(
     document: TextDocument,
     position: Position,
-    linePrefix: string,
+    linePrefix: string
   ): { type: 'name' | 'key'; kind: 'ConfigMap' | 'Secret'; configMapName?: string } | null {
     const lines = document.getText().split('\n');
 
     // Check if we're completing a name field
-    if (/^\s*(name|secretName):\s*$/.test(linePrefix) || /^\s*(name|secretName):\s+\w*$/.test(linePrefix)) {
+    if (
+      /^\s*(name|secretName):\s*$/.test(linePrefix) ||
+      /^\s*(name|secretName):\s+\w*$/.test(linePrefix)
+    ) {
       // Look for context to determine kind
       const context = this.getContextLines(lines, position.line, 5);
       const contextStr = context.join('\n');
 
-      if (contextStr.includes('configMapKeyRef:') || contextStr.includes('configMapRef:') || contextStr.includes('configMap:')) {
+      if (
+        contextStr.includes('configMapKeyRef:') ||
+        contextStr.includes('configMapRef:') ||
+        contextStr.includes('configMap:')
+      ) {
         return { type: 'name', kind: 'ConfigMap' };
       }
 
-      if (contextStr.includes('secretKeyRef:') || contextStr.includes('secretRef:') || contextStr.includes('secret:')) {
+      if (
+        contextStr.includes('secretKeyRef:') ||
+        contextStr.includes('secretRef:') ||
+        contextStr.includes('secret:')
+      ) {
         return { type: 'name', kind: 'Secret' };
       }
     }

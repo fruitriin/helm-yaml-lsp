@@ -6,34 +6,34 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { type Hover, MarkupKind, type Position, type Range } from 'vscode-languageserver-types';
+import { findChartReference } from '@/features/chartReferenceFeatures';
+import { findChartVariable } from '@/features/chartVariables';
+import { findConfigMapReferenceAtPosition } from '@/features/configMapReferenceFeatures';
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
+import { findHelmFunctionReference } from '@/features/helmFunctionFeatures';
+import { findFunction } from '@/features/helmFunctions';
+import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
 import {
   findParameterDefinitions,
   findParameterReferenceAtPosition,
 } from '@/features/parameterFeatures';
+import { findReleaseCapabilitiesReference } from '@/features/releaseCapabilitiesReferenceFeatures';
+import {
+  findCapabilitiesVariable,
+  findReleaseVariable,
+} from '@/features/releaseCapabilitiesVariables';
 import { findStepDefinitions, findTaskDefinitions } from '@/features/stepFeatures';
 import {
   findTemplateDefinitions,
   findTemplateReferenceAtPosition,
 } from '@/features/templateFeatures';
-import {
-  findValuesReference,
-  isHelmTemplate,
-} from '@/features/valuesReferenceFeatures';
-import { findTemplateReferenceAtPosition as findHelmTemplateReferenceAtPosition } from '@/features/helmTemplateFeatures';
-import { findHelmFunctionReference } from '@/features/helmFunctionFeatures';
-import { findFunction } from '@/features/helmFunctions';
-import { findChartReference } from '@/features/chartReferenceFeatures';
-import { findChartVariable } from '@/features/chartVariables';
-import { findReleaseCapabilitiesReference } from '@/features/releaseCapabilitiesReferenceFeatures';
-import { findReleaseVariable, findCapabilitiesVariable } from '@/features/releaseCapabilitiesVariables';
+import { findValuesReference, isHelmTemplate } from '@/features/valuesReferenceFeatures';
 import { findWorkflowVariableAtPosition } from '@/features/workflowVariables';
-import { findConfigMapReferenceAtPosition } from '@/features/configMapReferenceFeatures';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
-import type { HelmChartIndex } from '@/services/helmChartIndex';
-import type { ValuesIndex } from '@/services/valuesIndex';
-import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
+import type { HelmChartIndex } from '@/services/helmChartIndex';
+import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { ValuesIndex } from '@/services/valuesIndex';
 
 /**
  * Hover Provider
@@ -47,7 +47,7 @@ export class HoverProvider {
     private helmChartIndex?: HelmChartIndex,
     private valuesIndex?: ValuesIndex,
     private helmTemplateIndex?: HelmTemplateIndex,
-    private configMapIndex?: ConfigMapIndex,
+    private configMapIndex?: ConfigMapIndex
   ) {}
 
   /**
@@ -479,7 +479,7 @@ export class HoverProvider {
    */
   private handleValuesHover(
     document: TextDocument,
-    valuesRef: ReturnType<typeof findValuesReference>,
+    valuesRef: ReturnType<typeof findValuesReference>
   ): Hover | null {
     if (!valuesRef || !this.helmChartIndex || !this.valuesIndex) {
       return null;
@@ -535,7 +535,7 @@ export class HoverProvider {
    */
   private handleHelmTemplateHover(
     document: TextDocument,
-    helmTemplateRef: ReturnType<typeof findHelmTemplateReferenceAtPosition>,
+    helmTemplateRef: ReturnType<typeof findHelmTemplateReferenceAtPosition>
   ): Hover | null {
     if (!helmTemplateRef || !this.helmChartIndex || !this.helmTemplateIndex) {
       return null;
@@ -550,7 +550,7 @@ export class HoverProvider {
     // テンプレート定義を検索
     const templateDef = this.helmTemplateIndex.findTemplate(
       chart.name,
-      helmTemplateRef.templateName,
+      helmTemplateRef.templateName
     );
 
     if (!templateDef) {
@@ -638,7 +638,7 @@ export class HoverProvider {
    * Helm関数参照のホバーを処理
    */
   private handleHelmFunctionHover(
-    helmFunctionRef: ReturnType<typeof findHelmFunctionReference>,
+    helmFunctionRef: ReturnType<typeof findHelmFunctionReference>
   ): Hover | null {
     if (!helmFunctionRef) {
       return null;
@@ -691,7 +691,7 @@ export class HoverProvider {
    */
   private handleChartHover(
     document: TextDocument,
-    chartRef: ReturnType<typeof findChartReference>,
+    chartRef: ReturnType<typeof findChartReference>
   ): Hover | null {
     if (!chartRef || !this.helmChartIndex) {
       return null;
@@ -742,8 +742,16 @@ export class HoverProvider {
    * Chart.yamlのメタデータから変数値を取得
    */
   private getChartVariableValue(
-    metadata: { name?: string; version?: string; description?: string; apiVersion?: string; appVersion?: string; type?: string; [key: string]: unknown },
-    variableName: string,
+    metadata: {
+      name?: string;
+      version?: string;
+      description?: string;
+      apiVersion?: string;
+      appVersion?: string;
+      type?: string;
+      [key: string]: unknown;
+    },
+    variableName: string
   ): unknown {
     switch (variableName) {
       case 'Name':
@@ -768,16 +776,17 @@ export class HoverProvider {
    * Release/Capabilities変数参照のホバーを処理
    */
   private handleReleaseCapabilitiesHover(
-    ref: ReturnType<typeof findReleaseCapabilitiesReference>,
+    ref: ReturnType<typeof findReleaseCapabilitiesReference>
   ): Hover | null {
     if (!ref) {
       return null;
     }
 
     // 変数定義を検索
-    const variable = ref.type === 'release'
-      ? findReleaseVariable(ref.variableName)
-      : findCapabilitiesVariable(ref.variableName);
+    const variable =
+      ref.type === 'release'
+        ? findReleaseVariable(ref.variableName)
+        : findCapabilitiesVariable(ref.variableName);
 
     if (!variable) {
       return null;
@@ -786,7 +795,9 @@ export class HoverProvider {
     const parts: string[] = [];
 
     // 変数名
-    parts.push(`**${variable.category === 'release' ? 'Release' : 'Capabilities'} Variable**: \`${variable.fullPath}\``);
+    parts.push(
+      `**${variable.category === 'release' ? 'Release' : 'Capabilities'} Variable**: \`${variable.fullPath}\``
+    );
 
     // カテゴリ
     parts.push(`**Category**: ${variable.category}`);
@@ -829,7 +840,7 @@ export class HoverProvider {
    * ConfigMap/Secret参照のホバー情報を処理
    */
   private handleConfigMapHover(
-    ref: ReturnType<typeof findConfigMapReferenceAtPosition>,
+    ref: ReturnType<typeof findConfigMapReferenceAtPosition>
   ): Hover | null {
     if (!ref || !this.configMapIndex) {
       return null;
@@ -843,9 +854,7 @@ export class HoverProvider {
       }
 
       const keyCount = configMap.keys.length;
-      const keyList = configMap.keys
-        .map((k) => `- ${k.keyName}`)
-        .join('\n');
+      const keyList = configMap.keys.map(k => `- ${k.keyName}`).join('\n');
 
       const markdown = [
         `**${ref.kind}**: \`${ref.name}\``,

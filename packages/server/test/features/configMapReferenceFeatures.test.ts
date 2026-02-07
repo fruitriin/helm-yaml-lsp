@@ -312,5 +312,94 @@ metadata:
       const refs = findAllConfigMapReferences(document);
       expect(refs.length).toBe(0);
     });
+
+    it('should not cross-contaminate adjacent configMapKeyRef and secretKeyRef', () => {
+      const content = `
+env:
+  - name: FROM_CONFIGMAP
+    valueFrom:
+      configMapKeyRef:
+        name: my-config
+        key: my-key
+  - name: FROM_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: my-secret
+        key: secret-key
+envFrom:
+  - configMapRef:
+      name: my-config
+  - secretRef:
+      name: my-secret
+`;
+
+      const document = TextDocument.create('file:///test/workflow.yaml', 'yaml', 1, content);
+      const refs = findAllConfigMapReferences(document);
+
+      // configMapKeyRef references
+      const cmKeyRefName = refs.find(r => r.type === 'configMapKeyRef' && r.referenceType === 'name');
+      expect(cmKeyRefName).toBeDefined();
+      expect(cmKeyRefName?.name).toBe('my-config');
+      expect(cmKeyRefName?.kind).toBe('ConfigMap');
+
+      const cmKeyRefKey = refs.find(r => r.type === 'configMapKeyRef' && r.referenceType === 'key');
+      expect(cmKeyRefKey).toBeDefined();
+      expect(cmKeyRefKey?.keyName).toBe('my-key');
+      expect(cmKeyRefKey?.kind).toBe('ConfigMap');
+
+      // secretKeyRef references
+      const secretKeyRefName = refs.find(r => r.type === 'secretKeyRef' && r.referenceType === 'name');
+      expect(secretKeyRefName).toBeDefined();
+      expect(secretKeyRefName?.name).toBe('my-secret');
+      expect(secretKeyRefName?.kind).toBe('Secret');
+
+      const secretKeyRefKey = refs.find(r => r.type === 'secretKeyRef' && r.referenceType === 'key');
+      expect(secretKeyRefKey).toBeDefined();
+      expect(secretKeyRefKey?.keyName).toBe('secret-key');
+      expect(secretKeyRefKey?.kind).toBe('Secret');
+
+      // configMapRef references
+      const cmRef = refs.find(r => r.type === 'configMapRef');
+      expect(cmRef).toBeDefined();
+      expect(cmRef?.name).toBe('my-config');
+      expect(cmRef?.kind).toBe('ConfigMap');
+
+      // secretRef references
+      const secretRef = refs.find(r => r.type === 'secretRef');
+      expect(secretRef).toBeDefined();
+      expect(secretRef?.name).toBe('my-secret');
+      expect(secretRef?.kind).toBe('Secret');
+    });
+
+    it('should not detect templateRef name as ConfigMap/Secret reference', () => {
+      const content = `
+spec:
+  volumes:
+  - name: config-vol
+    configMap:
+      name: my-config
+  - name: secret-vol
+    secret:
+      secretName: my-secret
+  templates:
+  - name: main
+    steps:
+    - - name: step1
+        templateRef:
+          name: some-template
+          template: do-work
+`;
+
+      const document = TextDocument.create('file:///test/workflow.yaml', 'yaml', 1, content);
+      const refs = findAllConfigMapReferences(document);
+
+      // Should detect volume references
+      const volumeRefs = refs.filter(r => r.type === 'volumeConfigMap' || r.type === 'volumeSecret');
+      expect(volumeRefs.length).toBe(2);
+
+      // Should NOT detect templateRef name as a ConfigMap/Secret
+      const templateRefFalsePositive = refs.find(r => r.name === 'some-template');
+      expect(templateRefFalsePositive).toBeUndefined();
+    });
   });
 });

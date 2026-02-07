@@ -374,7 +374,7 @@ nvim samples/argo/workflow-templateref.yaml
 3. **テスト作成**
    - `packages/server/test/` 配下にテストファイルを作成
    - 包括的なテストケースを記述
-   - `bun test` で実行確認
+   - `bun run test` で実行確認（`bun test` はサブモジュールも走査するため不可）
 
 4. **動作確認**
    - VSCodeとNeovim両方で動作確認
@@ -383,6 +383,84 @@ nvim samples/argo/workflow-templateref.yaml
 5. **コミット**
    - `bun run check` でコード品質チェック
    - コミットメッセージに機能説明を記載
+
+### LSP診断バグの修正（テスト先行）
+
+IDEでfalse positive（誤検出）が見つかった場合のワークフロー：
+
+1. **問題の切り分け**
+   - `mcp__ide__getDiagnostics` でエラー内容を取得
+   - 参照先が実際に存在するか確認 → 存在すればfalse positive
+   - 検証スクリプトで関数を直接呼び出し → 正しければビルド未反映、誤りならコードバグ
+
+2. **テスト作成（修正前に必須）**
+   - バグを再現する最小限のYAMLでテストケースを追加
+   - テスト実行 → **失敗することを確認**
+
+3. **修正**
+   - `packages/server/src/features/` のパーサー関数を修正
+
+4. **検証**
+   - `bun run test` → 全テスト合格を確認
+   - `bun run build` → LSPサーバーをリビルド
+   - IDE再起動 → 診断エラーが消えることを確認
+
+5. **複数の独立バグ**
+   - チームオーケストレーションで並列修正が効率的
+   - 各エージェントが異なるファイルを担当してコンフリクト回避
+
+### YAML解析の既知バグパターン
+
+テキストベースのYAML解析で頻出するバグ：
+
+| パターン | 例 | 修正方法 |
+|----------|-----|----------|
+| インラインコメント混入 | `name: val  # comment` → `val  # comment` | `stripYamlInlineComment()` で除去 |
+| コメント行の誤マッチ | `# {{inputs.parameters.x}}` | `line.trim().startsWith('#')` でスキップ |
+| セクション終了誤判定 | コメントが `templates:` と同インデント | `!line.trim().startsWith('#')` 条件追加 |
+| 近接参照タイプの混同 | configMapKeyRef と secretKeyRef が隣接 | context-window → 構造的祖先探索に置換 |
+| ブロック不完全スキャン | `clusterScope: true` が `template:` の後 | ブロック全体をスキャンするよう拡張 |
+| 同名リソースの上書き | 複数ファイルの同名ConfigMap | `Map.set` → キーマージに変更 |
+
+### 統合テストの方針：実ファイルフィクスチャ
+
+統合テスト（`packages/server/test/integration/`）では、**`samples/argo/` 配下の実YAMLファイルをそのままテストフィクスチャとして使用する**。人工的に整形したインラインYAMLは使わない。
+
+#### 原則
+
+1. **フィクスチャは実ファイル**
+   - `samples/argo/` のYAMLファイルを依存クラスタ単位でtempDirにコピーし、Index初期化 → Diagnostics実行 → エラー0件をアサート
+   - テストを通すためにフィクスチャにPaddingやスペースを挿入してはならない
+
+2. **テスト失敗時はコードを修正する（フィクスチャを修正しない）**
+   - テストが失敗した場合、それはLSPのパーサーやインデックスにバグがあることを意味する
+   - **テストを通すためにフィクスチャ（サンプルYAML）を改変してはならない**
+   - サンプルYAML自体が不正である可能性はあるが、その判断と修正はユーザーが行う
+
+3. **依存クラスタ**
+   - ファイル間の参照（templateRef、configMapKeyRef等）が解決できるよう、関連ファイルをまとめてテストする
+   - 例: `workflow-templateref.yaml` は `workflow-template.yaml` + `cluster-workflow-template.yaml` と同一ディレクトリに配置
+
+4. **意図的エラーファイルは分離**
+   - `demo-workflow-invalid.yaml` のような意図的エラーファイルは別のテストセクションで「N件のエラーを期待」としてテスト
+
+#### テスト構造の例
+
+```typescript
+describe('Real Sample Files - Zero False Positives', () => {
+  it('Cluster: templateRef + clusterScope', async () => {
+    // workflow-template.yaml + cluster-workflow-template.yaml + workflow-templateref.yaml
+    const diags = await runDiagnosticsOnCluster([...files]);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('Cluster: ConfigMap/Secret references', async () => {
+    // configmap-data.yaml + workflow-configmap.yaml
+    const diags = await runDiagnosticsOnCluster([...files]);
+    expect(diags).toHaveLength(0);
+  });
+});
+```
 
 ### フェーズ完了時のレビュー
 

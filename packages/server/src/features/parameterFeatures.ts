@@ -272,6 +272,11 @@ export function findParameterReferenceAtPosition(
       regex: /\{\{tasks\.([\w-]+)\.outputs\.parameters\.([\w-]+)\}\}/g,
       type: 'tasks.outputs.parameters' as const,
     },
+    // workflow.parameters.xxx
+    {
+      regex: /\{\{workflow\.parameters\.([\w-]+)\}\}/g,
+      type: 'workflow.parameters' as const,
+    },
   ];
 
   for (const pattern of patterns) {
@@ -354,6 +359,9 @@ export function findAllParameterReferences(document: TextDocument): ParameterRef
 
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
     const line = lines[lineNum];
+
+    // Skip comment lines - parameter references in comments should not be flagged
+    if (line.trim().startsWith('#')) continue;
 
     for (const { pattern, type } of patterns) {
       const matches = [...line.matchAll(pattern)];

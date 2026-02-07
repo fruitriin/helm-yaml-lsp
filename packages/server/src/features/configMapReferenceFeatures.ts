@@ -66,27 +66,23 @@ export function findConfigMapReferenceAtPosition(
   const keyMatch = trimmedLine.match(/^-?\s*key:\s*(.+)/);
 
   if (nameMatch) {
-    const valueName = nameMatch[2].trim().replace(/^["']|["']$/g, '');
+    const valueName = stripYamlInlineComment(nameMatch[2]);
     // Check if cursor is within the name value
     const nameStartCol = line.indexOf(valueName);
     if (
       position.character >= nameStartCol &&
       position.character <= nameStartCol + valueName.length
     ) {
-      // Determine the type of reference by looking at surrounding context
-      const context = getContextLines(lines, position.line, 5);
-      return detectNameReference(context, valueName, position.line, nameStartCol);
+      return detectNameReference(lines, position.line, valueName, nameStartCol, nameMatch[1]);
     }
   }
 
   if (keyMatch) {
-    const keyName = keyMatch[1].trim().replace(/^["']|["']$/g, '');
+    const keyName = stripYamlInlineComment(keyMatch[1]);
     // Check if cursor is within the key value
     const keyStartCol = line.indexOf(keyName);
     if (position.character >= keyStartCol && position.character <= keyStartCol + keyName.length) {
-      // Determine the type of reference by looking at surrounding context
-      const context = getContextLines(lines, position.line, 5);
-      return detectKeyReference(context, keyName, position.line, keyStartCol);
+      return detectKeyReference(lines, position.line, keyName, keyStartCol);
     }
   }
 
@@ -94,192 +90,186 @@ export function findConfigMapReferenceAtPosition(
 }
 
 /**
- * Gets context lines around a specific line
+ * Strips YAML inline comment from a raw value string.
+ * Handles quoted values (single/double) where # inside quotes is not a comment.
  */
-function getContextLines(lines: string[], lineNum: number, contextSize: number): string[] {
-  const start = Math.max(0, lineNum - contextSize);
-  const end = Math.min(lines.length, lineNum + contextSize + 1);
-  return lines.slice(start, end);
+function stripYamlInlineComment(rawValue: string): string {
+  const trimmed = rawValue.trim();
+  // Double-quoted value
+  if (trimmed.startsWith('"')) {
+    const end = trimmed.indexOf('"', 1);
+    if (end > 0) return trimmed.substring(1, end);
+  }
+  // Single-quoted value
+  if (trimmed.startsWith("'")) {
+    const end = trimmed.indexOf("'", 1);
+    if (end > 0) return trimmed.substring(1, end);
+  }
+  // Unquoted: strip inline comment (# preceded by whitespace)
+  const commentIdx = trimmed.search(/\s+#/);
+  if (commentIdx >= 0) return trimmed.substring(0, commentIdx);
+  return trimmed;
 }
 
 /**
- * Detects name reference type from context
+ * Find ConfigMap/Secret reference type by tracing YAML ancestry (lower indent lines).
+ * This replaces the context-window approach to avoid cross-contamination
+ * when different reference types are close together in the YAML.
+ *
+ * We track the current ancestor indent ceiling: as we walk upward, each ancestor
+ * must have strictly lower indent than the previous one. This prevents crossing
+ * into sibling branches of the YAML tree.
+ */
+function findAncestorReferenceType(
+  lines: string[],
+  lineNum: number
+): { type: ConfigMapReferenceType; kind: 'ConfigMap' | 'Secret' } | undefined {
+  let currentIndent = lines[lineNum].match(/^(\s*)/)?.[1].length ?? 0;
+
+  for (let i = lineNum - 1; i >= 0 && lineNum - i < 20; i--) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    if (trimmed === '---') return undefined;
+
+    const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
+    if (indent >= currentIndent) continue;
+
+    // This line is a true ancestor; tighten the ceiling for the next ancestor
+    currentIndent = indent;
+
+    if (trimmed.includes('configMapKeyRef:')) return { type: 'configMapKeyRef', kind: 'ConfigMap' };
+    if (trimmed.includes('secretKeyRef:')) return { type: 'secretKeyRef', kind: 'Secret' };
+    if (trimmed.includes('configMapRef:')) return { type: 'configMapRef', kind: 'ConfigMap' };
+    if (trimmed.includes('secretRef:')) return { type: 'secretRef', kind: 'Secret' };
+    if (trimmed.includes('configMap:')) return { type: 'volumeConfigMap', kind: 'ConfigMap' };
+    if (trimmed.startsWith('secret:') || trimmed.endsWith('secret:')) return { type: 'volumeSecret', kind: 'Secret' };
+  }
+
+  return undefined;
+}
+
+/**
+ * Find the associated name/secretName value for a key reference.
+ * First looks for siblings at the same indent level (configMapKeyRef/secretKeyRef).
+ * Then looks for name/secretName under the ancestor reference type (volumes).
+ */
+function findAssociatedName(lines: string[], lineNum: number): string | undefined {
+  const lineIndent = lines[lineNum].match(/^(\s*)/)?.[1].length ?? 0;
+
+  // Strategy 1: Search for sibling at same indent (for configMapKeyRef/secretKeyRef)
+  // Search backward
+  for (let i = lineNum - 1; i >= Math.max(0, lineNum - 5); i--) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
+    if (indent < lineIndent) break;
+    if (indent !== lineIndent) continue;
+    const nameMatch = trimmed.match(/^(?:name|secretName):\s*(.+)/);
+    if (nameMatch) return stripYamlInlineComment(nameMatch[1]);
+  }
+
+  // Search forward
+  for (let i = lineNum + 1; i < Math.min(lines.length, lineNum + 5); i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
+    if (indent < lineIndent) break;
+    if (indent !== lineIndent) continue;
+    const nameMatch = trimmed.match(/^(?:name|secretName):\s*(.+)/);
+    if (nameMatch) return stripYamlInlineComment(nameMatch[1]);
+  }
+
+  // Strategy 2: For volume references, search for name/secretName under the
+  // ancestor reference type (configMap:/secret:). The name is a child of the
+  // same parent as items:, not a sibling of key:.
+  for (let i = lineNum - 1; i >= Math.max(0, lineNum - 15); i--) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    if (trimmed === '---') break;
+    const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
+    if (indent >= lineIndent) continue;
+    // Found an ancestor - check if it's a reference type with name/secretName as children
+    if (trimmed.includes('configMap:') || trimmed.startsWith('secret:') || trimmed.endsWith('secret:')) {
+      // Look for name/secretName as children of this ancestor
+      const childIndent = indent + 2; // Expected child indent (standard YAML 2-space)
+      for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
+        const childLine = lines[j];
+        const childTrimmed = childLine.trim();
+        if (childTrimmed === '' || childTrimmed.startsWith('#')) continue;
+        const ci = childLine.match(/^(\s*)/)?.[1].length ?? 0;
+        if (ci <= indent) break;
+        if (ci >= childIndent && ci <= childIndent + 2) {
+          const nameMatch = childTrimmed.match(/^(?:name|secretName):\s*(.+)/);
+          if (nameMatch) return stripYamlInlineComment(nameMatch[1]);
+        }
+      }
+      break;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Detects name reference type using structural YAML ancestry
  */
 function detectNameReference(
-  context: string[],
+  lines: string[],
+  lineNum: number,
   name: string,
-  line: number,
-  col: number
+  col: number,
+  fieldName?: string
 ): ConfigMapReference | undefined {
-  const contextStr = context.join('\n');
-
-  // Check for configMapKeyRef
-  if (contextStr.includes('configMapKeyRef:')) {
-    return {
-      type: 'configMapKeyRef',
-      referenceType: 'name',
-      name,
-      kind: 'ConfigMap',
-      range: Range.create(Position.create(line, col), Position.create(line, col + name.length)),
-    };
-  }
-
-  // Check for secretKeyRef
-  if (contextStr.includes('secretKeyRef:')) {
-    return {
-      type: 'secretKeyRef',
-      referenceType: 'name',
-      name,
-      kind: 'Secret',
-      range: Range.create(Position.create(line, col), Position.create(line, col + name.length)),
-    };
-  }
-
-  // Check for configMapRef
-  if (contextStr.includes('configMapRef:')) {
-    return {
-      type: 'configMapRef',
-      referenceType: 'name',
-      name,
-      kind: 'ConfigMap',
-      range: Range.create(Position.create(line, col), Position.create(line, col + name.length)),
-    };
-  }
-
-  // Check for secretRef
-  if (contextStr.includes('secretRef:')) {
-    return {
-      type: 'secretRef',
-      referenceType: 'name',
-      name,
-      kind: 'Secret',
-      range: Range.create(Position.create(line, col), Position.create(line, col + name.length)),
-    };
-  }
-
-  // Check for volumeConfigMap (volumes.configMap.name)
-  if (contextStr.includes('configMap:') && contextStr.includes('volumes:')) {
-    return {
-      type: 'volumeConfigMap',
-      referenceType: 'name',
-      name,
-      kind: 'ConfigMap',
-      range: Range.create(Position.create(line, col), Position.create(line, col + name.length)),
-    };
-  }
-
-  // Check for volumeSecret (volumes.secret.secretName)
-  if (
-    (contextStr.includes('secret:') && contextStr.includes('volumes:')) ||
-    contextStr.includes('secretName:')
-  ) {
+  // secretName field is always volumeSecret
+  if (fieldName === 'secretName') {
     return {
       type: 'volumeSecret',
       referenceType: 'name',
       name,
       kind: 'Secret',
-      range: Range.create(Position.create(line, col), Position.create(line, col + name.length)),
+      range: Range.create(Position.create(lineNum, col), Position.create(lineNum, col + name.length)),
     };
   }
 
-  return undefined;
+  const ref = findAncestorReferenceType(lines, lineNum);
+  if (!ref) return undefined;
+
+  return {
+    type: ref.type,
+    referenceType: 'name',
+    name,
+    kind: ref.kind,
+    range: Range.create(Position.create(lineNum, col), Position.create(lineNum, col + name.length)),
+  };
 }
 
 /**
- * Detects key reference type from context
+ * Detects key reference type using structural YAML ancestry
  */
 function detectKeyReference(
-  context: string[],
+  lines: string[],
+  lineNum: number,
   keyName: string,
-  line: number,
   col: number
 ): ConfigMapReference | undefined {
-  const contextStr = context.join('\n');
+  const ref = findAncestorReferenceType(lines, lineNum);
+  if (!ref) return undefined;
 
-  // Check for configMapKeyRef
-  if (contextStr.includes('configMapKeyRef:')) {
-    // Extract name from configMapKeyRef section
-    const keyRefMatch = contextStr.match(/configMapKeyRef:[\s\S]*?name:\s*([^\s\n]+)/);
-    if (keyRefMatch) {
-      const name = keyRefMatch[1].trim().replace(/^["']|["']$/g, '');
-      return {
-        type: 'configMapKeyRef',
-        referenceType: 'key',
-        name,
-        keyName,
-        kind: 'ConfigMap',
-        range: Range.create(
-          Position.create(line, col),
-          Position.create(line, col + keyName.length)
-        ),
-      };
-    }
-  }
+  const name = findAssociatedName(lines, lineNum);
+  if (!name) return undefined;
 
-  // Check for secretKeyRef
-  if (contextStr.includes('secretKeyRef:')) {
-    // Extract name from secretKeyRef section
-    const keyRefMatch = contextStr.match(/secretKeyRef:[\s\S]*?name:\s*([^\s\n]+)/);
-    if (keyRefMatch) {
-      const name = keyRefMatch[1].trim().replace(/^["']|["']$/g, '');
-      return {
-        type: 'secretKeyRef',
-        referenceType: 'key',
-        name,
-        keyName,
-        kind: 'Secret',
-        range: Range.create(
-          Position.create(line, col),
-          Position.create(line, col + keyName.length)
-        ),
-      };
-    }
-  }
-
-  // Check for volumeConfigMap items.key
-  if (contextStr.includes('configMap:') && contextStr.includes('items:')) {
-    // Extract name from configMap section
-    const configMapMatch = contextStr.match(/configMap:[\s\S]*?name:\s*([^\s\n]+)/);
-    if (configMapMatch) {
-      const name = configMapMatch[1].trim().replace(/^["']|["']$/g, '');
-      return {
-        type: 'volumeConfigMap',
-        referenceType: 'key',
-        name,
-        keyName,
-        kind: 'ConfigMap',
-        range: Range.create(
-          Position.create(line, col),
-          Position.create(line, col + keyName.length)
-        ),
-      };
-    }
-  }
-
-  // Check for volumeSecret items.key
-  if (
-    (contextStr.includes('secret:') || contextStr.includes('secretName:')) &&
-    contextStr.includes('items:')
-  ) {
-    // Extract secretName from secret section
-    const secretMatch = contextStr.match(/secret:[\s\S]*?secretName:\s*([^\s\n]+)/);
-    if (secretMatch) {
-      const name = secretMatch[1].trim().replace(/^["']|["']$/g, '');
-      return {
-        type: 'volumeSecret',
-        referenceType: 'key',
-        name,
-        keyName,
-        kind: 'Secret',
-        range: Range.create(
-          Position.create(line, col),
-          Position.create(line, col + keyName.length)
-        ),
-      };
-    }
-  }
-
-  return undefined;
+  return {
+    type: ref.type,
+    referenceType: 'key',
+    name,
+    keyName,
+    kind: ref.kind,
+    range: Range.create(Position.create(lineNum, col), Position.create(lineNum, col + keyName.length)),
+  };
 }
 
 /**
@@ -301,20 +291,16 @@ export function findAllConfigMapReferences(document: TextDocument): ConfigMapRef
     const match = trimmedLine.match(/^(name|secretName|key):\s*(.+)/);
     if (match) {
       const fieldName = match[1];
-      const value = match[2].trim().replace(/^["']|["']$/g, '');
+      const value = stripYamlInlineComment(match[2]);
       const valueStartCol = line.indexOf(value);
 
       if (fieldName === 'key') {
-        // This is a key reference
-        const context = getContextLines(lines, i, 6);
-        const ref = detectKeyReference(context, value, i, valueStartCol);
+        const ref = detectKeyReference(lines, i, value, valueStartCol);
         if (ref) {
           references.push(ref);
         }
       } else {
-        // This is a name reference (need larger context for volumes)
-        const context = getContextLines(lines, i, 8);
-        const ref = detectNameReference(context, value, i, valueStartCol);
+        const ref = detectNameReference(lines, i, value, valueStartCol, fieldName);
         if (ref) {
           references.push(ref);
         }

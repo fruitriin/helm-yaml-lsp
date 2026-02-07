@@ -120,7 +120,7 @@ export function findTemplateDefinitions(document: TextDocument): TemplateDefinit
     // templatesセクション内でインデントが戻ったら終了
     if (inTemplatesSection) {
       const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
-      if (line.trim() && currentIndent <= templatesIndent && !line.trim().startsWith('-')) {
+      if (line.trim() && currentIndent <= templatesIndent && !line.trim().startsWith('-') && !line.trim().startsWith('#')) {
         inTemplatesSection = false;
       }
     }
@@ -348,8 +348,16 @@ export function findAllTemplateReferences(document: TextDocument): TemplateRefer
         inTemplateRef = true;
 
         // templateRef ブロック内のフィールドを抽出
-        for (let j = i + 1; j <= lineNum; j++) {
+        // template: 行の後にある clusterScope: も検出するため、
+        // lineNum を超えてブロック終端まで走査する
+        const templateRefIndent = prevIndent;
+        for (let j = i + 1; j < lines.length && j - i < 10; j++) {
           const blockLine = lines[j];
+          const blockTrimmed = blockLine.trim();
+          if (blockTrimmed === '' || blockTrimmed.startsWith('#')) continue;
+
+          const blockIndent = blockLine.match(/^(\s*)/)?.[1].length ?? 0;
+          if (blockIndent <= templateRefIndent) break; // ブロック終了
 
           // name: フィールド
           const nameMatch = blockLine.match(/^\s*name:\s*['"]?([\w-]+)['"]?/);

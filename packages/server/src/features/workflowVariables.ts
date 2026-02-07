@@ -63,6 +63,16 @@ export const WORKFLOW_VARIABLES: Record<string, WorkflowVariableInfo> = {
     description: 'Status of the Workflow (Running, Succeeded, Failed, etc.)',
     example: '{{workflow.status}}',
   },
+  'workflow.mainEntrypoint': {
+    name: 'workflow.mainEntrypoint',
+    description: 'Main entrypoint of the Workflow',
+    example: '{{workflow.mainEntrypoint}}',
+  },
+  'workflow.scheduledTime': {
+    name: 'workflow.scheduledTime',
+    description: 'Scheduled execution time (available in CronWorkflow)',
+    example: '{{workflow.scheduledTime}}',
+  },
 };
 
 /**
@@ -80,8 +90,8 @@ export function findWorkflowVariableAtPosition(
   const lines = text.split('\n');
   const line = lines[position.line];
 
-  // Workflow変数のパターン: {{workflow.xxx}}
-  const pattern = /\{\{workflow\.([\w]+)\}\}/g;
+  // Workflow変数のパターン: {{workflow.xxx}} or {{workflow.xxx.yyy}}
+  const pattern = /\{\{workflow\.([\w]+(?:\.[\w-]+)*)\}\}/g;
   const matches = [...line.matchAll(pattern)];
 
   for (const match of matches) {
@@ -92,15 +102,71 @@ export function findWorkflowVariableAtPosition(
 
     // カーソルがマッチ範囲内にあるかチェック
     if (position.character >= matchStart && position.character <= matchEnd) {
+      const range = Range.create(
+        Position.create(position.line, matchStart),
+        Position.create(position.line, matchEnd)
+      );
+
+      // 1. Exact match in WORKFLOW_VARIABLES
       const variableInfo = WORKFLOW_VARIABLES[variableName];
       if (variableInfo) {
-        return {
-          variable: variableInfo,
-          range: Range.create(
-            Position.create(position.line, matchStart),
-            Position.create(position.line, matchEnd)
-          ),
-        };
+        return { variable: variableInfo, range };
+      }
+
+      // 2. Sub-property handling (e.g., workflow.creationTimestamp.RFC3339)
+      const parts = variableName.split('.');
+      if (parts.length >= 3) {
+        const baseName = `${parts[0]}.${parts[1]}`;
+        const subKey = parts.slice(2).join('.');
+
+        // Base variable exists → timestamp format or sub-property
+        const baseInfo = WORKFLOW_VARIABLES[baseName];
+        if (baseInfo) {
+          return {
+            variable: {
+              name: variableName,
+              description: `${baseInfo.description} (format: ${subKey})`,
+              example: `{{${variableName}}}`,
+            },
+            range,
+          };
+        }
+
+        // workflow.parameters.xxx
+        if (baseName === 'workflow.parameters') {
+          return {
+            variable: {
+              name: variableName,
+              description: `Workflow parameter: \`${subKey}\``,
+              example: `{{${variableName}}}`,
+            },
+            range,
+          };
+        }
+
+        // workflow.labels.xxx
+        if (baseName === 'workflow.labels') {
+          return {
+            variable: {
+              name: variableName,
+              description: `Workflow label: \`${subKey}\``,
+              example: `{{${variableName}}}`,
+            },
+            range,
+          };
+        }
+
+        // workflow.annotations.xxx
+        if (baseName === 'workflow.annotations') {
+          return {
+            variable: {
+              name: variableName,
+              description: `Workflow annotation: \`${subKey}\``,
+              example: `{{${variableName}}}`,
+            },
+            range,
+          };
+        }
       }
     }
   }

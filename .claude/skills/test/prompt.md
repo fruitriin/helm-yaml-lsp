@@ -6,53 +6,43 @@
 
 テストを実行する際は、**必ず以下の順序で実行してください**：
 
-1. **作業ディレクトリの確認**
-   - `pwd` コマンドを実行してプロジェクトルート (`/Users/riin/workspace/helm-yaml-lsp`) にいることを確認
-   - プロジェクトルートでない場合は、`cd /Users/riin/workspace/helm-yaml-lsp` で移動
+1. **テストの実行**
+   - プロジェクトルートで `bun run test` を実行
+   - **重要**: `bun test` ではなく `bun run test` を使うこと（`bun test` はサブモジュールも走査してしまう）
 
-2. **テストの実行**
-   - `bun test` コマンドを実行
-   - テストフレームワーク（Bun test runner）を使用
-
-3. **結果の報告**
+2. **結果の報告**
    - テスト結果を以下の形式でわかりやすく報告：
      - ✅ パスしたテスト数
-     - ❌ 失敗したテスト数
-     - 各テストケースの詳細（特に失敗したもの）
-     - エラーメッセージの抜粋
+     - ❌ 失敗したテスト数（0件ならスキップ）
+     - ⏭️ スキップしたテスト数（あれば）
+     - 失敗したテストがあれば、エラーメッセージの抜粋と修正提案
 
-4. **修正提案（失敗時）**
-   - 失敗したテストがある場合：
-     - エラー内容の分析
-     - 考えられる原因
-     - 修正方法の具体的な提案
+3. **失敗時の対応**
+   - エラー内容を分析し、考えられる原因と修正方法を提案
+   - 特定のテストだけ実行したい場合: `bun run test packages/server/test/path/to/test.ts`
 
-## テストコマンドの例
+## テストコマンド
 
 ```bash
-# 基本的なテスト実行
-bun test
+# 全テスト実行（推奨）
+bun run test
 
-# パッケージ単位でのテスト実行
-cd packages/server && bun test
-cd packages/vscode-client && bun test
+# 特定テストの実行
+bun run test packages/server/test/features/templateFeatures.test.ts
 
-# カバレッジ付きでテスト実行（設定されている場合）
-bun test --coverage
+# ビルド後にテスト（コード変更後）
+bun run build && bun run test
+
+# 型チェック + lint + テスト
+bun run check && bun run test
 ```
 
-## 重要な注意事項
-
-- **必ず `pwd` で作業ディレクトリを確認してからテストを実行すること**
-- テストが失敗した場合、慌てずに原因を分析すること
-- テスト結果は日本語でわかりやすく報告すること
-- ユーザーが次に何をすべきか明確にすること
-
-## このプロジェクトについて
+## プロジェクト情報
 
 - **パッケージマネージャ**: Bun
-- **テストフレームワーク**: Bun test
+- **テストフレームワーク**: Bun test (`bun:test`)
 - **プロジェクト構造**: モノレポ（packages/server, packages/vscode-client）
-- **テストディレクトリ**: `packages/server/test/` など
+- **テストディレクトリ**: `packages/server/test/`
+- **現在のテスト数**: 501 pass, 1 skip
 
 テスト実行を開始してください。

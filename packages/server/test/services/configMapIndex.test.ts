@@ -2,7 +2,9 @@
  * ConfigMap Index Tests
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import * as fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { ConfigMapIndex } from '@/services/configMapIndex';
 
@@ -153,6 +155,54 @@ describe('ConfigMapIndex', () => {
       // Verify it's removed
       configMap = index.findConfigMap('app-config', 'ConfigMap');
       expect(configMap).toBeUndefined();
+    });
+  });
+
+  describe('key merging for same-name ConfigMaps', () => {
+    let mergeIndex: ConfigMapIndex;
+    let tempDir: string;
+
+    beforeAll(async () => {
+      tempDir = path.join(tmpdir(), `lsp-test-configmap-merge-${Date.now()}`);
+      await fs.mkdir(tempDir, { recursive: true });
+
+      const file1Content = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+data:
+  key-from-file1: value1
+`;
+
+      const file2Content = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+data:
+  key-from-file2: value2
+`;
+
+      await fs.writeFile(path.join(tempDir, 'configmap1.yaml'), file1Content);
+      await fs.writeFile(path.join(tempDir, 'configmap2.yaml'), file2Content);
+
+      mergeIndex = new ConfigMapIndex();
+      await mergeIndex.initialize([tempDir]);
+    });
+
+    afterAll(async () => {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    it('should find the ConfigMap by name', () => {
+      const configMap = mergeIndex.findConfigMap('shared-config', 'ConfigMap');
+      expect(configMap).toBeDefined();
+      expect(configMap?.name).toBe('shared-config');
+    });
+
+    it('should merge keys from both files', () => {
+      const keys = mergeIndex.getKeys('shared-config', 'ConfigMap');
+      expect(keys).toContain('key-from-file1');
+      expect(keys).toContain('key-from-file2');
     });
   });
 });

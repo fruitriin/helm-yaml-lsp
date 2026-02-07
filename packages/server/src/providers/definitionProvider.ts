@@ -5,7 +5,7 @@
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { Location, type Position } from 'vscode-languageserver-types';
+import { Location, Position, Range } from 'vscode-languageserver-types';
 import { findChartReference } from '@/features/chartReferenceFeatures';
 import { findConfigMapReferenceAtPosition } from '@/features/configMapReferenceFeatures';
 import { isArgoWorkflowDocument } from '@/features/documentDetection';
@@ -20,6 +20,7 @@ import {
   findTemplateReferenceAtPosition,
 } from '@/features/templateFeatures';
 import { findValuesReference, isHelmTemplate } from '@/features/valuesReferenceFeatures';
+import { findWorkflowVariableAtPosition } from '@/features/workflowVariables';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
@@ -106,6 +107,16 @@ export class DefinitionProvider {
     const parameterRef = findParameterReferenceAtPosition(document, position);
     if (parameterRef) {
       return this.handleParameterReference(document, parameterRef);
+    }
+
+    // workflow.labels / workflow.annotations 参照を検出
+    const workflowVar = findWorkflowVariableAtPosition(document, position);
+    if (workflowVar) {
+      const varName = workflowVar.variable.name;
+      const parts = varName.split('.');
+      if (parts.length >= 3 && (parts[1] === 'labels' || parts[1] === 'annotations')) {
+        return this.handleWorkflowMetadataReference(document, parts[1], parts.slice(2).join('.'));
+      }
     }
 
     return null;
@@ -255,6 +266,11 @@ export class DefinitionProvider {
       }
     }
 
+    // workflow.parameters の場合 → spec.arguments.parameters から検索
+    if (parameterRef.type === 'workflow.parameters') {
+      return this.handleWorkflowParameterReference(document, parameterRef.parameterName);
+    }
+
     // steps.outputs.parameters の場合
     if (parameterRef.type === 'steps.outputs.parameters' && parameterRef.stepOrTaskName) {
       return this.handleStepOutputParameter(
@@ -271,6 +287,68 @@ export class DefinitionProvider {
         parameterRef.stepOrTaskName,
         parameterRef.parameterName
       );
+    }
+
+    return null;
+  }
+
+  /**
+   * workflow.parameters.xxx 参照を処理
+   *
+   * spec.arguments.parameters から定義を検索
+   */
+  private handleWorkflowParameterReference(
+    document: TextDocument,
+    parameterName: string
+  ): Location | null {
+    const text = document.getText();
+    const lines = text.split('\n');
+
+    let inArguments = false;
+    let inParameters = false;
+    let argumentsIndent = 0;
+    let parametersIndent = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+      const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+      if (/^\s*arguments:/.test(line)) {
+        inArguments = true;
+        inParameters = false;
+        argumentsIndent = currentIndent;
+        continue;
+      }
+
+      if (inArguments && /^\s*parameters:/.test(line) && currentIndent > argumentsIndent) {
+        inParameters = true;
+        parametersIndent = currentIndent;
+        continue;
+      }
+
+      // arguments セクション終了
+      if (inArguments && currentIndent <= argumentsIndent && !trimmed.startsWith('#')) {
+        inArguments = false;
+        inParameters = false;
+      }
+
+      // parameters 内のパラメータ定義
+      if (inParameters) {
+        const nameMatch = line.match(/^\s*-\s*name:\s*['"]?([\w-]+)['"]?/);
+        if (nameMatch && nameMatch[1] === parameterName) {
+          const nameStart = line.indexOf(parameterName);
+          return Location.create(
+            document.uri,
+            Range.create(
+              Position.create(i, nameStart),
+              Position.create(i, nameStart + parameterName.length)
+            )
+          );
+        }
+      }
     }
 
     return null;
@@ -380,6 +458,75 @@ export class DefinitionProvider {
       const key = this.configMapIndex.findKey(ref.name, ref.keyName, ref.kind);
       if (key) {
         return Location.create(key.uri, key.range);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * workflow.labels.xxx / workflow.annotations.xxx 参照を処理
+   *
+   * metadata.labels / metadata.annotations からキーを検索
+   */
+  private handleWorkflowMetadataReference(
+    document: TextDocument,
+    section: 'labels' | 'annotations',
+    keyName: string
+  ): Location | null {
+    const text = document.getText();
+    const lines = text.split('\n');
+
+    let inMetadata = false;
+    let inSection = false;
+    let metadataIndent = 0;
+    let sectionIndent = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+      const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+      if (/^\s*metadata:/.test(line)) {
+        inMetadata = true;
+        inSection = false;
+        metadataIndent = currentIndent;
+        continue;
+      }
+
+      if (inMetadata && currentIndent <= metadataIndent && !trimmed.startsWith('#')) {
+        inMetadata = false;
+        inSection = false;
+      }
+
+      if (inMetadata) {
+        const sectionRegex = new RegExp(`^\\s*${section}:`);
+        if (sectionRegex.test(line) && currentIndent > metadataIndent) {
+          inSection = true;
+          sectionIndent = currentIndent;
+          continue;
+        }
+
+        if (inSection && currentIndent <= sectionIndent) {
+          inSection = false;
+        }
+
+        if (inSection) {
+          const keyRegex = new RegExp(`^\\s*(${keyName})\\s*:`);
+          const keyMatch = line.match(keyRegex);
+          if (keyMatch) {
+            const keyStart = line.indexOf(keyName);
+            return Location.create(
+              document.uri,
+              Range.create(
+                Position.create(i, keyStart),
+                Position.create(i, keyStart + keyName.length)
+              )
+            );
+          }
+        }
       }
     }
 

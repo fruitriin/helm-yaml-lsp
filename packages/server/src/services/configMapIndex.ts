@@ -102,10 +102,17 @@ export class ConfigMapIndex {
         this.definitionsByUri.set(uri, definitions);
 
         for (const def of definitions) {
-          if (def.kind === 'ConfigMap') {
-            this.configMaps.set(def.name, def);
+          const targetMap = def.kind === 'ConfigMap' ? this.configMaps : this.secrets;
+          const existing = targetMap.get(def.name);
+          if (existing) {
+            // 同名の定義が既にある場合、キーをマージ（異なるファイルで同名リソースを定義するケース）
+            for (const key of def.keys) {
+              if (!existing.keys.some(k => k.keyName === key.keyName)) {
+                existing.keys.push(key);
+              }
+            }
           } else {
-            this.secrets.set(def.name, def);
+            targetMap.set(def.name, def);
           }
         }
 

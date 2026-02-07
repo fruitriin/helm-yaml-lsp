@@ -1,0 +1,6 @@
+{
+  "name": "ide-check",
+  "description": "IDEのLSP診断エラーを確認し、false positiveを検出する",
+  "prompt": "prompt.md",
+  "tags": ["diagnostics", "ide", "lsp", "verification"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "fix-diagnostic",
+  "description": "LSP診断のfalse positiveを「テスト先行→修正→検証」のワークフローで修正する",
+  "prompt": "prompt.md",
+  "tags": ["bugfix", "diagnostics", "tdd", "lsp"]
+}

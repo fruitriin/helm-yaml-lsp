@@ -6,6 +6,7 @@ import { describe, expect, it } from 'bun:test';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver-types';
 import {
+  findAllParameterReferences,
   findParameterDefinitions,
   findParameterReferenceAtPosition,
 } from '../../src/features/parameterFeatures';
@@ -296,6 +297,28 @@ spec:
       const position2 = Position.create(6, 75);
       const ref2 = findParameterReferenceAtPosition(doc, position2);
       expect(ref2?.parameterName).toBe('second');
+    });
+  });
+
+  describe('findAllParameterReferences', () => {
+    it('should skip parameter references inside comment lines', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      # This comment has {{inputs.parameters.message}} which should be ignored
+      container:
+        image: alpine
+        args: ["{{inputs.parameters.real-param}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const refs = findAllParameterReferences(doc);
+
+      const refNames = refs.map(r => r.parameterName);
+      expect(refNames).toContain('real-param');
+      expect(refNames).not.toContain('message');
+      expect(refs.length).toBe(1);
     });
   });
 });

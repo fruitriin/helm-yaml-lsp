@@ -305,7 +305,111 @@ export class HoverProvider {
       );
     }
 
+    // workflow.parameters の場合 → spec.arguments.parameters から検索
+    if (parameterRef.type === 'workflow.parameters') {
+      return this.handleWorkflowParameterHover(
+        document,
+        parameterRef.parameterName,
+        parameterRef.range
+      );
+    }
+
     return null;
+  }
+
+  /**
+   * workflow.parameters.xxx のホバー情報を処理
+   *
+   * spec.arguments.parameters から定義を検索して表示
+   */
+  private handleWorkflowParameterHover(
+    document: TextDocument,
+    parameterName: string,
+    range: Range
+  ): Hover | null {
+    const text = document.getText();
+    const lines = text.split('\n');
+
+    let inArguments = false;
+    let inParameters = false;
+    let argumentsIndent = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+      const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+      if (/^\s*arguments:/.test(line)) {
+        inArguments = true;
+        inParameters = false;
+        argumentsIndent = currentIndent;
+        continue;
+      }
+
+      if (inArguments && /^\s*parameters:/.test(line) && currentIndent > argumentsIndent) {
+        inParameters = true;
+        continue;
+      }
+
+      if (inArguments && currentIndent <= argumentsIndent && !trimmed.startsWith('#')) {
+        inArguments = false;
+        inParameters = false;
+      }
+
+      if (inParameters) {
+        const nameMatch = line.match(/^\s*-\s*name:\s*['"]?([\w-]+)['"]?/);
+        if (nameMatch && nameMatch[1] === parameterName) {
+          // Found the parameter - collect value, description, default
+          let value: string | undefined;
+          let description: string | undefined;
+          const paramIndent = currentIndent;
+
+          for (let j = i + 1; j < lines.length; j++) {
+            const pLine = lines[j];
+            const pTrimmed = pLine.trim();
+            if (pTrimmed === '' || pTrimmed.startsWith('#')) continue;
+            const pIndent = pLine.match(/^(\s*)/)?.[1].length ?? 0;
+            if (pIndent <= paramIndent && !pTrimmed.startsWith('#')) break;
+
+            const valMatch = pLine.match(/^\s*value:\s*['"]?(.+?)['"]?\s*$/);
+            if (valMatch) value = valMatch[1];
+
+            const descMatch = pLine.match(/^\s*description:\s*['"]?(.+?)['"]?\s*$/);
+            if (descMatch) description = descMatch[1];
+          }
+
+          const parts: string[] = [];
+          parts.push(`**Workflow Parameter**: \`${parameterName}\``);
+          parts.push('');
+          parts.push('**Type**: Workflow Argument');
+          if (value) {
+            parts.push(`**Value**: \`${value}\``);
+          }
+          if (description) {
+            parts.push(`**Description**: ${description}`);
+          }
+
+          return {
+            contents: {
+              kind: MarkupKind.Markdown,
+              value: parts.join('\n'),
+            },
+            range,
+          };
+        }
+      }
+    }
+
+    // Fallback: show basic info even if definition not found
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: `**Workflow Parameter**: \`${parameterName}\`\n\n**Type**: Workflow Argument`,
+      },
+      range,
+    };
   }
 
   /**

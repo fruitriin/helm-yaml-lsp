@@ -38,10 +38,24 @@ export function createWorkflowVariableHandler(): ReferenceHandler {
       const varName = result.variable.name;
       const parts = varName.split('.');
       let subProperty: string | undefined;
-      let subPropertyType: 'labels' | 'annotations' | 'parameters' | undefined;
+      let subPropertyType:
+        | 'labels'
+        | 'annotations'
+        | 'parameters'
+        | 'outputs.parameters'
+        | 'outputs.artifacts'
+        | undefined;
 
       if (parts.length >= 3) {
-        if (parts[1] === 'labels') {
+        if (parts[1] === 'outputs' && parts.length >= 4) {
+          if (parts[2] === 'parameters') {
+            subProperty = parts.slice(3).join('.');
+            subPropertyType = 'outputs.parameters';
+          } else if (parts[2] === 'artifacts') {
+            subProperty = parts.slice(3).join('.');
+            subPropertyType = 'outputs.artifacts';
+          }
+        } else if (parts[1] === 'labels') {
           subProperty = parts.slice(2).join('.');
           subPropertyType = 'labels';
         } else if (parts[1] === 'annotations') {
@@ -112,6 +126,14 @@ function buildWorkflowVariableHover(doc: TextDocument, details: WorkflowVariable
   // workflow.parameters.xxx → spec.arguments.parameters から詳細を取得
   if (details.subPropertyType === 'parameters' && details.subProperty) {
     return buildWorkflowParameterHover(doc, details.subProperty);
+  }
+
+  // workflow.outputs.parameters.xxx / workflow.outputs.artifacts.xxx
+  if (details.subPropertyType === 'outputs.parameters' && details.subProperty) {
+    return `**Workflow Output Parameter**: \`${details.subProperty}\`\n\n**Type**: Workflow Output\n\nReferenced from workflow-level \`outputs.parameters\``;
+  }
+  if (details.subPropertyType === 'outputs.artifacts' && details.subProperty) {
+    return `**Workflow Output Artifact**: \`${details.subProperty}\`\n\n**Type**: Workflow Output\n\nReferenced from workflow-level \`outputs.artifacts\``;
   }
 
   const parts: string[] = [];
@@ -218,6 +240,13 @@ function findWorkflowVariableDefinition(
   if (details.subPropertyType === 'parameters' && details.subProperty) {
     return findWorkflowParameterDefinition(doc, details.subProperty);
   }
+  if (
+    (details.subPropertyType === 'outputs.parameters' ||
+      details.subPropertyType === 'outputs.artifacts') &&
+    details.subProperty
+  ) {
+    return findWorkflowOutputDefinition(doc, details.subProperty, details.subPropertyType);
+  }
 
   // Basic workflow variables → corresponding metadata/spec fields
   if (details.variableName === 'workflow.name') {
@@ -268,10 +297,7 @@ function findMetadataField(
         const valueStart = line.indexOf(valueStr, line.indexOf(':') + 1);
         return {
           uri: doc.uri,
-          range: Rng.create(
-            Pos.create(i, valueStart),
-            Pos.create(i, valueStart + valueStr.length)
-          ),
+          range: Rng.create(Pos.create(i, valueStart), Pos.create(i, valueStart + valueStr.length)),
         };
       }
     }
@@ -393,6 +419,73 @@ function findWorkflowParameterDefinition(
             Pos.create(i, nameStart + parameterName.length)
           ),
         };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * workflow.outputs.parameters / workflow.outputs.artifacts の定義位置を検索
+ *
+ * ドキュメント内で該当パラメータ/アーティファクト名を検索（ベストエフォート）
+ */
+function findWorkflowOutputDefinition(
+  doc: TextDocument,
+  name: string,
+  type: 'outputs.parameters' | 'outputs.artifacts'
+): { uri: string; range: Range } | null {
+  const text = doc.getText();
+  const lines = text.split('\n');
+
+  const sectionName = type === 'outputs.parameters' ? 'parameters' : 'artifacts';
+
+  let inOutputs = false;
+  let inSection = false;
+  let outputsIndent = 0;
+  let sectionIndent = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+    const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+    if (/^\s*outputs:/.test(line)) {
+      inOutputs = true;
+      inSection = false;
+      outputsIndent = currentIndent;
+      continue;
+    }
+
+    if (inOutputs && currentIndent <= outputsIndent && !trimmed.startsWith('#')) {
+      inOutputs = false;
+      inSection = false;
+    }
+
+    if (inOutputs) {
+      const sectionRegex = new RegExp(`^\\s*${sectionName}:`);
+      if (sectionRegex.test(line) && currentIndent > outputsIndent) {
+        inSection = true;
+        sectionIndent = currentIndent;
+        continue;
+      }
+
+      if (inSection && currentIndent <= sectionIndent && !trimmed.startsWith('-')) {
+        inSection = false;
+      }
+
+      if (inSection) {
+        const nameMatch = line.match(/^\s*-\s*name:\s*['"]?([\w-]+)['"]?/);
+        if (nameMatch && nameMatch[1] === name) {
+          const nameStart = line.indexOf(name);
+          return {
+            uri: doc.uri,
+            range: Rng.create(Pos.create(i, nameStart), Pos.create(i, nameStart + name.length)),
+          };
+        }
       }
     }
   }

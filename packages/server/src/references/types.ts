@@ -18,7 +18,8 @@ export type ReferenceKind =
   | 'helmTemplate'
   | 'helmFunction'
   | 'chartVariable'
-  | 'releaseCapabilities';
+  | 'releaseCapabilities'
+  | 'itemVariable';
 
 /**
  * Argo Template 参照の詳細
@@ -42,7 +43,13 @@ export type ArgoParameterDetails = {
     | 'outputs.parameters'
     | 'workflow.parameters'
     | 'steps.outputs.parameters'
-    | 'tasks.outputs.parameters';
+    | 'tasks.outputs.parameters'
+    | 'inputs.artifacts'
+    | 'outputs.artifacts'
+    | 'steps.outputs.artifacts'
+    | 'tasks.outputs.artifacts'
+    | 'steps.outputs.result'
+    | 'tasks.outputs.result';
   parameterName: string;
   stepOrTaskName?: string;
 };
@@ -56,7 +63,12 @@ export type WorkflowVariableDetails = {
   description: string;
   example?: string;
   subProperty?: string;
-  subPropertyType?: 'labels' | 'annotations' | 'parameters';
+  subPropertyType?:
+    | 'labels'
+    | 'annotations'
+    | 'parameters'
+    | 'outputs.parameters'
+    | 'outputs.artifacts';
 };
 
 /**
@@ -122,6 +134,15 @@ export type ReleaseCapabilitiesDetails = {
 };
 
 /**
+ * Item Variable 参照の詳細
+ */
+export type ItemVariableDetails = {
+  kind: 'itemVariable';
+  type: 'item' | 'item.property';
+  propertyName?: string;
+};
+
+/**
  * 参照詳細の判別共用体
  */
 export type ReferenceDetails =
@@ -133,7 +154,8 @@ export type ReferenceDetails =
   | HelmTemplateDetails
   | HelmFunctionDetails
   | ChartVariableDetails
-  | ReleaseCapabilitiesDetails;
+  | ReleaseCapabilitiesDetails
+  | ItemVariableDetails;
 
 /**
  * 検出された参照

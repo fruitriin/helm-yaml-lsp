@@ -7,8 +7,10 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver-types';
 import {
   findAllParameterReferences,
+  findArtifactDefinitions,
   findParameterDefinitions,
   findParameterReferenceAtPosition,
+  findScriptDefinitionInTemplate,
 } from '../../src/features/parameterFeatures';
 
 describe('parameterFeatures', () => {
@@ -319,6 +321,325 @@ spec:
       expect(refNames).toContain('real-param');
       expect(refNames).not.toContain('message');
       expect(refs.length).toBe(1);
+    });
+
+    it('should find all artifact references', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      container:
+        args:
+          - "{{inputs.artifacts.my-file}}"
+          - "{{outputs.artifacts.result-file}}"
+          - "{{steps.prepare.outputs.artifacts.data}}"
+          - "{{tasks.build.outputs.artifacts.binary}}"
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const refs = findAllParameterReferences(doc);
+
+      expect(refs.length).toBe(4);
+      expect(refs[0].type).toBe('inputs.artifacts');
+      expect(refs[0].parameterName).toBe('my-file');
+      expect(refs[1].type).toBe('outputs.artifacts');
+      expect(refs[1].parameterName).toBe('result-file');
+      expect(refs[2].type).toBe('steps.outputs.artifacts');
+      expect(refs[2].parameterName).toBe('data');
+      expect(refs[2].stepOrTaskName).toBe('prepare');
+      expect(refs[3].type).toBe('tasks.outputs.artifacts');
+      expect(refs[3].parameterName).toBe('binary');
+      expect(refs[3].stepOrTaskName).toBe('build');
+    });
+
+    it('should skip artifact references in comments', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      # This comment has {{inputs.artifacts.my-file}} which should be ignored
+      container:
+        args: ["{{inputs.artifacts.real-artifact}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const refs = findAllParameterReferences(doc);
+
+      const refNames = refs.map(r => r.parameterName);
+      expect(refNames).toContain('real-artifact');
+      expect(refNames).not.toContain('my-file');
+    });
+
+    it('should find result references', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: main
+      steps:
+        - - name: run-script
+            template: script-tmpl
+            arguments:
+              parameters:
+                - name: data
+                  value: "{{steps.run-script.outputs.result}}"
+      dag:
+        tasks:
+          - name: compute
+            template: compute-tmpl
+            arguments:
+              parameters:
+                - name: data
+                  value: "{{tasks.compute.outputs.result}}"
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const refs = findAllParameterReferences(doc);
+
+      const resultRefs = refs.filter(
+        r => r.type === 'steps.outputs.result' || r.type === 'tasks.outputs.result'
+      );
+      expect(resultRefs.length).toBe(2);
+      expect(resultRefs[0].type).toBe('steps.outputs.result');
+      expect(resultRefs[0].parameterName).toBe('result');
+      expect(resultRefs[0].stepOrTaskName).toBe('run-script');
+      expect(resultRefs[1].type).toBe('tasks.outputs.result');
+      expect(resultRefs[1].parameterName).toBe('result');
+      expect(resultRefs[1].stepOrTaskName).toBe('compute');
+    });
+  });
+
+  describe('findParameterReferenceAtPosition - artifacts', () => {
+    it('should find inputs.artifacts reference', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      container:
+        args: ["{{inputs.artifacts.my-file}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const position = Position.create(6, 30);
+      const ref = findParameterReferenceAtPosition(doc, position);
+
+      expect(ref).toBeDefined();
+      expect(ref?.type).toBe('inputs.artifacts');
+      expect(ref?.parameterName).toBe('my-file');
+    });
+
+    it('should find outputs.artifacts reference', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      container:
+        args: ["{{outputs.artifacts.result-file}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const position = Position.create(6, 30);
+      const ref = findParameterReferenceAtPosition(doc, position);
+
+      expect(ref).toBeDefined();
+      expect(ref?.type).toBe('outputs.artifacts');
+      expect(ref?.parameterName).toBe('result-file');
+    });
+
+    it('should find steps.outputs.artifacts reference', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      container:
+        args: ["{{steps.prepare.outputs.artifacts.data}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const position = Position.create(6, 30);
+      const ref = findParameterReferenceAtPosition(doc, position);
+
+      expect(ref).toBeDefined();
+      expect(ref?.type).toBe('steps.outputs.artifacts');
+      expect(ref?.parameterName).toBe('data');
+      expect(ref?.stepOrTaskName).toBe('prepare');
+    });
+
+    it('should find tasks.outputs.artifacts reference', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      container:
+        args: ["{{tasks.build.outputs.artifacts.binary}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const position = Position.create(6, 30);
+      const ref = findParameterReferenceAtPosition(doc, position);
+
+      expect(ref).toBeDefined();
+      expect(ref?.type).toBe('tasks.outputs.artifacts');
+      expect(ref?.parameterName).toBe('binary');
+      expect(ref?.stepOrTaskName).toBe('build');
+    });
+
+    it('should find steps.outputs.result reference', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      container:
+        args: ["{{steps.run-script.outputs.result}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const position = Position.create(6, 30);
+      const ref = findParameterReferenceAtPosition(doc, position);
+
+      expect(ref).toBeDefined();
+      expect(ref?.type).toBe('steps.outputs.result');
+      expect(ref?.parameterName).toBe('result');
+      expect(ref?.stepOrTaskName).toBe('run-script');
+    });
+
+    it('should find tasks.outputs.result reference', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      container:
+        args: ["{{tasks.compute.outputs.result}}"]
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const position = Position.create(6, 30);
+      const ref = findParameterReferenceAtPosition(doc, position);
+
+      expect(ref).toBeDefined();
+      expect(ref?.type).toBe('tasks.outputs.result');
+      expect(ref?.parameterName).toBe('result');
+      expect(ref?.stepOrTaskName).toBe('compute');
+    });
+  });
+
+  describe('findArtifactDefinitions', () => {
+    it('should find input artifact definitions', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      inputs:
+        artifacts:
+          # Input data file
+          - name: my-data
+            path: /tmp/data.txt
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const defs = findArtifactDefinitions(doc);
+
+      expect(defs.length).toBe(1);
+      expect(defs[0].name).toBe('my-data');
+      expect(defs[0].path).toBe('/tmp/data.txt');
+      expect(defs[0].aboveComment).toBe('Input data file');
+    });
+
+    it('should find output artifact definitions with path', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: test
+      outputs:
+        artifacts:
+          - name: result-file
+            path: /tmp/result.txt
+          - name: logs
+            path: /var/log/output.log
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const defs = findArtifactDefinitions(doc);
+
+      expect(defs.length).toBe(2);
+      expect(defs[0].name).toBe('result-file');
+      expect(defs[0].path).toBe('/tmp/result.txt');
+      expect(defs[1].name).toBe('logs');
+      expect(defs[1].path).toBe('/var/log/output.log');
+    });
+
+    it('should find artifacts in multiple templates', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+    - name: template1
+      inputs:
+        artifacts:
+          - name: input-data
+            path: /tmp/input
+      outputs:
+        artifacts:
+          - name: output-data
+            path: /tmp/output
+    - name: template2
+      inputs:
+        artifacts:
+          - name: config
+            path: /etc/config
+`;
+      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
+      const defs = findArtifactDefinitions(doc);
+
+      expect(defs.length).toBe(3);
+      const names = defs.map(d => d.name);
+      expect(names).toContain('input-data');
+      expect(names).toContain('output-data');
+      expect(names).toContain('config');
+    });
+  });
+
+  describe('findScriptDefinitionInTemplate', () => {
+    it('should find script section with language from command', () => {
+      const lines = [
+        '    - name: my-script',
+        '      script:',
+        '        image: python:3.9',
+        '        command: [python]',
+        '        source: |',
+        '          print("hello")',
+      ];
+      const result = findScriptDefinitionInTemplate(lines, { start: 0, end: 5 });
+
+      expect(result).toBeDefined();
+      expect(result?.scriptLine).toBe(1);
+      expect(result?.language).toBe('python');
+    });
+
+    it('should find script section with language from image', () => {
+      const lines = [
+        '    - name: my-script',
+        '      script:',
+        '        image: bash:latest',
+        '        source: |',
+        '          echo "hello"',
+      ];
+      const result = findScriptDefinitionInTemplate(lines, { start: 0, end: 4 });
+
+      expect(result).toBeDefined();
+      expect(result?.scriptLine).toBe(1);
+      expect(result?.language).toBe('bash');
+    });
+
+    it('should return undefined when no script section', () => {
+      const lines = [
+        '    - name: my-container',
+        '      container:',
+        '        image: alpine',
+        '        command: [echo, hello]',
+      ];
+      const result = findScriptDefinitionInTemplate(lines, { start: 0, end: 3 });
+
+      expect(result).toBeUndefined();
     });
   });
 });

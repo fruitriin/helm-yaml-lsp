@@ -20,6 +20,7 @@ import { createConfigMapHandler } from './handlers/configMapHandler';
 import { createHelmFunctionHandler } from './handlers/helmFunctionHandler';
 import { createHelmTemplateHandler } from './handlers/helmTemplateHandler';
 import { createHelmValuesHandler } from './handlers/helmValuesHandler';
+import { createItemVariableHandler } from './handlers/itemVariableHandler';
 import { createReleaseCapabilitiesHandler } from './handlers/releaseCapabilitiesHandler';
 import { createWorkflowVariableHandler } from './handlers/workflowVariableHandler';
 import { ReferenceRegistry } from './registry';
@@ -76,10 +77,16 @@ export function createReferenceRegistry(
   const argoTemplateHandler = createArgoTemplateHandler(_argoTemplateIndex);
   const argoParameterHandler = createArgoParameterHandler();
   const workflowVariableHandler = createWorkflowVariableHandler();
+  const itemVariableHandler = createItemVariableHandler();
   registry.addGuard({
     name: 'argo',
     check: doc => isArgoWorkflowDocument(doc),
-    handlers: [argoTemplateHandler, argoParameterHandler, workflowVariableHandler],
+    handlers: [
+      argoTemplateHandler,
+      argoParameterHandler,
+      workflowVariableHandler,
+      itemVariableHandler,
+    ],
   });
 
   return registry;

@@ -132,6 +132,32 @@ export function findWorkflowVariableAtPosition(
           };
         }
 
+        // workflow.outputs.parameters.xxx / workflow.outputs.artifacts.xxx
+        if (parts[1] === 'outputs' && parts.length >= 4) {
+          if (parts[2] === 'parameters') {
+            const subKey = parts.slice(3).join('.');
+            return {
+              variable: {
+                name: variableName,
+                description: `Workflow output parameter: \`${subKey}\``,
+                example: `{{${variableName}}}`,
+              },
+              range,
+            };
+          }
+          if (parts[2] === 'artifacts') {
+            const subKey = parts.slice(3).join('.');
+            return {
+              variable: {
+                name: variableName,
+                description: `Workflow output artifact: \`${subKey}\``,
+                example: `{{${variableName}}}`,
+              },
+              range,
+            };
+          }
+        }
+
         // workflow.parameters.xxx
         if (baseName === 'workflow.parameters') {
           return {

@@ -9,8 +9,10 @@ import type { CompletionItem } from 'vscode-languageserver-types';
 import { CompletionItemKind, Position, Range } from 'vscode-languageserver-types';
 import {
   findAllParameterReferences,
+  findArtifactDefinitions,
   findParameterDefinitions,
   findParameterReferenceAtPosition,
+  findScriptDefinitionInTemplate,
 } from '@/features/parameterFeatures';
 import { findStepDefinitions, findTaskDefinitions } from '@/features/stepFeatures';
 import { findTemplateDefinitions } from '@/features/templateFeatures';
@@ -39,6 +41,12 @@ export function createArgoParameterHandler(): ReferenceHandler {
         'workflow.parameters',
         'steps.outputs.parameters',
         'tasks.outputs.parameters',
+        'inputs.artifacts',
+        'outputs.artifacts',
+        'steps.outputs.artifacts',
+        'tasks.outputs.artifacts',
+        'steps.outputs.result',
+        'tasks.outputs.result',
       ];
       if (!supportedTypes.includes(ref.type)) return undefined;
 
@@ -67,6 +75,17 @@ export function createArgoParameterHandler(): ReferenceHandler {
           return resolveStepOutputParameter(doc, detected, details);
         case 'tasks.outputs.parameters':
           return resolveTaskOutputParameter(doc, detected, details);
+        case 'inputs.artifacts':
+        case 'outputs.artifacts':
+          return resolveInputOutputArtifact(doc, detected, details);
+        case 'steps.outputs.artifacts':
+          return resolveStepOutputArtifact(doc, detected, details);
+        case 'tasks.outputs.artifacts':
+          return resolveTaskOutputArtifact(doc, detected, details);
+        case 'steps.outputs.result':
+          return resolveStepOutputResult(doc, detected, details);
+        case 'tasks.outputs.result':
+          return resolveTaskOutputResult(doc, detected, details);
         default:
           return {
             detected,
@@ -81,7 +100,13 @@ export function createArgoParameterHandler(): ReferenceHandler {
     findAll(doc: TextDocument): DetectedReference[] {
       const refs = findAllParameterReferences(doc);
       return refs
-        .filter(ref => ref.type === 'inputs.parameters' || ref.type === 'outputs.parameters')
+        .filter(
+          ref =>
+            ref.type === 'inputs.parameters' ||
+            ref.type === 'outputs.parameters' ||
+            ref.type === 'inputs.artifacts' ||
+            ref.type === 'outputs.artifacts'
+        )
         .map(ref => ({
           kind: 'argoParameter' as const,
           range: ref.range,
@@ -107,8 +132,24 @@ export function createArgoParameterHandler(): ReferenceHandler {
         context = 'outputs.parameters';
       } else if (/\{\{workflow\.parameters\.\w*/.test(linePrefix)) {
         context = 'workflow.parameters';
+      } else if (/\{\{inputs\.artifacts\.\w*/.test(linePrefix)) {
+        context = 'inputs.artifacts';
+      } else if (/\{\{outputs\.artifacts\.\w*/.test(linePrefix)) {
+        context = 'outputs.artifacts';
       }
       if (!context) return undefined;
+
+      // Artifact completion
+      if (context === 'inputs.artifacts' || context === 'outputs.artifacts') {
+        const artifacts = findArtifactDefinitions(doc);
+        return artifacts.map(a => ({
+          label: a.name,
+          kind: CompletionItemKind.File,
+          detail: context === 'inputs.artifacts' ? 'Input Artifact' : 'Output Artifact',
+          documentation: a.path ? `Path: ${a.path}` : undefined,
+          insertText: a.name,
+        }));
+      }
 
       const parameters = findParameterDefinitions(doc);
       const filtered = parameters.filter(p => {
@@ -434,4 +475,345 @@ function resolveTaskOutputParameter(
     diagnosticMessage: null,
     exists: null,
   };
+}
+
+function resolveInputOutputArtifact(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  const artifactDefs = findArtifactDefinitions(doc);
+  const artifact = artifactDefs.find(a => a.name === details.parameterName);
+
+  if (artifact) {
+    const typeLabel = details.type === 'inputs.artifacts' ? 'Input Artifact' : 'Output Artifact';
+    const description = buildDescription(artifact.aboveComment, artifact.inlineComment);
+
+    const hoverParts: string[] = [];
+    hoverParts.push(`**${typeLabel}**: \`${artifact.name}\``);
+    if (artifact.path) hoverParts.push(`**Path**: \`${artifact.path}\``);
+    if (description) {
+      hoverParts.push('');
+      hoverParts.push(description);
+    }
+
+    return {
+      detected,
+      definitionLocation: { uri: doc.uri, range: artifact.range },
+      hoverMarkdown: hoverParts.join('\n'),
+      diagnosticMessage: null,
+      exists: true,
+    };
+  }
+
+  const artifactType = details.type === 'inputs.artifacts' ? 'input' : 'output';
+  return {
+    detected,
+    definitionLocation: null,
+    hoverMarkdown: null,
+    diagnosticMessage: `Artifact '${details.parameterName}' not found in ${artifactType} artifacts`,
+    exists: false,
+  };
+}
+
+function resolveStepOutputArtifact(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  if (!details.stepOrTaskName) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const steps = findStepDefinitions(doc);
+  const step = steps.find(s => s.name === details.stepOrTaskName);
+  if (!step) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const artifactDefs = findArtifactDefinitions(doc);
+  const artifact = artifactDefs.find(a => a.name === details.parameterName);
+
+  if (artifact) {
+    const description = buildDescription(artifact.aboveComment, artifact.inlineComment);
+    const hoverParts: string[] = [];
+    hoverParts.push(`**Artifact**: \`${details.parameterName}\``);
+    hoverParts.push(`**Type**: Step Output Artifact`);
+    hoverParts.push(`**Step**: \`${details.stepOrTaskName}\``);
+    hoverParts.push(`**Template**: \`${step.templateName}\``);
+    if (artifact.path) hoverParts.push(`**Path**: \`${artifact.path}\``);
+    if (description) {
+      hoverParts.push('');
+      hoverParts.push(description);
+    }
+
+    return {
+      detected,
+      definitionLocation: { uri: doc.uri, range: artifact.range },
+      hoverMarkdown: hoverParts.join('\n'),
+      diagnosticMessage: null,
+      exists: true,
+    };
+  }
+
+  return {
+    detected,
+    definitionLocation: null,
+    hoverMarkdown: null,
+    diagnosticMessage: null,
+    exists: null,
+  };
+}
+
+function resolveTaskOutputArtifact(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  if (!details.stepOrTaskName) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const tasks = findTaskDefinitions(doc);
+  const task = tasks.find(t => t.name === details.stepOrTaskName);
+  if (!task) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const artifactDefs = findArtifactDefinitions(doc);
+  const artifact = artifactDefs.find(a => a.name === details.parameterName);
+
+  if (artifact) {
+    const description = buildDescription(artifact.aboveComment, artifact.inlineComment);
+    const hoverParts: string[] = [];
+    hoverParts.push(`**Artifact**: \`${details.parameterName}\``);
+    hoverParts.push(`**Type**: Task Output Artifact`);
+    hoverParts.push(`**Task**: \`${details.stepOrTaskName}\``);
+    hoverParts.push(`**Template**: \`${task.templateName}\``);
+    if (artifact.path) hoverParts.push(`**Path**: \`${artifact.path}\``);
+    if (description) {
+      hoverParts.push('');
+      hoverParts.push(description);
+    }
+
+    return {
+      detected,
+      definitionLocation: { uri: doc.uri, range: artifact.range },
+      hoverMarkdown: hoverParts.join('\n'),
+      diagnosticMessage: null,
+      exists: true,
+    };
+  }
+
+  return {
+    detected,
+    definitionLocation: null,
+    hoverMarkdown: null,
+    diagnosticMessage: null,
+    exists: null,
+  };
+}
+
+function resolveStepOutputResult(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  if (!details.stepOrTaskName) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const steps = findStepDefinitions(doc);
+  const step = steps.find(s => s.name === details.stepOrTaskName);
+  if (!step) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const templates = findTemplateDefinitions(doc);
+  const template = templates.find(t => t.name === step.templateName);
+  if (!template) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const text = doc.getText();
+  const lines = text.split('\n');
+  const templateStartLine = template.range.start.line;
+  const templateEndLine = findTemplateEndLine(lines, templateStartLine);
+
+  const scriptDef = findScriptDefinitionInTemplate(lines, {
+    start: templateStartLine,
+    end: templateEndLine,
+  });
+
+  const hoverParts: string[] = [];
+  hoverParts.push(`**Script Result**: \`outputs.result\``);
+  hoverParts.push(`**Step**: \`${details.stepOrTaskName}\``);
+  hoverParts.push(`**Template**: \`${step.templateName}\``);
+  if (scriptDef?.language) {
+    hoverParts.push(`**Language**: \`${scriptDef.language}\``);
+  }
+  hoverParts.push('');
+  hoverParts.push('*The `result` output captures the last line of stdout*');
+
+  const definitionLocation = scriptDef
+    ? {
+        uri: doc.uri,
+        range: Range.create(
+          Position.create(scriptDef.scriptLine, 0),
+          Position.create(scriptDef.scriptLine, lines[scriptDef.scriptLine].length)
+        ),
+      }
+    : null;
+
+  return {
+    detected,
+    definitionLocation,
+    hoverMarkdown: hoverParts.join('\n'),
+    diagnosticMessage: null,
+    exists: scriptDef ? true : null,
+  };
+}
+
+function resolveTaskOutputResult(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  if (!details.stepOrTaskName) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const tasks = findTaskDefinitions(doc);
+  const task = tasks.find(t => t.name === details.stepOrTaskName);
+  if (!task) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const templates = findTemplateDefinitions(doc);
+  const template = templates.find(t => t.name === task.templateName);
+  if (!template) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const text = doc.getText();
+  const lines = text.split('\n');
+  const templateStartLine = template.range.start.line;
+  const templateEndLine = findTemplateEndLine(lines, templateStartLine);
+
+  const scriptDef = findScriptDefinitionInTemplate(lines, {
+    start: templateStartLine,
+    end: templateEndLine,
+  });
+
+  const hoverParts: string[] = [];
+  hoverParts.push(`**Script Result**: \`outputs.result\``);
+  hoverParts.push(`**Task**: \`${details.stepOrTaskName}\``);
+  hoverParts.push(`**Template**: \`${task.templateName}\``);
+  if (scriptDef?.language) {
+    hoverParts.push(`**Language**: \`${scriptDef.language}\``);
+  }
+  hoverParts.push('');
+  hoverParts.push('*The `result` output captures the last line of stdout*');
+
+  const definitionLocation = scriptDef
+    ? {
+        uri: doc.uri,
+        range: Range.create(
+          Position.create(scriptDef.scriptLine, 0),
+          Position.create(scriptDef.scriptLine, lines[scriptDef.scriptLine].length)
+        ),
+      }
+    : null;
+
+  return {
+    detected,
+    definitionLocation,
+    hoverMarkdown: hoverParts.join('\n'),
+    diagnosticMessage: null,
+    exists: scriptDef ? true : null,
+  };
+}
+
+/**
+ * テンプレートの終了行を推定する
+ */
+function findTemplateEndLine(lines: string[], templateStartLine: number): number {
+  const startLine = lines[templateStartLine];
+  const startIndent = startLine.match(/^(\s*)/)?.[1].length ?? 0;
+
+  for (let i = templateStartLine + 1; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+    const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+    if (currentIndent <= startIndent && trimmed.startsWith('- name:')) {
+      return i - 1;
+    }
+    if (currentIndent < startIndent) {
+      return i - 1;
+    }
+  }
+
+  return lines.length - 1;
 }

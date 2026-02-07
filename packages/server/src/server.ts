@@ -20,6 +20,8 @@ import { clearChartYamlCache } from '@/features/documentDetection';
 import { CompletionProvider } from '@/providers/completionProvider';
 import { DefinitionProvider } from '@/providers/definitionProvider';
 import { DiagnosticProvider } from '@/providers/diagnosticProvider';
+import { DocumentHighlightProvider } from '@/providers/documentHighlightProvider';
+import { DocumentSymbolProvider } from '@/providers/documentSymbolProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
 import { createReferenceRegistry } from '@/references/setup';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
@@ -83,6 +85,8 @@ const diagnosticProvider = new DiagnosticProvider(
   helmTemplateIndex,
   configMapIndex
 );
+const documentSymbolProvider = new DocumentSymbolProvider();
+const documentHighlightProvider = new DocumentHighlightProvider();
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -108,6 +112,8 @@ connection.onInitialize((params: InitializeParams) => {
         resolveProvider: true,
         triggerCharacters: ['.', '{', ':', ' '],
       },
+      documentSymbolProvider: true,
+      documentHighlightProvider: true,
     },
   };
 
@@ -264,6 +270,20 @@ connection.onCompletion(async (params: TextDocumentPositionParams) => {
 
 connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
   return item;
+});
+
+// ドキュメントシンボル機能
+connection.onDocumentSymbol(params => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+  return documentSymbolProvider.provideDocumentSymbols(document);
+});
+
+// ドキュメントハイライト機能
+connection.onDocumentHighlight(params => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+  return documentHighlightProvider.provideDocumentHighlights(document, params.position);
 });
 
 // ドキュメントを開いたときの処理

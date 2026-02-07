@@ -2,11 +2,11 @@
 
 Argo Workflows Language Server Protocol implementation for Helm and YAML files.
 
-**現在のステータス**: Phase 5 完了 ✅ (ConfigMap/Secret) | Phase 6 進行中 🔨 (IntelliJ Plugin)
+**現在のステータス**: Phase 11 完了 ✅ | 596 tests passed
 
 📋 **開発進捗**: [progress.md](./progress.md)
 📘 **開発ガイド**: [CLAUDE.md](./CLAUDE.md)
-🗺️ **計画書**: [PHASE1](./PHASE1_PLAN.md) | [PHASE2](./PHASE2_PLAN.md) | [PHASE3](./PHASE3_PLAN.md) | [PHASE4](./PHASE4_PLAN.md) | [PHASE5](./PHASE5_PLAN.md) | [PHASE6](./PHASE6_PLAN.md)
+🗺️ **計画書**: [PHASE1](./PHASE1_PLAN.md) | [PHASE2](./PHASE2_PLAN.md) | [PHASE3](./PHASE3_PLAN.md) | [PHASE4](./PHASE4_PLAN.md) | [PHASE5](./PHASE5_PLAN.md) | [PHASE6](./PHASE6_PLAN.md) | [PHASE8](./PHASE8_PLAN.md) | [PHASE9](./PHASE9_PLAN.md) | [PHASE10](./PHASE10_PLAN.md) | [PHASE11](./PHASE11_PLAN.md)
 
 ---
 
@@ -21,14 +21,18 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - **IntelliJ IDEA / JetBrains** - プラグイン開発中（基本実装完了 🔨）
 - **その他** - LSP標準プロトコルに準拠した任意のエディタ
 
-### 実装済み機能（Phase 5完了時点）
+### 実装済み機能
 
 ✅ **Argo Workflows機能**
 - WorkflowTemplate/ClusterWorkflowTemplateの自動インデックス化
 - `templateRef`参照から定義へのジャンプ
 - ローカルテンプレート参照（同一ファイル内）
 - パラメータ定義と参照（inputs/outputs.parameters）
-- Workflow変数のサポート（workflow.name等）
+- アーティファクト参照（inputs/outputs.artifacts、steps/tasks.outputs.artifacts）
+- スクリプト結果参照（steps/tasks.outputs.result）
+- Item変数（`{{item}}`, `{{item.xxx}}`）とwithItems/withParamソースへのジャンプ
+- Workflow変数のサポート（workflow.name等10種 + サブプロパティ）
+- Workflow出力参照（workflow.outputs.parameters/artifacts）
 
 ✅ **Helm機能**
 - Helm Chart構造の自動検出
@@ -38,6 +42,8 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - Helm組み込み関数のサポート（70+ functions）
 - `.Chart`, `.Release`, `.Capabilities`変数のサポート
 - _helpers.tplファイルのサポート
+- **Document Symbol**: YAMLアウトライン表示（マルチドキュメント対応）
+- **Document Highlight**: Helmブロック構造（if/range/with/define/end）の対応タグハイライト
 
 ✅ **ConfigMap/Secret機能**
 - ConfigMap/Secret定義の自動検出
@@ -51,6 +57,8 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - **Hover Provider**: ホバー情報の表示
 - **Completion Provider**: 入力補完
 - **Diagnostic Provider**: エラー検出と表示
+- **Document Symbol Provider**: ドキュメントアウトライン（Ctrl+Shift+O / :SymbolsOutline）
+- **Document Highlight Provider**: 対応ブロックのハイライト表示
 
 **操作方法**:
 - VSCode: `F12`（定義へ移動）、ホバー、Ctrl+Space（補完）
@@ -153,16 +161,100 @@ spec:
 {{workflow.name}}                    # Workflow名
 {{workflow.namespace}}               # 名前空間
 {{workflow.uid}}                     # Workflow UID
-{{workflow.parameters.xxx}}          # Workflowパラメータ
+{{workflow.parameters.xxx}}          # Workflowパラメータ → 定義ジャンプ対応
 {{workflow.serviceAccountName}}      # サービスアカウント
 {{workflow.creationTimestamp}}       # 作成日時
 {{workflow.duration}}                # 実行時間
 {{workflow.priority}}                # 優先度
+{{workflow.status}}                  # ステータス
+{{workflow.mainEntrypoint}}          # メインエントリポイント
+{{workflow.scheduledTime}}           # スケジュール実行時刻（CronWorkflow）
+{{workflow.labels.xxx}}              # ラベル → 定義ジャンプ対応
+{{workflow.annotations.xxx}}         # アノテーション → 定義ジャンプ対応
+{{workflow.outputs.parameters.xxx}}  # Workflow出力パラメータ
+{{workflow.outputs.artifacts.xxx}}   # Workflow出力アーティファクト
+```
+
+#### 6. アーティファクト参照 ✅
+
+```yaml
+spec:
+  templates:
+    - name: generate
+      outputs:
+        artifacts:
+          - name: data-file      # ← 定義（ジャンプ先） ✅
+            path: /tmp/data.txt
+      container:
+        image: alpine
+        command: ["sh", "-c", "echo data > /tmp/data.txt"]
+
+    - name: consume
+      inputs:
+        artifacts:
+          - name: input-data     # ← 定義（ジャンプ先） ✅
+            path: /tmp/input
+      container:
+        args:
+          - "{{inputs.artifacts.input-data}}"  # ← ホバー、ジャンプ、補完 ✅
+
+    - name: main
+      steps:
+        - - name: gen
+            template: generate
+        - - name: use
+            template: consume
+            arguments:
+              artifacts:
+                - name: input-data
+                  from: "{{steps.gen.outputs.artifacts.data-file}}"  # ← ホバー、ジャンプ ✅
+```
+
+#### 7. スクリプト結果参照 ✅
+
+```yaml
+spec:
+  templates:
+    - name: gen-random
+      script:
+        image: python:3.9       # ← 言語: python として検出
+        command: [python]
+        source: |
+          import random
+          print(random.randint(1, 100))  # stdout最終行がresult
+
+    - name: main
+      steps:
+        - - name: generate
+            template: gen-random
+        - - name: use
+            arguments:
+              parameters:
+                - name: value
+                  value: "{{steps.generate.outputs.result}}"  # ← ホバー（言語情報付き）、ジャンプ ✅
+```
+
+#### 8. Item変数 ✅
+
+```yaml
+spec:
+  templates:
+    - name: loop
+      steps:
+        - - name: process
+            template: echo
+            arguments:
+              parameters:
+                - name: msg
+                  value: "{{item.name}}: {{item.value}}"  # ← ホバー、ジャンプ、プロパティ補完 ✅
+            withItems:                                     # ← 定義（ジャンプ先） ✅
+              - {name: "foo", value: "bar"}
+              - {name: "baz", value: "qux"}
 ```
 
 ### Helm構文 ✅
 
-#### 6. values.yaml参照 ✅
+#### 9. values.yaml参照 ✅
 
 ```yaml
 # values.yaml
@@ -186,7 +278,7 @@ spec:
         image: {{ .Values.workflow.image.repository }}  # ← ネストされた値も対応 ✅
 ```
 
-#### 7. Helmテンプレート関数 ✅
+#### 10. Helmテンプレート関数 ✅
 
 ```yaml
 # templates/_helpers.tpl
@@ -207,7 +299,40 @@ metadata:
     {{- include "mychart.labels" . | nindent 4 }}  # ← パイプ記法も対応 ✅
 ```
 
-#### 8. エラー検出 ✅
+#### 11. Helmブロックハイライト ✅
+
+```yaml
+# カーソルを {{- if ... }} に置くと、対応する else / end がハイライトされる
+{{- if .Values.enabled }}     # ← ハイライト
+  ...
+{{- else }}                   # ← ハイライト
+  ...
+{{- end }}                    # ← ハイライト
+
+# range / with / define ブロックも対応
+{{- range .Values.items }}    # ← ハイライト
+  ...
+{{- end }}                    # ← ハイライト
+```
+
+#### 12. ドキュメントアウトライン ✅
+
+```yaml
+# Ctrl+Shift+O でYAML構造のアウトラインを表示
+# マルチドキュメントYAML（---区切り）にも対応
+---
+apiVersion: v1
+kind: ConfigMap           # → "ConfigMap: my-config" としてアウトライン表示
+metadata:
+  name: my-config
+---
+apiVersion: v1
+kind: Service             # → "Service: my-service" としてアウトライン表示
+metadata:
+  name: my-service
+```
+
+#### 13. エラー検出 ✅
 
 ```yaml
 # 存在しない値への参照を検出
@@ -220,26 +345,30 @@ name: {{ include "missing.template" . }}  # ← エラー: テンプレートが
 args: ["{{inputs.parameters.missing}}"]   # ← エラー: パラメータが存在しません ❌
 ```
 
-### 未実装機能（将来拡張候補）
+### ConfigMap/Secret構文 ✅
 
-#### ConfigMap/Secret参照 🚧
+#### 14. ConfigMap/Secret参照 ✅
 
 ```yaml
-# 将来の拡張候補
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: my-config
 data:
-  key: value              # ← 🚧 定義（将来）
+  database-url: postgres://localhost    # ← 定義（ジャンプ先） ✅
 
 ---
 env:
-  - name: CONFIG
+  - name: DB_URL
     valueFrom:
       configMapKeyRef:
-        name: my-config
-        key: key          # ← 🚧 参照（将来）
+        name: my-config                 # ← ジャンプ、ホバー、補完 ✅
+        key: database-url               # ← ジャンプ、ホバー、補完 ✅
+  - name: SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: my-secret                 # ← 同様にサポート ✅
+        key: api-key                    # ← 値は [hidden] で隠蔽 ✅
 ```
 
 ---
@@ -259,16 +388,32 @@ helm-yaml-lsp/
 │   │   │   │   └── fileSystem.ts    # ファイル操作
 │   │   │   ├── features/
 │   │   │   │   ├── documentDetection.ts
-│   │   │   │   └── templateFeatures.ts
+│   │   │   │   ├── templateFeatures.ts
+│   │   │   │   ├── parameterFeatures.ts
+│   │   │   │   ├── stepFeatures.ts
+│   │   │   │   ├── workflowVariables.ts
+│   │   │   │   ├── itemVariableFeatures.ts
+│   │   │   │   └── ...
+│   │   │   ├── references/
+│   │   │   │   ├── handler.ts           # ReferenceHandler型
+│   │   │   │   ├── registry.ts          # ReferenceRegistry
+│   │   │   │   ├── setup.ts             # ガード/ハンドラー登録
+│   │   │   │   ├── types.ts             # 統一型定義
+│   │   │   │   └── handlers/            # 各参照型のハンドラー
 │   │   │   ├── services/
 │   │   │   │   ├── fileWatcher.ts
-│   │   │   │   └── argoTemplateIndex.ts
+│   │   │   │   ├── argoTemplateIndex.ts
+│   │   │   │   ├── helmChartIndex.ts
+│   │   │   │   ├── valuesIndex.ts
+│   │   │   │   └── configMapIndex.ts
 │   │   │   └── providers/
 │   │   │       ├── definitionProvider.ts
 │   │   │       ├── hoverProvider.ts
 │   │   │       ├── completionProvider.ts
-│   │   │       └── diagnosticProvider.ts
-│   │   ├── test/                    # 320 tests
+│   │   │       ├── diagnosticProvider.ts
+│   │   │       ├── documentSymbolProvider.ts
+│   │   │       └── documentHighlightProvider.ts
+│   │   ├── test/                    # 596 tests
 │   │   └── package.json
 │   ├── vscode-client/               # VSCode拡張
 │   │   └── src/extension.ts
@@ -340,7 +485,7 @@ bun run build
 bun run watch
 
 # テスト実行
-bun run test                # 320 tests
+bun run test                # 596 tests
 ```
 
 ### コード品質チェック
@@ -427,6 +572,53 @@ nvim samples/argo/workflow-templateref.yaml
 **動作確認**: VSCode ✅ | Neovim ✅
 **サンプル**: `samples/helm/` - 実際のHelm Chart構造
 
+### Phase 5: ConfigMap/Secretサポート ✅
+
+実装完了（詳細は [PHASE5_PLAN.md](./PHASE5_PLAN.md)）:
+
+1. **ConfigMap/Secret検出** - kind: ConfigMap/Secretの自動インデックス化
+2. **参照パターン** - configMapKeyRef/secretKeyRef/configMapRef/secretRef/volume参照
+3. **全LSP機能** - Definition/Hover/Completion/Diagnosticsの完全サポート
+
+**テスト**: 440 tests passed（+120 tests）
+
+### Phase 6: IntelliJ Pluginサポート 🔨
+
+基本実装完了（詳細は [PHASE6_PLAN.md](./PHASE6_PLAN.md)）:
+
+1. **IntelliJ Platform標準API** - LSP統合、外部依存ゼロ
+2. **設定UI** - サーバーパス自動検出（5段階の優先順位）
+
+### Phase 8: Artifact参照サポート ✅
+
+実装完了（詳細は [PHASE8_PLAN.md](./PHASE8_PLAN.md)）:
+
+1. **inputs/outputs.artifacts** - Definition/Hover/Completion/Diagnostics
+2. **steps/tasks.outputs.artifacts** - クロステンプレート参照
+
+### Phase 9: Script Result & Workflow Outputs ✅
+
+実装完了（詳細は [PHASE9_PLAN.md](./PHASE9_PLAN.md)）:
+
+1. **outputs.result** - スクリプトテンプレートの結果参照、言語検出
+2. **workflow.outputs.parameters/artifacts** - トップレベルWorkflow出力
+
+### Phase 10: Item変数サポート ✅
+
+実装完了（詳細は [PHASE10_PLAN.md](./PHASE10_PLAN.md)）:
+
+1. **`{{item}}`/`{{item.xxx}}`** - withItems/withParamソースへの定義ジャンプ
+2. **プロパティ補完** - オブジェクト配列の場合にプロパティ名を補完
+
+### Phase 11: Document Symbol & Highlight ✅
+
+実装完了（詳細は [PHASE11_PLAN.md](./PHASE11_PLAN.md)）:
+
+1. **Document Symbol Provider** - YAMLアウトライン表示、マルチドキュメント対応
+2. **Document Highlight Provider** - Helmブロック構造の対応タグハイライト
+
+**テスト**: 596 tests passed（Phase 5以降 +156 tests）
+
 ---
 
 ## スクリプト一覧
@@ -452,7 +644,7 @@ bun run check:write         # 自動修正
 ### テスト
 
 ```bash
-bun run test                # 全テスト実行（320 tests）
+bun run test                # 全テスト実行（596 tests）
 bun run test:packages       # 各パッケージのテスト
 bun run test:all            # 統合 + パッケージテスト
 ```
@@ -473,6 +665,12 @@ bun run package             # VSIXパッケージ作成
 - **[PHASE2_PLAN.md](./PHASE2_PLAN.md)** - Phase 2詳細計画
 - **[PHASE3_PLAN.md](./PHASE3_PLAN.md)** - Phase 3詳細計画（Argo Workflows追加機能）
 - **[PHASE4_PLAN.md](./PHASE4_PLAN.md)** - Phase 4詳細計画（Helm機能）
+- **[PHASE5_PLAN.md](./PHASE5_PLAN.md)** - Phase 5詳細計画（ConfigMap/Secret）
+- **[PHASE6_PLAN.md](./PHASE6_PLAN.md)** - Phase 6詳細計画（IntelliJ Plugin）
+- **[PHASE8_PLAN.md](./PHASE8_PLAN.md)** - Phase 8詳細計画（Artifact参照）
+- **[PHASE9_PLAN.md](./PHASE9_PLAN.md)** - Phase 9詳細計画（Script Result）
+- **[PHASE10_PLAN.md](./PHASE10_PLAN.md)** - Phase 10詳細計画（Item変数）
+- **[PHASE11_PLAN.md](./PHASE11_PLAN.md)** - Phase 11詳細計画（Symbol/Highlight）
 - **[samples/README.md](./samples/README.md)** - サンプルファイルの説明
 
 ---
@@ -585,4 +783,4 @@ MIT License
 
 ---
 
-**開発状況**: Phase 4完了（Helm機能サポート完了） | 320 tests passed ✅
+**開発状況**: Phase 11完了 | 596 tests passed ✅

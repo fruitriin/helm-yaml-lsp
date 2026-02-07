@@ -120,7 +120,12 @@ export function findTemplateDefinitions(document: TextDocument): TemplateDefinit
     // templatesセクション内でインデントが戻ったら終了
     if (inTemplatesSection) {
       const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
-      if (line.trim() && currentIndent <= templatesIndent && !line.trim().startsWith('-') && !line.trim().startsWith('#')) {
+      if (
+        line.trim() &&
+        currentIndent <= templatesIndent &&
+        !line.trim().startsWith('-') &&
+        !line.trim().startsWith('#')
+      ) {
         inTemplatesSection = false;
       }
     }

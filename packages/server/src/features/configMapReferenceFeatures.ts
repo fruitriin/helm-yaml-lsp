@@ -143,7 +143,8 @@ function findAncestorReferenceType(
     if (trimmed.includes('configMapRef:')) return { type: 'configMapRef', kind: 'ConfigMap' };
     if (trimmed.includes('secretRef:')) return { type: 'secretRef', kind: 'Secret' };
     if (trimmed.includes('configMap:')) return { type: 'volumeConfigMap', kind: 'ConfigMap' };
-    if (trimmed.startsWith('secret:') || trimmed.endsWith('secret:')) return { type: 'volumeSecret', kind: 'Secret' };
+    if (trimmed.startsWith('secret:') || trimmed.endsWith('secret:'))
+      return { type: 'volumeSecret', kind: 'Secret' };
   }
 
   return undefined;
@@ -193,7 +194,11 @@ function findAssociatedName(lines: string[], lineNum: number): string | undefine
     const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
     if (indent >= lineIndent) continue;
     // Found an ancestor - check if it's a reference type with name/secretName as children
-    if (trimmed.includes('configMap:') || trimmed.startsWith('secret:') || trimmed.endsWith('secret:')) {
+    if (
+      trimmed.includes('configMap:') ||
+      trimmed.startsWith('secret:') ||
+      trimmed.endsWith('secret:')
+    ) {
       // Look for name/secretName as children of this ancestor
       const childIndent = indent + 2; // Expected child indent (standard YAML 2-space)
       for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
@@ -231,7 +236,10 @@ function detectNameReference(
       referenceType: 'name',
       name,
       kind: 'Secret',
-      range: Range.create(Position.create(lineNum, col), Position.create(lineNum, col + name.length)),
+      range: Range.create(
+        Position.create(lineNum, col),
+        Position.create(lineNum, col + name.length)
+      ),
     };
   }
 
@@ -268,7 +276,10 @@ function detectKeyReference(
     name,
     keyName,
     kind: ref.kind,
-    range: Range.create(Position.create(lineNum, col), Position.create(lineNum, col + keyName.length)),
+    range: Range.create(
+      Position.create(lineNum, col),
+      Position.create(lineNum, col + keyName.length)
+    ),
   };
 }
 

@@ -21,6 +21,7 @@ import { CompletionProvider } from '@/providers/completionProvider';
 import { DefinitionProvider } from '@/providers/definitionProvider';
 import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
+import { createReferenceRegistry } from '@/references/setup';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { ConfigMapIndex } from '@/services/configMapIndex';
 import { FileWatcher } from '@/services/fileWatcher';
@@ -46,19 +47,28 @@ const valuesIndex = new ValuesIndex();
 const helmTemplateIndex = new HelmTemplateIndex();
 const configMapIndex = new ConfigMapIndex();
 const fileWatcher = new FileWatcher(connection);
-const definitionProvider = new DefinitionProvider(
+const _referenceRegistry = createReferenceRegistry(
   argoTemplateIndex,
   helmChartIndex,
   valuesIndex,
   helmTemplateIndex,
   configMapIndex
 );
+const definitionProvider = new DefinitionProvider(
+  argoTemplateIndex,
+  helmChartIndex,
+  valuesIndex,
+  helmTemplateIndex,
+  configMapIndex,
+  _referenceRegistry
+);
 const hoverProvider = new HoverProvider(
   argoTemplateIndex,
   helmChartIndex,
   valuesIndex,
   helmTemplateIndex,
-  configMapIndex
+  configMapIndex,
+  _referenceRegistry
 );
 const completionProvider = new CompletionProvider(
   helmChartIndex,

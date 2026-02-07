@@ -294,7 +294,7 @@ function findPosition(
   content: string,
   linePattern: string,
   value: string,
-  occurrence = 0,
+  occurrence = 0
 ): Position {
   const lines = content.split('\n');
   let found = 0;
@@ -364,27 +364,27 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
       undefined,
       undefined,
       undefined,
-      validConfigMapIndex,
+      validConfigMapIndex
     );
     hoverProvider = new HoverProvider(
       validTemplateIndex,
       undefined,
       undefined,
       undefined,
-      validConfigMapIndex,
+      validConfigMapIndex
     );
     completionProvider = new CompletionProvider(
       undefined,
       undefined,
       undefined,
-      validConfigMapIndex,
+      validConfigMapIndex
     );
     validDiagnosticProvider = new DiagnosticProvider(
       validTemplateIndex,
       undefined,
       undefined,
       undefined,
-      validConfigMapIndex,
+      validConfigMapIndex
     );
 
     validDoc = TextDocument.create(validUri, 'yaml', 1, VALID_YAML);
@@ -402,7 +402,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
       undefined,
       undefined,
       undefined,
-      invalidConfigMapIndex,
+      invalidConfigMapIndex
     );
 
     invalidDoc = TextDocument.create(invalidUri, 'yaml', 1, INVALID_YAML);
@@ -693,7 +693,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
           d.message.includes('not found') &&
           (d.message.includes('ConfigMap') ||
             d.message.includes('Secret') ||
-            d.message.includes('Key')),
+            d.message.includes('Key'))
       );
       expect(configMapErrors).toHaveLength(0);
     });
@@ -701,7 +701,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
     it('should report no template errors', async () => {
       const diagnostics = await validDiagnosticProvider.provideDiagnostics(validDoc);
       const templateErrors = diagnostics.filter(
-        d => d.message.includes('Template') && d.message.includes('not found'),
+        d => d.message.includes('Template') && d.message.includes('not found')
       );
       expect(templateErrors).toHaveLength(0);
     });
@@ -715,7 +715,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
     it('should detect non-existent local template: non-existent-template', async () => {
       const diagnostics = await invalidDiagnosticProvider.provideDiagnostics(invalidDoc);
       const error = diagnostics.find(
-        d => d.message.includes('non-existent-template') && d.message.includes('not found'),
+        d => d.message.includes('non-existent-template') && d.message.includes('not found')
       );
       expect(error).toBeDefined();
       expect(error?.severity).toBe(DiagnosticSeverity.Error);
@@ -724,7 +724,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
     it('should detect non-existent templateRef template: missing-template', async () => {
       const diagnostics = await invalidDiagnosticProvider.provideDiagnostics(invalidDoc);
       const error = diagnostics.find(
-        d => d.message.includes('missing-template') && d.message.includes('not found'),
+        d => d.message.includes('missing-template') && d.message.includes('not found')
       );
       expect(error).toBeDefined();
       expect(error?.severity).toBe(DiagnosticSeverity.Error);
@@ -733,7 +733,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
     it('should detect non-existent ConfigMap: missing-configmap', async () => {
       const diagnostics = await invalidDiagnosticProvider.provideDiagnostics(invalidDoc);
       const errors = diagnostics.filter(
-        d => d.message.includes('missing-configmap') && d.message.includes('not found'),
+        d => d.message.includes('missing-configmap') && d.message.includes('not found')
       );
       expect(errors.length).toBeGreaterThanOrEqual(1);
     });
@@ -741,7 +741,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
     it('should detect non-existent Secret: missing-secret', async () => {
       const diagnostics = await invalidDiagnosticProvider.provideDiagnostics(invalidDoc);
       const errors = diagnostics.filter(
-        d => d.message.includes('missing-secret') && d.message.includes('not found'),
+        d => d.message.includes('missing-secret') && d.message.includes('not found')
       );
       expect(errors.length).toBeGreaterThanOrEqual(1);
     });
@@ -749,7 +749,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
     it('should detect non-existent key: invalid.key in valid-config', async () => {
       const diagnostics = await invalidDiagnosticProvider.provideDiagnostics(invalidDoc);
       const error = diagnostics.find(
-        d => d.message.includes('invalid.key') && d.message.includes('not found'),
+        d => d.message.includes('invalid.key') && d.message.includes('not found')
       );
       expect(error).toBeDefined();
       expect(error?.severity).toBe(DiagnosticSeverity.Error);
@@ -790,7 +790,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
       const realErrors = diagnostics.filter(
         d =>
           d.severity === DiagnosticSeverity.Error &&
-          (d.message.includes('not found') || d.message.includes('not defined')),
+          (d.message.includes('not found') || d.message.includes('not defined'))
       );
       expect(realErrors).toHaveLength(0);
 
@@ -810,7 +810,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
       const lines = testContent.split('\n');
       const completions = await completionProvider.provideCompletion(
         testDoc,
-        Position.create(lines.length - 1, 16),
+        Position.create(lines.length - 1, 16)
       );
       expect(completions.items.length).toBeGreaterThan(0);
     });

@@ -337,7 +337,9 @@ envFrom:
       const refs = findAllConfigMapReferences(document);
 
       // configMapKeyRef references
-      const cmKeyRefName = refs.find(r => r.type === 'configMapKeyRef' && r.referenceType === 'name');
+      const cmKeyRefName = refs.find(
+        r => r.type === 'configMapKeyRef' && r.referenceType === 'name'
+      );
       expect(cmKeyRefName).toBeDefined();
       expect(cmKeyRefName?.name).toBe('my-config');
       expect(cmKeyRefName?.kind).toBe('ConfigMap');
@@ -348,12 +350,16 @@ envFrom:
       expect(cmKeyRefKey?.kind).toBe('ConfigMap');
 
       // secretKeyRef references
-      const secretKeyRefName = refs.find(r => r.type === 'secretKeyRef' && r.referenceType === 'name');
+      const secretKeyRefName = refs.find(
+        r => r.type === 'secretKeyRef' && r.referenceType === 'name'
+      );
       expect(secretKeyRefName).toBeDefined();
       expect(secretKeyRefName?.name).toBe('my-secret');
       expect(secretKeyRefName?.kind).toBe('Secret');
 
-      const secretKeyRefKey = refs.find(r => r.type === 'secretKeyRef' && r.referenceType === 'key');
+      const secretKeyRefKey = refs.find(
+        r => r.type === 'secretKeyRef' && r.referenceType === 'key'
+      );
       expect(secretKeyRefKey).toBeDefined();
       expect(secretKeyRefKey?.keyName).toBe('secret-key');
       expect(secretKeyRefKey?.kind).toBe('Secret');
@@ -394,7 +400,9 @@ spec:
       const refs = findAllConfigMapReferences(document);
 
       // Should detect volume references
-      const volumeRefs = refs.filter(r => r.type === 'volumeConfigMap' || r.type === 'volumeSecret');
+      const volumeRefs = refs.filter(
+        r => r.type === 'volumeConfigMap' || r.type === 'volumeSecret'
+      );
       expect(volumeRefs.length).toBe(2);
 
       // Should NOT detect templateRef name as a ConfigMap/Secret

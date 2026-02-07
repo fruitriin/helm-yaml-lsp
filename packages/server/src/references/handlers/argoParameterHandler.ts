@@ -1,0 +1,437 @@
+/**
+ * Argo Parameter Handler
+ *
+ * inputs/outputs/workflow/steps/tasks parameters の参照を統一的に処理する。
+ */
+
+import type { TextDocument } from 'vscode-languageserver-textdocument';
+import type { CompletionItem } from 'vscode-languageserver-types';
+import { CompletionItemKind, Position, Range } from 'vscode-languageserver-types';
+import {
+  findAllParameterReferences,
+  findParameterDefinitions,
+  findParameterReferenceAtPosition,
+} from '@/features/parameterFeatures';
+import { findStepDefinitions, findTaskDefinitions } from '@/features/stepFeatures';
+import { findTemplateDefinitions } from '@/features/templateFeatures';
+import { buildDescription } from '../formatters';
+import type { ReferenceHandler } from '../handler';
+import type { ArgoParameterDetails, DetectedReference, ResolvedReference } from '../types';
+
+export function createArgoParameterHandler(): ReferenceHandler {
+  return {
+    kind: 'argoParameter',
+    supports: {
+      definition: true,
+      hover: true,
+      completion: true,
+      diagnostic: true,
+    },
+
+    detect(doc: TextDocument, pos: Position): DetectedReference | undefined {
+      const ref = findParameterReferenceAtPosition(doc, pos);
+      if (!ref) return undefined;
+
+      // Only handle parameter types we support
+      const supportedTypes = [
+        'inputs.parameters',
+        'outputs.parameters',
+        'workflow.parameters',
+        'steps.outputs.parameters',
+        'tasks.outputs.parameters',
+      ];
+      if (!supportedTypes.includes(ref.type)) return undefined;
+
+      return {
+        kind: 'argoParameter',
+        range: ref.range,
+        details: {
+          kind: 'argoParameter',
+          type: ref.type as ArgoParameterDetails['type'],
+          parameterName: ref.parameterName,
+          stepOrTaskName: ref.stepOrTaskName,
+        },
+      };
+    },
+
+    async resolve(doc: TextDocument, detected: DetectedReference): Promise<ResolvedReference> {
+      const details = detected.details as ArgoParameterDetails;
+
+      switch (details.type) {
+        case 'inputs.parameters':
+        case 'outputs.parameters':
+          return resolveInputOutputParameter(doc, detected, details);
+        case 'workflow.parameters':
+          return resolveWorkflowParameter(doc, detected, details);
+        case 'steps.outputs.parameters':
+          return resolveStepOutputParameter(doc, detected, details);
+        case 'tasks.outputs.parameters':
+          return resolveTaskOutputParameter(doc, detected, details);
+        default:
+          return {
+            detected,
+            definitionLocation: null,
+            hoverMarkdown: null,
+            diagnosticMessage: null,
+            exists: null,
+          };
+      }
+    },
+
+    findAll(doc: TextDocument): DetectedReference[] {
+      const refs = findAllParameterReferences(doc);
+      return refs
+        .filter(ref => ref.type === 'inputs.parameters' || ref.type === 'outputs.parameters')
+        .map(ref => ({
+          kind: 'argoParameter' as const,
+          range: ref.range,
+          details: {
+            kind: 'argoParameter' as const,
+            type: ref.type as ArgoParameterDetails['type'],
+            parameterName: ref.parameterName,
+            stepOrTaskName: ref.stepOrTaskName,
+          },
+        }));
+    },
+
+    complete(doc: TextDocument, pos: Position): CompletionItem[] | undefined {
+      const text = doc.getText();
+      const lines = text.split('\n');
+      const line = lines[pos.line];
+      const linePrefix = line.substring(0, pos.character);
+
+      let context: string | null = null;
+      if (/\{\{inputs\.parameters\.\w*/.test(linePrefix)) {
+        context = 'inputs.parameters';
+      } else if (/\{\{outputs\.parameters\.\w*/.test(linePrefix)) {
+        context = 'outputs.parameters';
+      } else if (/\{\{workflow\.parameters\.\w*/.test(linePrefix)) {
+        context = 'workflow.parameters';
+      }
+      if (!context) return undefined;
+
+      const parameters = findParameterDefinitions(doc);
+      const filtered = parameters.filter(p => {
+        if (context === 'inputs.parameters') return p.type === 'input';
+        if (context === 'outputs.parameters') return p.type === 'output';
+        return true;
+      });
+
+      return filtered.map(p => {
+        const typeLabel = p.type === 'input' ? 'Input Parameter' : 'Output Parameter';
+        const documentation = [
+          p.aboveComment,
+          p.inlineComment,
+          p.value ? `Default: ${p.value}` : undefined,
+        ]
+          .filter(Boolean)
+          .join('\n\n');
+
+        return {
+          label: p.name,
+          kind: CompletionItemKind.Variable,
+          detail: typeLabel,
+          documentation: documentation || undefined,
+          insertText: p.name,
+        };
+      });
+    },
+  };
+}
+
+function resolveInputOutputParameter(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  const parameterDefs = findParameterDefinitions(doc);
+  const parameter = parameterDefs.find(p => p.name === details.parameterName);
+
+  if (parameter) {
+    const typeLabel = details.type === 'inputs.parameters' ? 'Input Parameter' : 'Output Parameter';
+    const description = buildDescription(parameter.aboveComment, parameter.inlineComment);
+
+    const hoverParts: string[] = [];
+    hoverParts.push(`**Parameter**: \`${parameter.name}\``);
+    hoverParts.push(`**Type**: ${typeLabel}`);
+    if (parameter.value) hoverParts.push(`**Default**: \`${parameter.value}\``);
+    if (description) {
+      hoverParts.push('');
+      hoverParts.push(description);
+    }
+
+    const valueDescription = buildDescription(
+      parameter.valueAboveComment,
+      parameter.valueInlineComment
+    );
+    if (valueDescription) {
+      hoverParts.push('');
+      hoverParts.push(`**Value Note**: ${valueDescription}`);
+    }
+
+    return {
+      detected,
+      definitionLocation: { uri: doc.uri, range: parameter.range },
+      hoverMarkdown: hoverParts.join('\n'),
+      diagnosticMessage: null,
+      exists: true,
+    };
+  }
+
+  const paramType = details.type === 'inputs.parameters' ? 'input' : 'output';
+  return {
+    detected,
+    definitionLocation: null,
+    hoverMarkdown: null,
+    diagnosticMessage: `Parameter '${details.parameterName}' not found in ${paramType} parameters`,
+    exists: false,
+  };
+}
+
+function resolveWorkflowParameter(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  const text = doc.getText();
+  const lines = text.split('\n');
+
+  let inArguments = false;
+  let inParameters = false;
+  let argumentsIndent = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+    const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+    if (/^\s*arguments:/.test(line)) {
+      inArguments = true;
+      inParameters = false;
+      argumentsIndent = currentIndent;
+      continue;
+    }
+
+    if (inArguments && /^\s*parameters:/.test(line) && currentIndent > argumentsIndent) {
+      inParameters = true;
+      continue;
+    }
+
+    if (inArguments && currentIndent <= argumentsIndent && !trimmed.startsWith('#')) {
+      inArguments = false;
+      inParameters = false;
+    }
+
+    if (inParameters) {
+      const nameMatch = line.match(/^\s*-\s*name:\s*['"]?([\w-]+)['"]?/);
+      if (nameMatch && nameMatch[1] === details.parameterName) {
+        const nameStart = line.indexOf(details.parameterName);
+
+        // Collect value and description
+        let value: string | undefined;
+        let description: string | undefined;
+        const paramIndent = currentIndent;
+
+        for (let j = i + 1; j < lines.length; j++) {
+          const pLine = lines[j];
+          const pTrimmed = pLine.trim();
+          if (pTrimmed === '' || pTrimmed.startsWith('#')) continue;
+          const pIndent = pLine.match(/^(\s*)/)?.[1].length ?? 0;
+          if (pIndent <= paramIndent && !pTrimmed.startsWith('#')) break;
+
+          const valMatch = pLine.match(/^\s*value:\s*['"]?(.+?)['"]?\s*$/);
+          if (valMatch) value = valMatch[1];
+
+          const descMatch = pLine.match(/^\s*description:\s*['"]?(.+?)['"]?\s*$/);
+          if (descMatch) description = descMatch[1];
+        }
+
+        const hoverParts: string[] = [];
+        hoverParts.push(`**Workflow Parameter**: \`${details.parameterName}\``);
+        hoverParts.push('');
+        hoverParts.push('**Type**: Workflow Argument');
+        if (value) hoverParts.push(`**Value**: \`${value}\``);
+        if (description) hoverParts.push(`**Description**: ${description}`);
+
+        return {
+          detected,
+          definitionLocation: {
+            uri: doc.uri,
+            range: Range.create(
+              Position.create(i, nameStart),
+              Position.create(i, nameStart + details.parameterName.length)
+            ),
+          },
+          hoverMarkdown: hoverParts.join('\n'),
+          diagnosticMessage: null,
+          exists: true,
+        };
+      }
+    }
+  }
+
+  // Fallback hover even if definition not found
+  return {
+    detected,
+    definitionLocation: null,
+    hoverMarkdown: `**Workflow Parameter**: \`${details.parameterName}\`\n\n**Type**: Workflow Argument`,
+    diagnosticMessage: null,
+    exists: null,
+  };
+}
+
+function resolveStepOutputParameter(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  if (!details.stepOrTaskName) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const steps = findStepDefinitions(doc);
+  const step = steps.find(s => s.name === details.stepOrTaskName);
+  if (!step) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const templates = findTemplateDefinitions(doc);
+  const template = templates.find(t => t.name === step.templateName);
+  if (!template) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const parameterDefs = findParameterDefinitions(doc);
+  const parameter = parameterDefs.find(
+    p =>
+      p.name === details.parameterName &&
+      p.type === 'output' &&
+      p.templateName === step.templateName
+  );
+
+  if (parameter) {
+    const description = buildDescription(parameter.aboveComment, parameter.inlineComment);
+    const hoverParts: string[] = [];
+    hoverParts.push(`**Parameter**: \`${details.parameterName}\``);
+    hoverParts.push(`**Type**: Step Output Parameter`);
+    hoverParts.push(`**Step**: \`${details.stepOrTaskName}\``);
+    hoverParts.push(`**Template**: \`${step.templateName}\``);
+    if (description) {
+      hoverParts.push('');
+      hoverParts.push(description);
+    }
+
+    return {
+      detected,
+      definitionLocation: { uri: doc.uri, range: parameter.range },
+      hoverMarkdown: hoverParts.join('\n'),
+      diagnosticMessage: null,
+      exists: true,
+    };
+  }
+
+  return {
+    detected,
+    definitionLocation: null,
+    hoverMarkdown: null,
+    diagnosticMessage: null,
+    exists: null,
+  };
+}
+
+function resolveTaskOutputParameter(
+  doc: TextDocument,
+  detected: DetectedReference,
+  details: ArgoParameterDetails
+): ResolvedReference {
+  if (!details.stepOrTaskName) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const tasks = findTaskDefinitions(doc);
+  const task = tasks.find(t => t.name === details.stepOrTaskName);
+  if (!task) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const templates = findTemplateDefinitions(doc);
+  const template = templates.find(t => t.name === task.templateName);
+  if (!template) {
+    return {
+      detected,
+      definitionLocation: null,
+      hoverMarkdown: null,
+      diagnosticMessage: null,
+      exists: null,
+    };
+  }
+
+  const parameterDefs = findParameterDefinitions(doc);
+  const parameter = parameterDefs.find(
+    p =>
+      p.name === details.parameterName &&
+      p.type === 'output' &&
+      p.templateName === task.templateName
+  );
+
+  if (parameter) {
+    const description = buildDescription(parameter.aboveComment, parameter.inlineComment);
+    const hoverParts: string[] = [];
+    hoverParts.push(`**Parameter**: \`${details.parameterName}\``);
+    hoverParts.push(`**Type**: Task Output Parameter`);
+    hoverParts.push(`**Task**: \`${details.stepOrTaskName}\``);
+    hoverParts.push(`**Template**: \`${task.templateName}\``);
+    if (description) {
+      hoverParts.push('');
+      hoverParts.push(description);
+    }
+
+    return {
+      detected,
+      definitionLocation: { uri: doc.uri, range: parameter.range },
+      hoverMarkdown: hoverParts.join('\n'),
+      diagnosticMessage: null,
+      exists: true,
+    };
+  }
+
+  return {
+    detected,
+    definitionLocation: null,
+    hoverMarkdown: null,
+    diagnosticMessage: null,
+    exists: null,
+  };
+}

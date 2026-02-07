@@ -2,8 +2,8 @@
 
 このプロジェクトは、Helm内に書かれたArgo Workflows YAMLに対してLSP（Language Server Protocol）を提供することを目的とする。
 
-**最終更新**: 2026-01-27
-**現在のステータス**: Phase 5 完了 ✅、Phase 6.1〜6.3 完了 🔨
+**最終更新**: 2026-02-07
+**現在のステータス**: Phase 1〜11 完了 ✅（722テスト）、Phase 6.1〜6.3 完了
 
 ---
 
@@ -20,105 +20,45 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - **IntelliJ IDEA / JetBrains製品** - Phase 6で実装中（基本実装完了）
 - **その他のLSPクライアント** - LSP標準プロトコルに準拠した任意のエディタ
 
-### 実装済み機能（Phase 5完了時点）
+### 実装済みLSP Capability
 
-#### Argo Workflows機能（Phase 2-3）
+| LSP Method | 機能 | Phase |
+|-----------|------|-------|
+| `textDocument/definition` | 定義へ移動 | 2 |
+| `textDocument/hover` | ホバー情報 | 3 |
+| `textDocument/completion` | 入力補完 | 3 |
+| `textDocument/publishDiagnostics` | エラー検出 | 3 |
+| `textDocument/documentSymbol` | アウトライン表示 | 11 |
+| `textDocument/documentHighlight` | ブロックハイライト | 11 |
+| `workspace/didChangeWatchedFiles` | ファイル監視 | 2 |
 
-✅ **Definition Provider（定義へのジャンプ）**
-- WorkflowTemplate/ClusterWorkflowTemplateのインデックス化
-- templateRef参照から定義へのジャンプ
-- パラメータ定義へのジャンプ
-- ローカルテンプレート参照のジャンプ
-- VSCode: F12キー / Neovim: `gd`キー
+### 実装済み機能一覧
 
-✅ **Hover Provider（ホバー情報表示）**
-- テンプレート参照のホバー情報
-- パラメータ参照のホバー情報
-- Workflow変数のホバー情報
+#### Argo Workflows（Phase 2-3, 8-10）
 
-✅ **Completion Provider（入力補完）**
-- テンプレート名の補完
-- パラメータ名の補完（inputs/outputs）
-- Workflow変数の補完
+- テンプレート参照（direct / templateRef / clusterScope）→ 定義ジャンプ、ホバー、補完、診断
+- パラメータ参照（`inputs/outputs.parameters`, `steps/tasks.outputs.parameters`）→ 全機能
+- Artifact参照（`inputs/outputs.artifacts`, `steps/tasks.outputs.artifacts`）→ 全機能
+- Script Result（`steps/tasks.outputs.result`）→ 定義ジャンプ、ホバー（言語検出付き）
+- Workflow変数（`workflow.name`, `workflow.parameters.xxx`, `workflow.outputs.parameters/artifacts.xxx` 等）
+- Item変数（`{{item}}`, `{{item.xxx}}`）→ withItems/withParam ソース検出、プロパティ補完
 
-✅ **Diagnostic Provider（エラー検出）**
-- 存在しないテンプレート参照の検出
-- 存在しないパラメータ参照の検出
+#### Helm（Phase 4, 7, 11）
 
-#### Helm機能（Phase 4）
+- `.Values.xxx` → values.yamlへの定義ジャンプ、ホバー、補完、診断
+- `include`/`template` 関数 → `define` ブロックへのジャンプ、補完
+- 組み込み関数（70+）→ ホバー（シグネチャ、使用例）、補完
+- `.Chart.*` 変数（13種） → Chart.yamlへのジャンプ
+- `.Release.*` / `.Capabilities.*` 変数 → ホバー、補完
+- Helmテンプレートレンダリング → `helm template` 出力からオリジナルへのマッピング
+- Document Symbol → YAMLアウトライン（マルチドキュメント対応）
+- Document Highlight → Helmブロックマッチング（if/else/range/with/define/end）
 
-✅ **Helm Chart検出とインデックス化**
-- Chart.yaml自動検出
-- values.yaml解析とインデックス化
-- templatesディレクトリのスキャン
+#### ConfigMap/Secret（Phase 5）
 
-✅ **.Values参照のサポート**
-- `.Values.xxx` 参照の検出
-- values.yamlへの定義ジャンプ
-- ホバー情報表示（値、型、説明）
-- 入力補完
-- 存在しない値のエラー検出
-
-✅ **include/template関数のサポート**
-- `{{ define }}` ブロックの検出
-- `{{ include "name" }}` から定義へのジャンプ
-- テンプレート名の補完
-- ホバー情報表示
-
-✅ **Helm組み込み関数のサポート（70+ functions）**
-- 文字列関数（quote, indent, trim等）
-- 型変換関数（toYaml, toJson等）
-- リスト/辞書関数（list, dict等）
-- 数学関数（add, sub等）
-- パイプライン内の関数検出
-- ホバー情報（シグネチャ、説明、使用例）
-- 関数の入力補完
-
-✅ **.Chart変数のサポート**
-- `.Chart.Name`, `.Chart.Version` 等13変数
-- Chart.yamlへのジャンプ
-- ホバー情報と補完
-
-✅ **.Release/.Capabilities変数のサポート**
-- `.Release.Name`, `.Release.Namespace` 等6変数
-- `.Capabilities.KubeVersion` 等6変数
-- ホバー情報と補完
-
-✅ **エディタ非依存性の実証**
-- VSCode API依存ゼロ
-- Node.js標準ライブラリのみ使用
-- 両エディタで同じLSPサーバーが動作
-
-#### ConfigMap/Secret機能（Phase 5）
-
-✅ **ConfigMap/Secret検出とインデックス化**
-- `kind: ConfigMap` / `kind: Secret` の自動検出
-- metadata.nameとdataキーのインデックス化
-- multilineブロック値のサポート（`|` と `>`）
-
-✅ **ConfigMap/Secret参照のサポート**
-- configMapKeyRef / secretKeyRef（env.valueFrom）
-- configMapRef / secretRef（envFrom）
-- volumeConfigMap / volumeSecret（volumes）
-- name参照とkey参照の両方に対応
-
-✅ **Definition Provider統合**
-- configMapKeyRef.name → ConfigMap定義へジャンプ
-- configMapKeyRef.key → dataキーへジャンプ
-- Secret参照も同様にサポート
-
-✅ **Hover Provider統合**
-- ConfigMap name: 名前、キー数、キーリスト表示
-- ConfigMap key: キー名、値表示（multiline対応）
-- Secret: 値を`[hidden]`で隠蔽
-
-✅ **Completion Provider統合**
-- ConfigMap/Secret名の入力補完
-- dataキーの入力補完
-
-✅ **Diagnostics Provider統合**
-- 存在しないConfigMap/Secret参照の検出
-- 存在しないキー参照の検出
+- `configMapKeyRef` / `secretKeyRef` / `configMapRef` / `secretRef` / `volumeConfigMap` / `volumeSecret`
+- name参照 → ConfigMap/Secret定義へジャンプ、key参照 → dataキーへジャンプ
+- ホバー（値プレビュー、Secret は `[hidden]`）、補完、診断
 
 ---
 
@@ -132,11 +72,8 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 
 **検証方法**:
 ```bash
-# ESLintでVSCode API使用をチェック
-bun run lint:eslint
-
-# サーバー単体起動テスト
-cd packages/server && bun test
+# サーバー単体テスト
+bun run test
 ```
 
 ### 2. 純粋なLSP実装
@@ -145,11 +82,7 @@ cd packages/server && bun test
 - カスタムプロトコル拡張は最小限に抑える
 - クライアント側の実装は薄いラッパーに留める
 
-**実装されているLSP機能**:
-- `textDocument/definition` - 定義へ移動
-- `textDocument/hover` - ホバー情報（Phase 3で拡張予定）
-- `workspace/didChangeWatchedFiles` - ファイル監視
-- `initialize` / `initialized` - サーバー初期化
+**実装されているLSP機能**: 上記「実装済みLSP Capability」テーブルを参照
 
 ### 3. クロスプラットフォーム
 
@@ -192,40 +125,53 @@ bun run check               # TypeScript型チェック + Biome
 helm-yaml-lsp/
 ├── packages/
 │   ├── server/                      # Language Server (エディタ非依存)
-│   │   ├── src/
+│   │   ├── src/                     # ソース（58ファイル）
 │   │   │   ├── server.ts            # エントリポイント
 │   │   │   ├── types/
-│   │   │   │   └── argo.ts          # Argo型定義（LSP標準型）
+│   │   │   │   ├── argo.ts          # Argo型定義（LSP標準型）
+│   │   │   │   ├── index.ts         # サーバー設定型
+│   │   │   │   └── rendering.ts     # レンダリング型（Phase 7）
 │   │   │   ├── utils/
 │   │   │   │   ├── uriUtils.ts      # URI処理（Node.js標準）
-│   │   │   │   └── fileSystem.ts    # ファイル操作（fast-glob）
-│   │   │   ├── features/
-│   │   │   │   ├── documentDetection.ts  # ドキュメント検出
-│   │   │   │   └── templateFeatures.ts   # テンプレート機能
-│   │   │   ├── services/
-│   │   │   │   ├── fileWatcher.ts        # ファイル監視
-│   │   │   │   └── argoTemplateIndex.ts  # テンプレートインデックス
-│   │   │   └── providers/
-│   │   │       └── definitionProvider.ts # Definition Provider
-│   │   ├── test/                    # テスト（116 tests）
-│   │   ├── dist/                    # ビルド成果物
-│   │   └── package.json
+│   │   │   │   ├── fileSystem.ts    # ファイル操作（fast-glob）
+│   │   │   │   └── logger.ts        # ロガー
+│   │   │   ├── features/            # 参照検出・YAML解析ロジック（21ファイル）
+│   │   │   │   ├── parameterFeatures.ts      # パラメータ/artifact/result検出
+│   │   │   │   ├── templateFeatures.ts       # テンプレート定義検出
+│   │   │   │   ├── workflowVariables.ts      # Workflow変数検出
+│   │   │   │   ├── itemVariableFeatures.ts   # Item変数検出（Phase 10）
+│   │   │   │   ├── symbolMapping.ts          # レンダリングマッピング（Phase 7）
+│   │   │   │   ├── renderedYamlDetection.ts  # レンダリング済みYAML検出（Phase 7）
+│   │   │   │   └── ...                       # 他: configMap, helm, chart, release等
+│   │   │   ├── services/            # インデックス・データ管理（8ファイル）
+│   │   │   │   ├── argoTemplateIndex.ts      # テンプレートインデックス
+│   │   │   │   ├── configMapIndex.ts         # ConfigMap/Secretインデックス
+│   │   │   │   ├── helmChartIndex.ts         # Helmチャートインデックス
+│   │   │   │   ├── symbolMappingIndex.ts     # レンダリングマッピング（Phase 7）
+│   │   │   │   └── ...                       # 他: valuesIndex, fileWatcher等
+│   │   │   ├── providers/           # LSPリクエストハンドラー（6ファイル）
+│   │   │   │   ├── definitionProvider.ts
+│   │   │   │   ├── hoverProvider.ts
+│   │   │   │   ├── completionProvider.ts
+│   │   │   │   ├── diagnosticProvider.ts
+│   │   │   │   ├── documentSymbolProvider.ts   # Phase 11
+│   │   │   │   └── documentHighlightProvider.ts # Phase 11
+│   │   │   └── references/          # 統一参照解決アーキテクチャ（14ファイル）
+│   │   │       ├── types.ts          # 共通型（ReferenceKind, DetectedReference等）
+│   │   │       ├── registry.ts       # ガード付きハンドラーレジストリ
+│   │   │       ├── setup.ts          # ハンドラー登録
+│   │   │       ├── handler.ts        # ReferenceHandler インターフェース
+│   │   │       └── handlers/         # 10種のハンドラー実装
+│   │   ├── test/                    # テスト（49ファイル, 722 tests）
+│   │   └── dist/                    # ビルド成果物
 │   ├── vscode-client/               # VSCode拡張
-│   │   ├── src/
-│   │   │   └── extension.ts        # VSCodeクライアント
-│   │   ├── dist/
-│   │   └── package.json
-│   └── nvim-client/                 # Neovim拡張
-│       └── lua/argo-workflows-lsp/init.lua
+│   ├── nvim-client/                 # Neovim拡張
+│   └── intellij-client/             # IntelliJ Plugin（Phase 6）
 ├── samples/                         # テスト用サンプル
 │   ├── argo/                        # Plain YAML版（11ファイル）
 │   └── helm/                        # Helm版
 ├── vscode-kubernetes-tools-argo/    # 移行元プロジェクト（git submodule）
-├── PHASE1_PLAN.md                   # Phase 1詳細計画
-├── PHASE2_PLAN.md                   # Phase 2詳細計画
-├── PHASE3_PLAN.md                   # Phase 3詳細計画
-├── PHASE4_PLAN.md                   # Phase 4詳細計画（Helm機能）
-├── PHASE5_PLAN.md                   # Phase 5詳細計画（ConfigMap/Secret）
+├── PHASE{1..11}_PLAN.md             # 各Phase詳細計画
 ├── progress.md                      # 進捗記録
 └── README.md
 ```
@@ -306,7 +252,7 @@ bun run lint:fix            # lintエラーを自動修正
 ### テスト
 
 ```bash
-bun run test                # 全テスト実行（173 tests）
+bun run test                # 全テスト実行（722 tests）
 bun run test:packages       # 各パッケージのテスト実行
 bun run test:all            # 統合 + パッケージテスト
 ```
@@ -360,29 +306,67 @@ nvim samples/argo/workflow-templateref.yaml
 
 ## 開発フロー
 
-### 新機能の追加
+### 参照機能の追加（ReferenceHandler パターン）
 
-1. **計画書の確認**
-   - `PHASE4_PLAN.md` で実装する機能を確認
-   - 依存関係と実装順序を把握
+Phase 6以降で確立された統一参照解決アーキテクチャに従う。
 
-2. **実装**
-   - `packages/server/src/` 配下に実装ファイルを作成
-   - `@/` エイリアスを使用してインポート
-   - LSP標準型を使用（`Range`, `Position`, `Location`等）
+**アーキテクチャ概要**:
+```
+Provider (definition/hover/completion/diagnostic)
+  └→ ReferenceRegistry
+       └→ Guard (ドキュメント種別判定: helm / configMap / argo)
+            └→ ReferenceHandler (detect → resolve → complete → findAll)
+```
 
-3. **テスト作成**
-   - `packages/server/test/` 配下にテストファイルを作成
-   - 包括的なテストケースを記述
-   - `bun run test` で実行確認（`bun test` はサブモジュールも走査するため不可）
+1. **参照種別の追加手順**:
+   - `references/types.ts` に `ReferenceKind` と `Details` 型を追加
+   - `features/xxxFeatures.ts` に検出ロジック（正規表現 + 位置判定）を実装
+   - `references/handlers/xxxHandler.ts` に `ReferenceHandler` を実装
+     - `detect()`: カーソル位置の参照を検出 → `DetectedReference`
+     - `resolve()`: 定義位置、ホバーMarkdown、診断メッセージを解決 → `ResolvedReference`
+     - `complete()`: 補完候補を返す → `CompletionItem[]`
+     - `findAll()`: ドキュメント内の全参照を列挙（診断用）
+   - `references/setup.ts` の該当ガードに登録
 
-4. **動作確認**
-   - VSCodeとNeovim両方で動作確認
-   - サンプルファイルを使用してテスト
+2. **ガード構成**（`references/setup.ts`）:
+   - **Helm ガード**: helmValues, helmTemplate, helmFunction, chartVariable, releaseCapabilities
+   - **ConfigMap ガード**: configMap
+   - **Argo ガード**: argoTemplate, argoParameter, workflowVariable, itemVariable
 
-5. **コミット**
-   - `bun run check` でコード品質チェック
-   - コミットメッセージに機能説明を記載
+3. **既存ハンドラーの拡張**:
+   - 新しい参照パターンが既存カテゴリに属する場合、既存ハンドラーを拡張する
+   - 例: artifact参照は `argoParameterHandler` の `type` 列挙に追加（Phase 8）
+   - 完全に新しい参照種別の場合のみ新規ハンドラーを作成（例: Phase 10の `itemVariableHandler`）
+
+### 新機能の追加（一般）
+
+1. **計画書の確認**: `PHASE{N}_PLAN.md` で実装する機能を確認
+2. **実装**: `@/` エイリアス使用、LSP標準型（`Range`, `Position`, `Location`等）
+3. **テスト作成**: `bun run test` で確認（`bun test` はサブモジュール走査で不可）
+4. **動作確認**: `bun run build` → IDE再起動
+5. **コミット**: `bun run check` → コード品質チェック
+
+### 大規模実装のチームオーケストレーション
+
+独立した複数機能を並列実装する場合、チームオーケストレーションが効果的。
+
+**実績**: Phase 8-11を3エージェントで並列実装（Phase 8+9, Phase 10, Phase 11）
+
+**エージェント分割の原則**:
+- **共有ファイルがある機能は同一エージェントに**: Phase 8と9は `parameterFeatures.ts`, `argoParameterHandler.ts` を共有するため同一エージェント
+- **完全独立な機能は別エージェントに**: Phase 10（新規ハンドラー）、Phase 11（新規プロバイダー）は独立
+- **Biome自動修正は最後にまとめて**: `bun run check:write` で全エージェントの出力をフォーマット
+
+### ワークツリーからのポート
+
+`.work/` 配下のgit worktreeで開発した機能をmainにポートする手順:
+
+1. **ファイルコピー**: `cp` で新規/変更ファイルをworktreeからmainへ
+2. **型の不整合修正**: mainで進んだ変更（型拡張等）との整合性を確認
+3. **既存コードへの統合**: server.ts、providers等の変更はmainの最新状態にマージ
+4. **テスト実行**: `bun run test` → `bun run check:write` → 全テストパス確認
+
+**注意**: worktreeとmainで同一ファイルが独立に変更されている場合がある（Phase 7ポート時に `symbolMappingIndex.ts` の戻り値型不一致バグを発見・修正した実績）
 
 ### LSP診断バグの修正（テスト先行）
 
@@ -474,145 +458,60 @@ describe('Real Sample Files - Zero False Positives', () => {
 
 ---
 
-## 実装済み機能の詳細
+## Phase完了状況
 
-### Phase 1: プロジェクト構造のセットアップ ✅
+| Phase | 内容 | テスト数 | 状態 |
+|-------|------|---------|------|
+| 1 | プロジェクト構造・ビルドシステム | - | ✅ |
+| 2 | コア機能移植（Definition Provider） | 116 | ✅ |
+| 3 | Hover/Completion/Diagnostic Provider | 173 | ✅ |
+| 4 | Helm機能（Values, Functions, Chart, Release） | 426 | ✅ |
+| 5 | ConfigMap/Secret サポート | 440 | ✅ |
+| 6 | IntelliJ Plugin（6.1〜6.3完了） | - | 🔨 |
+| 7 | Helm Template Rendering（symbolMapping） | 596→722 | ✅ |
+| 8 | Artifact参照 | 596 | ✅ |
+| 9 | Script Result + workflow.outputs | 596 | ✅ |
+| 10 | Item変数（`{{item}}`/`{{item.xxx}}`） | 596 | ✅ |
+| 11 | Document Symbol + Document Highlight | 596 | ✅ |
 
-- モノレポ構造（bun workspaces）
-- packages/server と packages/vscode-client のセットアップ
-- ビルドシステム（bun build）
-- デバッグ環境（.vscode/launch.json）
-- パスエイリアス（"@/"）の設定
-- Neovimクライアント実装
-- テストインフラ整備
+**現在のテスト数**: 722 pass, 1 skip, 0 fail（49テストファイル）
 
-### Phase 2: コア機能の移植 ✅
+### 各Phaseの詳細
 
-**実装ファイル**（7ファイル）:
-1. `types/argo.ts` - LSP標準型への変換
-2. `utils/uriUtils.ts` - URI処理（Node.js標準）
-3. `utils/fileSystem.ts` - ファイル操作（fast-glob）
-4. `services/fileWatcher.ts` - ファイル監視（LSP標準）
-5. `features/documentDetection.ts` - ドキュメント検出
-6. `features/templateFeatures.ts` - テンプレート機能
-7. `services/argoTemplateIndex.ts` - テンプレートインデックス
-8. `providers/definitionProvider.ts` - Definition Provider
+各 `PHASE{N}_PLAN.md` に詳細な設計・実装計画を記載。
 
-**動作確認**:
-- ✅ VSCodeで定義ジャンプ成功（F12キー）
-- ✅ Neovimで定義ジャンプ成功（`gd`キー）
+### Phase 6: IntelliJ Plugin（部分完了）
 
----
+- Phase 6.1〜6.3: IntelliJ Platform標準LSP API使用、外部依存ゼロ、Kotlin 402行
+- Phase 6.4〜6.6: ビルド・テスト・公開（未完了、Gradleインストールが必要）
 
-## Phase 3: 追加機能の実装 ✅
+### Phase 7: Helm Template Rendering
 
-**実装済み機能**:
-1. ✅ **Hover Provider** - テンプレート参照、パラメータ参照、Workflow変数のホバー情報表示
-2. ✅ **パラメータ機能** - inputs/outputs.parametersの定義と参照の検出
-3. ✅ **Workflow変数** - workflow.name等の8つの組み込み変数サポート
-4. ✅ **Completion Provider** - テンプレート名、パラメータ名、Workflow変数の入力補完
-5. ✅ **Diagnostic Provider** - 存在しないテンプレート/パラメータ参照の検出
-6. ✅ **ローカルテンプレート参照** - 同一ファイル内のテンプレートジャンプ
+`helm template` の出力（レンダリング済みYAML）からオリジナルのHelmテンプレートへの逆マッピング。
 
-**テスト結果**: 173 tests passed, 0 fail
+- **3段階ハイブリッドアルゴリズム**: Structural Anchoring → Value Matching → Fuzzy Matching
+- **`# Source:` コメント**: `helm template` 出力内のコメントからオリジナルファイルを特定
+- **新規ファイル**: 6 src + 6 test（rendering.ts, renderedYamlDetection, renderedYamlParser, symbolMapping, helmTemplateExecutor, symbolMappingIndex）
 
-**動作確認**:
-- ✅ VSCodeで全機能動作確認
-- ✅ Neovimで全機能動作確認
+### Phase 8-9: Artifact参照 + Script Result
 
-詳細は `PHASE3_PLAN.md` および `progress.md` を参照。
+既存の `argoParameterHandler` を拡張（新規ハンドラー不要）。
+- Artifact: `inputs/outputs.artifacts`, `steps/tasks.outputs.artifacts`
+- Result: `steps/tasks.outputs.result`（スクリプト言語自動検出）
+- Workflow outputs: `workflow.outputs.parameters/artifacts.xxx`
 
----
+### Phase 10: Item変数
 
-## Phase 4の完了状況 ✅
+新規 `ReferenceHandler` として実装。
+- `{{item}}` / `{{item.xxx}}` の検出
+- `withItems` / `withParam` ソースの特定
+- オブジェクト配列のプロパティ補完
 
-Phase 4（Helm機能のサポート）はすべて完了しました：
+### Phase 11: Document Symbol + Document Highlight
 
-- ✅ **Phase 4.1**: Helm Chart構造の検出とインデックス化
-- ✅ **Phase 4.2**: values.yaml解析とインデックス化
-- ✅ **Phase 4.3**: .Values参照のサポート（Definition/Hover/Completion/Diagnostics）
-- ✅ **Phase 4.4**: include/template関数のサポート
-- ✅ **Phase 4.5**: Helm組み込み関数のサポート（70+ functions）
-- ✅ **Phase 4.6**: Chart.yamlサポート（.Chart変数）
-- ✅ **Phase 4.7**: Release/Capabilities変数のサポート
-- ⏸️ **Phase 4.8**: values.schema.jsonサポート（将来拡張）
-
-**テスト結果**: 426 tests passed（Phase 3の173 testsから+253 tests増加）
-
-詳細は `PHASE4_PLAN.md` を参照。
-
----
-
-## Phase 5の完了状況 ✅
-
-Phase 5（ConfigMap/Secretサポート）はすべて完了しました：
-
-- ✅ **Phase 5.1**: ConfigMap/Secret検出とインデックス化
-- ✅ **Phase 5.2**: ConfigMap/Secret参照の検出（5種類のパターン）
-- ✅ **Phase 5.3**: Definition Provider統合
-- ✅ **Phase 5.4**: Hover Provider統合（マルチライン値プレビュー対応）
-- ✅ **Phase 5.5**: Completion Provider統合
-- ✅ **Phase 5.6**: Diagnostics Provider統合
-
-**テスト結果**: 440 tests passed（Phase 4の426 testsから+13 tests増加）
-
-**サポートされる参照パターン**:
-- `configMapKeyRef` / `secretKeyRef` (env.valueFrom)
-- `configMapRef` / `secretRef` (envFrom)
-- `volumeConfigMap` / `volumeSecret` (volumes)
-
-詳細は `PHASE5_PLAN.md` を参照。
-
----
-
-## Phase 6の進行状況 🔨
-
-### 実装済み機能: IntelliJ Plugin Support（Phase 6.1〜6.3）
-
-Phase 6では、IntelliJ IDEAおよびJetBrains製品向けのプラグインを実装し、より多くの開発者がLSPサーバーを利用できるようにします。
-
-**実装アプローチ**: IntelliJ Platform標準のLSP API使用
-
-✅ **Phase 6.1-6.3完了**:
-- ✅ IntelliJ Plugin基本構造のセットアップ
-- ✅ LSP統合実装（IntelliJ Platform標準API）
-- ✅ サーバーパス自動検出（5段階の優先順位）
-- ✅ 設定UI実装
-- ✅ プロジェクトライフサイクル管理
-- ✅ ドキュメント整備
-
-**技術的特徴**:
-- ✅ **外部依存ゼロ**: LSP4IJライブラリ不要
-- ✅ **IntelliJ Platform標準API**: `com.intellij.platform.lsp.api`使用
-- ✅ **シンプルなビルド**: Gradleの依存関係が最小限
-- ✅ **プラグインサイズ削減**: 外部ライブラリをバンドルしない
-
-**実装コード統計**:
-- Kotlinファイル: 4ファイル
-- Kotlinコード: 402行
-- 主要クラス:
-  - HelmYamlLspServerSupportProvider.kt: 241行（LSP統合のコア）
-  - HelmYamlLspConfigurable.kt: 90行（設定UI）
-  - HelmYamlLspSettings.kt: 44行（設定永続化）
-  - HelmYamlLspProjectListener.kt: 27行（ライフサイクル）
-
-**未完了（オプション）**:
-- ⏸️ **Phase 6.4**: ビルド・パッケージング（Gradleインストールが必要）
-- ⏸️ **Phase 6.5**: テストと動作確認
-- ⏸️ **Phase 6.6**: JetBrains Marketplace公開準備
-
-**サポート対象IDE**:
-- IntelliJ IDEA（Community/Ultimate）
-- PyCharm
-- WebStorm
-- その他JetBrains製品
-
-**次のステップ**:
-- Gradleをインストールして `./gradlew build` を実行
-- IntelliJ IDEAでプラグインを読み込んで動作確認
-- Phase 6.4以降の実装
-
-詳細は `PHASE6_PLAN.md` を参照。
+2つの新規プロバイダー。
+- **DocumentSymbol**: YAMLインデント構造 → アウトライン、Helmタグサニタイズ、マルチドキュメント対応
+- **DocumentHighlight**: Helmブロック（if/else/range/with/define/end）のネスト追跡と対応ハイライト
 
 ---
 
@@ -621,10 +520,8 @@ Phase 6では、IntelliJ IDEAおよびJetBrains製品向けのプラグインを
 ### プロジェクト内ドキュメント
 
 - **progress.md** - 開発進捗の詳細記録
-- **PHASE3_PLAN.md** - Phase 3の詳細計画（完了）
-- **PHASE4_PLAN.md** - Phase 4の詳細計画（Helm機能、完了）
-- **PHASE5_PLAN.md** - Phase 5の詳細計画（ConfigMap/Secret、完了）
-- **PHASE6_PLAN.md** - Phase 6の詳細計画（IntelliJ Plugin）
+- **PHASE{1..11}_PLAN.md** - 各Phaseの詳細計画（1〜5, 7〜11完了、6部分完了）
+- **PHASE7_RECOMMENDATIONS.md** - Phase 7改善提案
 - **README.md** - プロジェクト概要とセットアップ
 - **samples/README.md** - サンプルファイルの説明
 
@@ -732,24 +629,16 @@ const range = Range.create(Position.create(0, 0), Position.create(1, 10));
 
 **Q: 現在どのフェーズまで完了していますか？**
 
-A: Phase 5（ConfigMap/Secretサポート）まで完了しています。440個のテストが通過し、Argo Workflows、Helm、ConfigMap/Secretのすべての機能が実装されています。
-
-**Q: Phase 5で実装した機能は何ですか？**
-
-A: ConfigMap/Secret参照の包括的なサポートです。`configMapKeyRef`、`secretKeyRef`、`configMapRef`、`secretRef`、`volumeConfigMap`、`volumeSecret`のすべての参照パターンに対応し、定義ジャンプ、ホバー情報、入力補完、エラー検出を提供します。multilineブロック値もサポートしています。
-
-**Q: VSCodeとNeovim以外のエディタでも動作しますか？**
-
-A: はい。LSP標準プロトコルに準拠しているため、LSPクライアントを持つ任意のエディタで動作します（Emacs、Vim等）。Phase 6ではIntelliJ IDEA/JetBrains製品向けの公式プラグインも実装予定です。
+A: Phase 11まで完了しています。722個のテストが通過し、Argo Workflows、Helm、ConfigMap/Secret、Helmテンプレートレンダリング、Document Symbol/Highlightのすべての機能が実装されています。Phase 6（IntelliJ Plugin）は6.1〜6.3まで完了。
 
 **Q: テストはどのように実行しますか？**
 
-A: `bun run test` を実行してください。440個のテストが実行され、すべて通過するはずです。
+A: `bun run test` を実行してください（`bun test` ではなく）。722個のテストが47ファイルから実行されます。
 
-**Q: 次に実装する機能は何ですか？**
+**Q: 新しい参照種別を追加するには？**
 
-A: Phase 6でIntelliJ IDEA向けのプラグインを実装予定です。Kotlin/JavaでIntelliJ Pluginを開発し、LSP4IJを使用してLSPサーバーと統合します。詳細は`PHASE6_PLAN.md`を参照してください。
+A: `references/` ディレクトリの統一参照解決アーキテクチャに従います。`types.ts` に型追加 → `features/` に検出ロジック → `handlers/` にハンドラー実装 → `setup.ts` に登録。詳細は「開発フロー > 参照機能の追加」を参照。
 
-**Q: エディタ非依存性はどのように検証されていますか？**
+**Q: VSCodeとNeovim以外のエディタでも動作しますか？**
 
-A: ESLintで静的解析、テストで動作確認、VSCodeとNeovim両方での実機確認を実施しています。
+A: はい。LSP標準プロトコルに準拠しているため、LSPクライアントを持つ任意のエディタで動作します。IntelliJ Plugin（Phase 6）も基本実装済みです。

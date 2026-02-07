@@ -28,10 +28,13 @@ import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { ConfigMapIndex } from '@/services/configMapIndex';
 import { FileWatcher } from '@/services/fileWatcher';
 import { HelmChartIndex } from '@/services/helmChartIndex';
+import { HelmTemplateExecutor } from '@/services/helmTemplateExecutor';
 import { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import { SymbolMappingIndex } from '@/services/symbolMappingIndex';
 import { ValuesIndex } from '@/services/valuesIndex';
 // "@/" エイリアスを使用した型定義のインポート
 import { defaultSettings, type ServerSettings } from '@/types';
+import { FileCache } from '@/utils/fileCache';
 import { uriToFilePath } from '@/utils/uriUtils';
 
 // LSPサーバーの接続を作成
@@ -48,6 +51,9 @@ const helmChartIndex = new HelmChartIndex();
 const valuesIndex = new ValuesIndex();
 const helmTemplateIndex = new HelmTemplateIndex();
 const configMapIndex = new ConfigMapIndex();
+const helmTemplateExecutor = new HelmTemplateExecutor();
+const fileCache = new FileCache();
+const symbolMappingIndex = new SymbolMappingIndex(helmTemplateExecutor, fileCache);
 const fileWatcher = new FileWatcher(connection);
 const _referenceRegistry = createReferenceRegistry(
   argoTemplateIndex,
@@ -62,7 +68,8 @@ const definitionProvider = new DefinitionProvider(
   valuesIndex,
   helmTemplateIndex,
   configMapIndex,
-  _referenceRegistry
+  _referenceRegistry,
+  symbolMappingIndex
 );
 const hoverProvider = new HoverProvider(
   argoTemplateIndex,
@@ -70,7 +77,8 @@ const hoverProvider = new HoverProvider(
   valuesIndex,
   helmTemplateIndex,
   configMapIndex,
-  _referenceRegistry
+  _referenceRegistry,
+  symbolMappingIndex
 );
 const completionProvider = new CompletionProvider(
   helmChartIndex,
@@ -90,6 +98,7 @@ const documentHighlightProvider = new DocumentHighlightProvider();
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
+let helmNotificationShown = false;
 
 // サーバー初期化
 connection.onInitialize((params: InitializeParams) => {
@@ -188,10 +197,16 @@ connection.onInitialized(async () => {
       }
     }
 
-    // values.yamlの変更時はValuesIndexを更新
+    // values.yamlの変更時はValuesIndexを更新、Phase 7マッピングを無効化
     if (uri.endsWith('values.yaml') || uri.endsWith('values.yml')) {
       if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
         await valuesIndex.updateValuesFile(uri);
+
+        // Phase 7: values変更時はレンダリングキャッシュとマッピングを無効化
+        const filePath = uriToFilePath(uri);
+        const chartRootDir = filePath.substring(0, filePath.lastIndexOf('/values.yaml'));
+        symbolMappingIndex.invalidate(chartRootDir);
+        helmTemplateExecutor.clearCache(chartRootDir);
       }
     }
 
@@ -202,6 +217,16 @@ connection.onInitialized(async () => {
     ) {
       if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
         await helmTemplateIndex.updateTemplateFile(uri);
+
+        // Phase 7: テンプレート変更時はレンダリングキャッシュとマッピングを無効化
+        const filePath = uriToFilePath(uri);
+        const templatesIdx = filePath.indexOf('/templates/');
+        if (templatesIdx !== -1) {
+          const chartRootDir = filePath.substring(0, templatesIdx);
+          const templatePath = filePath.substring(templatesIdx + 1);
+          symbolMappingIndex.invalidate(chartRootDir, templatePath);
+          helmTemplateExecutor.clearCache(chartRootDir);
+        }
       }
     }
 
@@ -220,9 +245,19 @@ connection.onInitialized(async () => {
 // 設定変更のハンドリング
 let _globalSettings: ServerSettings = defaultSettings;
 
-connection.onDidChangeConfiguration(change => {
+connection.onDidChangeConfiguration(async change => {
   if (hasConfigurationCapability) {
     _globalSettings = change.settings.argoWorkflowsLSP || defaultSettings;
+  }
+
+  if (_globalSettings.enableTemplateRendering && !helmNotificationShown) {
+    const available = await helmTemplateExecutor.isHelmAvailable();
+    if (!available) {
+      helmNotificationShown = true;
+      connection.window.showWarningMessage(
+        'Helm CLI is not available. Template rendering features will be disabled. Install Helm to enable them.'
+      );
+    }
   }
 });
 

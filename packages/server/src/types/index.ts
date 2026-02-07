@@ -48,6 +48,7 @@ export interface ServerSettings {
   enableDefinition: boolean;
   enableCompletion: boolean;
   enableDiagnostics: boolean;
+  enableTemplateRendering: boolean;
 }
 
 /**
@@ -59,4 +60,5 @@ export const defaultSettings: ServerSettings = {
   enableDefinition: true,
   enableCompletion: true,
   enableDiagnostics: true,
+  enableTemplateRendering: true,
 };

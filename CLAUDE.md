@@ -39,6 +39,6 @@ type TemplateDefinition = { name: string; range: Range };
 
 ## 参考ドキュメント
 
-- **PHASE{3..18}_PLAN.md** — 各Phase設計計画
+- **PHASE{3..23}_PLAN.md** — 各Phase設計計画
 - **progress.md** — 進捗記録
 - [LSP仕様](https://microsoft.github.io/language-server-protocol/) / [Argo Workflows](https://argoproj.github.io/argo-workflows/) / [Bun](https://bun.sh/docs) / [Biome](https://biomejs.dev/)

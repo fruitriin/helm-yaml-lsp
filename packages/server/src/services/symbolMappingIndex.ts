@@ -14,6 +14,7 @@ import {
   findOriginalPosition,
 } from '@/features/symbolMapping';
 import type { HelmTemplateExecutor } from '@/services/helmTemplateExecutor';
+import type { HelmOverrides } from '@/types';
 import type { SymbolMapping } from '@/types/rendering';
 import type { FileCache } from '@/utils/fileCache';
 import { filePathToUri } from '@/utils/uriUtils';
@@ -34,10 +35,27 @@ export class SymbolMappingIndex {
   /** debounceタイマー */
   private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
+  /** Chart ごとの overrides */
+  private overridesMap = new Map<string, HelmOverrides | undefined>();
+
   constructor(
     private executor: HelmTemplateExecutor,
     private fileCache?: FileCache
   ) {}
+
+  /**
+   * Chart の overrides を設定
+   *
+   * overrides が変わった場合はマッピングを全無効化する。
+   */
+  setOverrides(chartDir: string, overrides?: HelmOverrides): void {
+    const prev = JSON.stringify(this.overridesMap.get(chartDir) ?? {});
+    const next = JSON.stringify(overrides ?? {});
+    if (prev !== next) {
+      this.overridesMap.set(chartDir, overrides);
+      this.invalidate(chartDir);
+    }
+  }
 
   /**
    * レンダリング済みドキュメントに対応するマッピングを検索
@@ -196,7 +214,8 @@ export class SymbolMappingIndex {
     }
 
     // helm template で単一テンプレートをレンダリング
-    const result = await this.executor.renderSingleTemplate(chartDir, templatePath);
+    const overrides = this.overridesMap.get(chartDir);
+    const result = await this.executor.renderSingleTemplate(chartDir, templatePath, overrides);
     if (!result.success || !result.documents || result.documents.length === 0) {
       return null;
     }

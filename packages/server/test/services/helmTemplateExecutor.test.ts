@@ -69,8 +69,8 @@ describe('HelmTemplateExecutor', () => {
       expect(result.output).toContain('lsp-preview');
     });
 
-    it('should accept custom release name', async () => {
-      const result = await executor.renderChart(SAMPLE_CHART_DIR, 'my-release');
+    it('should accept custom release name via overrides', async () => {
+      const result = await executor.renderChart(SAMPLE_CHART_DIR, { releaseName: 'my-release' });
       expect(result.success).toBe(true);
       expect(result.output).toContain('my-release');
     });

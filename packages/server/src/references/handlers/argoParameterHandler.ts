@@ -6,7 +6,7 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { CompletionItem } from 'vscode-languageserver-types';
-import { CompletionItemKind, Position, Range } from 'vscode-languageserver-types';
+import { CompletionItemKind, Location, Position, Range } from 'vscode-languageserver-types';
 import {
   findAllParameterReferences,
   findArtifactDefinitions,
@@ -176,6 +176,50 @@ export function createArgoParameterHandler(): ReferenceHandler {
           insertText: p.name,
         };
       });
+    },
+
+    findReferences(doc: TextDocument, pos: Position, allDocuments: TextDocument[]): Location[] {
+      // 1. カーソルが参照上にある場合
+      let targetName: string | undefined;
+      let targetType: string | undefined;
+      const ref = findParameterReferenceAtPosition(doc, pos);
+      if (ref) {
+        targetName = ref.parameterName;
+        targetType = ref.type;
+      }
+
+      // 2. カーソルが定義上にある場合
+      if (!targetName) {
+        const paramDefs = findParameterDefinitions(doc);
+        for (const p of paramDefs) {
+          if (
+            pos.line === p.range.start.line &&
+            pos.character >= p.range.start.character &&
+            pos.character <= p.range.end.character
+          ) {
+            targetName = p.name;
+            targetType = p.type === 'input' ? 'inputs.parameters' : 'outputs.parameters';
+            break;
+          }
+        }
+      }
+
+      if (!targetName) return [];
+
+      // 3. 全ドキュメントから参照を検索
+      const locations: Location[] = [];
+      for (const d of allDocuments) {
+        const refs = findAllParameterReferences(d);
+        for (const r of refs) {
+          if (r.parameterName === targetName) {
+            // タイプが一致するか、関連するタイプ（inputs↔inputs, outputs↔outputs）
+            if (targetType && isRelatedParameterType(targetType, r.type)) {
+              locations.push(Location.create(d.uri, r.range));
+            }
+          }
+        }
+      }
+      return locations;
     },
   };
 }
@@ -792,6 +836,19 @@ function resolveTaskOutputResult(
     diagnosticMessage: null,
     exists: scriptDef ? true : null,
   };
+}
+
+/**
+ * パラメータタイプが関連するかを判定
+ */
+function isRelatedParameterType(targetType: string, refType: string): boolean {
+  if (targetType === refType) return true;
+  // inputs.parameters → inputs.parameters のみ
+  // outputs.parameters → outputs.parameters のみ
+  // workflow.parameters → workflow.parameters のみ
+  const targetCategory = targetType.replace(/^(inputs|outputs|workflow)\..*/, '$1');
+  const refCategory = refType.replace(/^(inputs|outputs|workflow)\..*/, '$1');
+  return targetCategory === refCategory;
 }
 
 /**

@@ -6,9 +6,10 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { CompletionItem, Position } from 'vscode-languageserver-types';
-import { CompletionItemKind } from 'vscode-languageserver-types';
+import { CompletionItemKind, Location } from 'vscode-languageserver-types';
 import {
   findAllTemplateReferences,
+  findDefineBlocks,
   findTemplateReferenceAtPosition,
 } from '@/features/helmTemplateFeatures';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
@@ -146,6 +147,45 @@ export function createHelmTemplateHandler(
           insertText: t.name,
         };
       });
+    },
+
+    findReferences(doc: TextDocument, pos: Position, allDocuments: TextDocument[]): Location[] {
+      // 1. カーソルが include/template 参照上にある場合
+      let targetName: string | undefined;
+      const ref = findTemplateReferenceAtPosition(doc, pos);
+      if (ref) {
+        targetName = ref.templateName;
+      }
+
+      // 2. カーソルが define ブロック上にある場合
+      if (!targetName) {
+        const defines = findDefineBlocks(doc);
+        for (const d of defines) {
+          if (
+            pos.line >= d.range.start.line &&
+            pos.line <= d.range.end.line &&
+            (pos.line > d.range.start.line || pos.character >= d.range.start.character) &&
+            (pos.line < d.range.end.line || pos.character <= d.range.end.character)
+          ) {
+            targetName = d.name;
+            break;
+          }
+        }
+      }
+
+      if (!targetName) return [];
+
+      // 3. 全テンプレートから include/template 参照を検索
+      const locations: Location[] = [];
+      for (const d of allDocuments) {
+        const refs = findAllTemplateReferences(d);
+        for (const r of refs) {
+          if (r.templateName === targetName) {
+            locations.push(Location.create(d.uri, r.range));
+          }
+        }
+      }
+      return locations;
     },
   };
 }

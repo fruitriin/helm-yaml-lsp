@@ -16,6 +16,7 @@ import { createArgoOnlyRegistry } from '@/references/setup';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
 import type { HelmTemplateExecutor } from '@/services/helmTemplateExecutor';
+import type { HelmOverrides } from '@/types';
 import type { RenderedDocument } from '@/types/rendering';
 
 type PerTemplateCacheEntry = {
@@ -46,11 +47,26 @@ function simpleHash(str: string): string {
 
 export class RenderedArgoIndexCache {
   private cache = new Map<string, CachedChart>();
+  private overridesMap = new Map<string, HelmOverrides | undefined>();
 
   constructor(
     private helmTemplateExecutor: HelmTemplateExecutor,
     private configMapIndex?: ConfigMapIndex
   ) {}
+
+  /**
+   * Chart の overrides を設定（Chart.yaml 再パース時に呼ばれる）
+   *
+   * overrides が変わった場合はキャッシュを無効化する。
+   */
+  setOverrides(chartDir: string, overrides?: HelmOverrides): void {
+    const prev = JSON.stringify(this.overridesMap.get(chartDir) ?? {});
+    const next = JSON.stringify(overrides ?? {});
+    if (prev !== next) {
+      this.overridesMap.set(chartDir, overrides);
+      this.invalidate(chartDir);
+    }
+  }
 
   /**
    * チャートのレンダリング結果から構築した ArgoOnlyRegistry を取得
@@ -162,7 +178,8 @@ export class RenderedArgoIndexCache {
    * チャート全体をレンダリングしてキャッシュを構築（初回 or フルリビルド）
    */
   private async fullRender(chartDir: string): Promise<ReferenceRegistry | null> {
-    const renderResult = await this.helmTemplateExecutor.renderChart(chartDir);
+    const overrides = this.overridesMap.get(chartDir);
+    const renderResult = await this.helmTemplateExecutor.renderChart(chartDir, overrides);
     if (!renderResult.success || !renderResult.documents || renderResult.documents.length === 0) {
       return null;
     }
@@ -226,7 +243,12 @@ export class RenderedArgoIndexCache {
     // dirty set からこのテンプレートを除去
     cached.dirtyTemplates.delete(templatePath);
 
-    const result = await this.helmTemplateExecutor.renderSingleTemplate(chartDir, templatePath);
+    const overrides = this.overridesMap.get(chartDir);
+    const result = await this.helmTemplateExecutor.renderSingleTemplate(
+      chartDir,
+      templatePath,
+      overrides
+    );
     if (!result.success || !result.documents || result.documents.length === 0) {
       // レンダリング失敗 → 旧エントリを削除
       const oldEntry = cached.templates.get(templatePath);

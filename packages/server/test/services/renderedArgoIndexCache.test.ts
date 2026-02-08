@@ -316,6 +316,44 @@ spec:
       expect(docB2?.getText()).toBe(docB1?.getText());
     });
 
+    it('setOverrides should invalidate cache when overrides change', async () => {
+      const executor = createMockExecutor(true, [
+        { path: 'templates/a.yaml', content: MINIMAL_WFT },
+      ]);
+      const cache = new RenderedArgoIndexCache(executor);
+
+      const registry1 = await cache.getRegistry('/charts/test');
+      expect(registry1).not.toBeNull();
+      expect(executor.renderChartCallCount).toBe(1);
+
+      // setOverrides with new values → should invalidate
+      cache.setOverrides('/charts/test', { set: ['feature.enabled=true'] });
+
+      const registry2 = await cache.getRegistry('/charts/test');
+      expect(registry2).not.toBeNull();
+      expect(registry1).not.toBe(registry2);
+      expect(executor.renderChartCallCount).toBe(2);
+    });
+
+    it('setOverrides should not invalidate when same overrides', async () => {
+      const executor = createMockExecutor(true, [
+        { path: 'templates/a.yaml', content: MINIMAL_WFT },
+      ]);
+      const cache = new RenderedArgoIndexCache(executor);
+
+      cache.setOverrides('/charts/test', { set: ['x=1'] });
+      const registry1 = await cache.getRegistry('/charts/test');
+      expect(registry1).not.toBeNull();
+      expect(executor.renderChartCallCount).toBe(1);
+
+      // Same overrides → no invalidation
+      cache.setOverrides('/charts/test', { set: ['x=1'] });
+
+      const registry2 = await cache.getRegistry('/charts/test');
+      expect(registry1).toBe(registry2);
+      expect(executor.renderChartCallCount).toBe(1);
+    });
+
     it('should handle render failure for dirty template gracefully', async () => {
       const docs = [
         { path: 'templates/a.yaml', content: MINIMAL_WFT },

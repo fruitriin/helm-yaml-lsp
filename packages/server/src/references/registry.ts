@@ -6,7 +6,7 @@
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { CompletionItem, Position } from 'vscode-languageserver-types';
+import type { CompletionItem, Location, Position } from 'vscode-languageserver-types';
 import type { ReferenceHandler } from './handler';
 import type { ResolvedReference } from './types';
 
@@ -92,6 +92,25 @@ export class ReferenceRegistry {
         const items = handler.complete(doc, pos);
         if (items && items.length > 0) {
           return items;
+        }
+      }
+    }
+    return [];
+  }
+
+  /**
+   * ワークスペース全体から参照を検索する（references用）
+   */
+  findAllReferences(doc: TextDocument, pos: Position, allDocuments: TextDocument[]): Location[] {
+    for (const guard of this.guards) {
+      if (!guard.check(doc)) continue;
+
+      for (const handler of guard.handlers) {
+        if (!handler.findReferences) continue;
+
+        const results = handler.findReferences(doc, pos, allDocuments);
+        if (results.length > 0) {
+          return results;
         }
       }
     }

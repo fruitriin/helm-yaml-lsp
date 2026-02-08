@@ -6,7 +6,7 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { CompletionItem, Position } from 'vscode-languageserver-types';
-import { CompletionItemKind } from 'vscode-languageserver-types';
+import { CompletionItemKind, Location } from 'vscode-languageserver-types';
 import {
   extractValuePathForCompletion,
   findAllValuesReferences,
@@ -134,6 +134,26 @@ export function createHelmValuesHandler(
           insertText: v.path,
         };
       });
+    },
+
+    findReferences(doc: TextDocument, pos: Position, allDocuments: TextDocument[]): Location[] {
+      // カーソルが .Values.xxx 参照上にある場合: valuePath を取得
+      const ref = findValuesReference(doc, pos);
+      if (!ref) return [];
+
+      const targetPath = ref.valuePath;
+
+      // 全テンプレートから同じ valuePath の参照を検索
+      const locations: Location[] = [];
+      for (const d of allDocuments) {
+        const refs = findAllValuesReferences(d);
+        for (const r of refs) {
+          if (r.valuePath === targetPath) {
+            locations.push(Location.create(d.uri, r.range));
+          }
+        }
+      }
+      return locations;
     },
   };
 }

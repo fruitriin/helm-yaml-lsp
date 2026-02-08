@@ -6,9 +6,11 @@
  */
 
 import { exec } from 'node:child_process';
+import * as path from 'node:path';
 import { promisify } from 'node:util';
 
 import { parseHelmTemplateOutput } from '@/features/renderedYamlParser';
+import type { HelmOverrides } from '@/types';
 import type { HelmRenderResult } from '@/types/rendering';
 
 const execAsync = promisify(exec);
@@ -57,10 +59,11 @@ export class HelmTemplateExecutor {
    * Chart全体をレンダリング
    *
    * @param chartDir - Helmチャートのルートディレクトリ
-   * @param releaseName - リリース名（デフォルト: "lsp-preview"）
+   * @param overrides - オーバーライド設定（Chart.yaml アノテーション由来）
    */
-  async renderChart(chartDir: string, releaseName = 'lsp-preview'): Promise<HelmRenderResult> {
-    const cacheKey = `${chartDir}::${releaseName}`;
+  async renderChart(chartDir: string, overrides?: HelmOverrides): Promise<HelmRenderResult> {
+    const releaseName = overrides?.releaseName || 'lsp-preview';
+    const cacheKey = this.buildCacheKey(chartDir, releaseName, overrides);
     const cached = this.getCached(cacheKey);
     if (cached) {
       return this.buildResult(cached, chartDir);
@@ -69,10 +72,8 @@ export class HelmTemplateExecutor {
     const startTime = Date.now();
 
     try {
-      const { stdout, stderr } = await execAsync(
-        `helm template ${shellEscape(releaseName)} ${shellEscape(chartDir)}`,
-        { timeout: EXEC_TIMEOUT }
-      );
+      const cmd = this.buildCommand(releaseName, chartDir, overrides);
+      const { stdout, stderr } = await execAsync(cmd, { timeout: EXEC_TIMEOUT });
 
       const executionTime = Date.now() - startTime;
       this.cache.set(cacheKey, { output: stdout, timestamp: Date.now() });
@@ -103,14 +104,15 @@ export class HelmTemplateExecutor {
    *
    * @param chartDir - Helmチャートのルートディレクトリ
    * @param templatePath - テンプレートの相対パス (例: "templates/workflow-basic.yaml")
-   * @param releaseName - リリース名（デフォルト: "lsp-preview"）
+   * @param overrides - オーバーライド設定（Chart.yaml アノテーション由来）
    */
   async renderSingleTemplate(
     chartDir: string,
     templatePath: string,
-    releaseName = 'lsp-preview'
+    overrides?: HelmOverrides
   ): Promise<HelmRenderResult> {
-    const cacheKey = `${chartDir}::${releaseName}::${templatePath}`;
+    const releaseName = overrides?.releaseName || 'lsp-preview';
+    const cacheKey = this.buildCacheKey(chartDir, releaseName, overrides, templatePath);
     const cached = this.getCached(cacheKey);
     if (cached) {
       return this.buildResult(cached, chartDir);
@@ -119,10 +121,8 @@ export class HelmTemplateExecutor {
     const startTime = Date.now();
 
     try {
-      const { stdout, stderr } = await execAsync(
-        `helm template ${shellEscape(releaseName)} ${shellEscape(chartDir)} --show-only ${shellEscape(templatePath)}`,
-        { timeout: EXEC_TIMEOUT }
-      );
+      const cmd = this.buildCommand(releaseName, chartDir, overrides, templatePath);
+      const { stdout, stderr } = await execAsync(cmd, { timeout: EXEC_TIMEOUT });
 
       const executionTime = Date.now() - startTime;
       this.cache.set(cacheKey, { output: stdout, timestamp: Date.now() });
@@ -181,12 +181,12 @@ export class HelmTemplateExecutor {
     for (const key of this.cache.keys()) {
       if (!key.startsWith(prefix)) continue;
       const rest = key.substring(prefix.length);
-      // チャート全体キャッシュ: `releaseName` のみ（:: が含まれない）
-      // テンプレート個別キャッシュ: `releaseName::templatePath`
-      if (!rest.includes('::')) {
+      // overrides サフィックス (::ovr:...) を除去して構造を解析
+      const baseRest = rest.replace(/::ovr:.+$/, '');
+      if (!baseRest.includes('::')) {
         // チャート全体キャッシュ → 常に削除（全体出力が変わるため）
         keysToDelete.push(key);
-      } else if (rest.endsWith(`::${templatePath}`)) {
+      } else if (baseRest.endsWith(`::${templatePath}`)) {
         // 変更テンプレートの個別キャッシュ → 削除
         keysToDelete.push(key);
       }
@@ -243,6 +243,58 @@ export class HelmTemplateExecutor {
     const parts = chartDir.replace(/\/+$/, '').split('/');
     return parts[parts.length - 1];
   }
+
+  /**
+   * helm template コマンドを構築
+   */
+  private buildCommand(
+    releaseName: string,
+    chartDir: string,
+    overrides?: HelmOverrides,
+    showOnly?: string
+  ): string {
+    const parts = ['helm', 'template', shellEscape(releaseName), shellEscape(chartDir)];
+
+    if (showOnly) {
+      parts.push('--show-only', shellEscape(showOnly));
+    }
+    if (overrides?.namespace) {
+      parts.push('--namespace', shellEscape(overrides.namespace));
+    }
+    for (const setValue of overrides?.set ?? []) {
+      parts.push('--set', shellEscape(setValue));
+    }
+    for (const valuesFile of overrides?.values ?? []) {
+      const absPath = path.isAbsolute(valuesFile) ? valuesFile : path.join(chartDir, valuesFile);
+      parts.push('--values', shellEscape(absPath));
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
+   * キャッシュキーを構築（overrides を含む）
+   */
+  private buildCacheKey(
+    chartDir: string,
+    releaseName: string,
+    overrides?: HelmOverrides,
+    templatePath?: string
+  ): string {
+    let key = `${chartDir}::${releaseName}`;
+    if (templatePath) {
+      key += `::${templatePath}`;
+    }
+    if (overrides?.set?.length || overrides?.values?.length || overrides?.namespace) {
+      const overrideStr = JSON.stringify({
+        set: overrides.set ?? [],
+        values: overrides.values ?? [],
+        namespace: overrides.namespace ?? '',
+      });
+      key += `::ovr:${simpleHash(overrideStr)}`;
+    }
+    return key;
+  }
 }
 
 /**
@@ -266,6 +318,18 @@ export function parseHelmTemplateError(stderr: string): Array<{
     });
   }
   return results;
+}
+
+/**
+ * シンプルなハッシュ関数（キャッシュキー用）
+ */
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash + char) | 0;
+  }
+  return hash.toString(36);
 }
 
 /**

@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   type CompletionItem,
   createConnection,
@@ -14,15 +16,16 @@ import {
   TextDocumentSyncKind,
   TextDocuments,
 } from 'vscode-languageserver/node';
-
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { clearChartYamlCache } from '@/features/documentDetection';
+import { parseLspAnnotations } from '@/features/helmChartDetection';
 import { CompletionProvider } from '@/providers/completionProvider';
 import { DefinitionProvider } from '@/providers/definitionProvider';
 import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { DocumentHighlightProvider } from '@/providers/documentHighlightProvider';
 import { DocumentSymbolProvider } from '@/providers/documentSymbolProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
+import { ReferencesProvider } from '@/providers/referencesProvider';
 import {
   SemanticTokensProvider,
   TOKEN_MODIFIERS,
@@ -107,6 +110,7 @@ const diagnosticProvider = new DiagnosticProvider(
   undefined,
   renderedArgoIndexCache
 );
+const referencesProvider = new ReferencesProvider(_referenceRegistry, documents);
 const documentSymbolProvider = new DocumentSymbolProvider();
 const documentHighlightProvider = new DocumentHighlightProvider();
 const semanticTokensProvider = new SemanticTokensProvider();
@@ -136,6 +140,7 @@ connection.onInitialize((params: InitializeParams) => {
         resolveProvider: true,
         triggerCharacters: ['.', '{', ':', ' '],
       },
+      referencesProvider: true,
       documentSymbolProvider: true,
       documentHighlightProvider: true,
       semanticTokensProvider: {
@@ -198,6 +203,14 @@ connection.onInitialized(async () => {
 
     // ConfigMap Index初期化
     await configMapIndex.initialize(folderPaths);
+
+    // Phase 17: 初期化時に各 Chart の overrides を伝播
+    for (const chart of charts) {
+      if (chart.overrides) {
+        renderedArgoIndexCache.setOverrides(chart.rootDir, chart.overrides);
+        symbolMappingIndex.setOverrides(chart.rootDir, chart.overrides);
+      }
+    }
   }
 
   // ファイル監視を開始
@@ -217,6 +230,34 @@ connection.onInitialized(async () => {
       const chartRootDir = filePath.substring(0, filePath.lastIndexOf('/Chart.yaml'));
       if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
         await helmChartIndex.updateChart(chartRootDir);
+
+        // Phase 17: @lsp アノテーションを再パースして overrides を伝播
+        try {
+          const chartYamlContent = fs.readFileSync(filePath, 'utf-8');
+          const overrides = parseLspAnnotations(chartYamlContent);
+          renderedArgoIndexCache.setOverrides(chartRootDir, overrides);
+          symbolMappingIndex.setOverrides(chartRootDir, overrides);
+          helmTemplateExecutor.clearCache(chartRootDir);
+        } catch {
+          // 読み取りエラーは無視
+        }
+      }
+    }
+
+    // Phase 17: 追加 values ファイル変更の検知
+    if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
+      const chart = helmChartIndex.findChartForFile(uri);
+      if (chart?.overrides?.values?.length) {
+        const changedPath = uriToFilePath(uri);
+        const isAdditionalValues = chart.overrides.values.some(vf => {
+          const absPath = path.isAbsolute(vf) ? vf : path.join(chart.rootDir, vf);
+          return changedPath === absPath;
+        });
+        if (isAdditionalValues) {
+          helmTemplateExecutor.clearCache(chart.rootDir);
+          renderedArgoIndexCache.markAllDirty(chart.rootDir);
+          symbolMappingIndex.invalidate(chart.rootDir);
+        }
       }
     }
 
@@ -321,6 +362,16 @@ connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
   );
 
   return await hoverProvider.provideHover(document, params.position);
+});
+
+// 参照検索機能
+connection.onReferences(params => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+
+  return referencesProvider.provideReferences(document, params.position, params.context);
 });
 
 // 補完機能

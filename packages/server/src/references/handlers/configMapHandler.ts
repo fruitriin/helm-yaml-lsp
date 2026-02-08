@@ -8,7 +8,7 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { CompletionItem, Position } from 'vscode-languageserver-types';
-import { CompletionItemKind } from 'vscode-languageserver-types';
+import { CompletionItemKind, Location } from 'vscode-languageserver-types';
 import {
   findAllConfigMapReferences,
   findConfigMapReferenceAtPosition,
@@ -111,6 +111,27 @@ export function createConfigMapHandler(configMapIndex: ConfigMapIndex): Referenc
       }
 
       return undefined;
+    },
+
+    findReferences(doc: TextDocument, pos: Position, allDocuments: TextDocument[]): Location[] {
+      // カーソルが configMapKeyRef/secretKeyRef 等の参照上にある場合
+      const ref = findConfigMapReferenceAtPosition(doc, pos);
+      if (!ref) return [];
+
+      const targetName = ref.name;
+      const targetKind = ref.kind;
+
+      // 全ドキュメントから同じ name の参照を検索
+      const locations: Location[] = [];
+      for (const d of allDocuments) {
+        const refs = findAllConfigMapReferences(d);
+        for (const r of refs) {
+          if (r.name === targetName && r.kind === targetKind) {
+            locations.push(Location.create(d.uri, r.range));
+          }
+        }
+      }
+      return locations;
     },
   };
 }

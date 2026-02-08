@@ -40,6 +40,22 @@ export interface ConfigMapDefinition {
 }
 
 /**
+ * helm template コマンドのオーバーライド設定
+ *
+ * Chart.yaml 内の `# @lsp` アノテーションからパースされる。
+ */
+export type HelmOverrides = {
+  /** --set key=value の配列 (例: ["image.tag=v2.0", "replicas=3"]) */
+  set?: string[];
+  /** --values ファイルパスの配列 (Chart ルートからの相対パス) */
+  values?: string[];
+  /** リリース名 (デフォルト: "lsp-preview") */
+  releaseName?: string;
+  /** --namespace */
+  namespace?: string;
+};
+
+/**
  * サーバー設定
  */
 export interface ServerSettings {

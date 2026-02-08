@@ -6,7 +6,7 @@
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { CompletionItem, Position } from 'vscode-languageserver-types';
+import type { CompletionItem, Location, Position } from 'vscode-languageserver-types';
 import type { DetectedReference, ReferenceKind, ResolvedReference } from './types';
 
 /**
@@ -30,4 +30,7 @@ export type ReferenceHandler = {
   resolve(doc: TextDocument, detected: DetectedReference): Promise<ResolvedReference>;
   findAll?(doc: TextDocument): DetectedReference[];
   complete?(doc: TextDocument, pos: Position): CompletionItem[] | undefined;
+
+  // ワークスペース全体から参照を検索（textDocument/references 用）
+  findReferences?(doc: TextDocument, pos: Position, allDocuments: TextDocument[]): Location[];
 };

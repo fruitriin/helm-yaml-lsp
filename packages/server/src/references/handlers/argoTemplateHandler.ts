@@ -6,7 +6,7 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { CompletionItem, Position } from 'vscode-languageserver-types';
-import { CompletionItemKind } from 'vscode-languageserver-types';
+import { CompletionItemKind, Location } from 'vscode-languageserver-types';
 import {
   findAllTemplateReferences,
   findTemplateDefinitions,
@@ -88,6 +88,44 @@ export function createArgoTemplateHandler(templateIndex: ArgoTemplateIndex): Ref
         detail: `Local template in current ${t.kind}`,
         documentation: t.aboveComment || t.inlineComment,
       }));
+    },
+
+    findReferences(doc: TextDocument, pos: Position, allDocuments: TextDocument[]): Location[] {
+      // 1. カーソルが参照上にある場合: templateName を取得
+      let targetName: string | undefined;
+      const ref = findTemplateReferenceAtPosition(doc, pos);
+      if (ref) {
+        targetName = ref.templateName;
+      }
+
+      // 2. カーソルが定義上にある場合: definitions から名前を取得
+      if (!targetName) {
+        const defs = findTemplateDefinitions(doc);
+        for (const d of defs) {
+          if (
+            pos.line === d.range.start.line &&
+            pos.character >= d.range.start.character &&
+            pos.character <= d.range.end.character
+          ) {
+            targetName = d.name;
+            break;
+          }
+        }
+      }
+
+      if (!targetName) return [];
+
+      // 3. 全ドキュメントから参照を検索
+      const locations: Location[] = [];
+      for (const d of allDocuments) {
+        const refs = findAllTemplateReferences(d);
+        for (const r of refs) {
+          if (r.templateName === targetName) {
+            locations.push(Location.create(d.uri, r.range));
+          }
+        }
+      }
+      return locations;
     },
   };
 }

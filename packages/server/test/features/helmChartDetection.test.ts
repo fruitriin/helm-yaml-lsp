@@ -11,6 +11,7 @@ import {
   isFileInChart,
   isHelmChart,
   parseChartYaml,
+  parseLspAnnotations,
 } from '../../src/features/helmChartDetection';
 import { filePathToUri } from '../../src/utils/uriUtils';
 
@@ -202,6 +203,99 @@ description: Missing name and version
       const charts = await findHelmCharts([testDir]);
       expect(charts.length).toBe(2);
       expect(charts.map(c => c.name).sort()).toEqual(['parent-chart', 'sub-chart']);
+    });
+  });
+
+  describe('parseLspAnnotations', () => {
+    it('should return undefined when no annotations', () => {
+      const content = `apiVersion: v2
+name: my-chart
+version: 1.0.0
+`;
+      expect(parseLspAnnotations(content)).toBeUndefined();
+    });
+
+    it('should parse releaseName annotation', () => {
+      const content = `apiVersion: v2
+name: my-chart
+version: 1.0.0
+# @lsp releaseName: my-release
+`;
+      const overrides = parseLspAnnotations(content);
+      expect(overrides).toBeDefined();
+      expect(overrides?.releaseName).toBe('my-release');
+    });
+
+    it('should parse namespace annotation', () => {
+      const content = `# @lsp namespace: production
+apiVersion: v2
+name: my-chart
+version: 1.0.0
+`;
+      const overrides = parseLspAnnotations(content);
+      expect(overrides?.namespace).toBe('production');
+    });
+
+    it('should accumulate multiple set annotations', () => {
+      const content = `apiVersion: v2
+name: my-chart
+version: 1.0.0
+# @lsp set: feature.enabled=true
+# @lsp set: image.tag=v2.0
+`;
+      const overrides = parseLspAnnotations(content);
+      expect(overrides?.set).toEqual(['feature.enabled=true', 'image.tag=v2.0']);
+    });
+
+    it('should accumulate multiple values annotations', () => {
+      const content = `apiVersion: v2
+name: my-chart
+version: 1.0.0
+# @lsp values: values-production.yaml
+# @lsp values: values-secrets.yaml
+`;
+      const overrides = parseLspAnnotations(content);
+      expect(overrides?.values).toEqual(['values-production.yaml', 'values-secrets.yaml']);
+    });
+
+    it('should use last releaseName when declared multiple times', () => {
+      const content = `# @lsp releaseName: first
+# @lsp releaseName: second
+apiVersion: v2
+name: my-chart
+version: 1.0.0
+`;
+      const overrides = parseLspAnnotations(content);
+      expect(overrides?.releaseName).toBe('second');
+    });
+
+    it('should parse all annotation types together', () => {
+      const content = `apiVersion: v2
+name: my-chart
+version: 1.0.0
+# @lsp releaseName: my-release
+# @lsp namespace: production
+# @lsp set: feature.enabled=true
+# @lsp set: replicas=3
+# @lsp values: values-prod.yaml
+`;
+      const overrides = parseLspAnnotations(content);
+      expect(overrides?.releaseName).toBe('my-release');
+      expect(overrides?.namespace).toBe('production');
+      expect(overrides?.set).toEqual(['feature.enabled=true', 'replicas=3']);
+      expect(overrides?.values).toEqual(['values-prod.yaml']);
+    });
+
+    it('should ignore non-annotation comments', () => {
+      const content = `# This is a regular comment
+apiVersion: v2
+name: my-chart
+version: 1.0.0
+# @lsp set: feature.enabled=true
+# Another regular comment
+`;
+      const overrides = parseLspAnnotations(content);
+      expect(overrides?.set).toEqual(['feature.enabled=true']);
     });
   });
 

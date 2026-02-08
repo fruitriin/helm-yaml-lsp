@@ -6,6 +6,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import type { HelmOverrides } from '@/types';
 import { findFiles } from '@/utils/fileSystem';
 import { filePathToUri, uriToFilePath } from '@/utils/uriUtils';
 
@@ -25,6 +26,8 @@ export type HelmChart = {
   rootDir: string;
   /** Chart.yamlのメタデータ */
   metadata?: ChartMetadata;
+  /** Chart.yaml 内の @lsp アノテーション */
+  overrides?: HelmOverrides;
 };
 
 /**
@@ -138,6 +141,55 @@ export function parseChartYaml(content: string): ChartMetadata | undefined {
 }
 
 /**
+ * Chart.yaml から @lsp アノテーションをパース
+ *
+ * `# @lsp key: value` 形式のコメントからオーバーライド設定を抽出する。
+ *
+ * @param content - Chart.yaml の内容
+ * @returns パースされた HelmOverrides、アノテーションがなければ undefined
+ *
+ * @example
+ * // Chart.yaml:
+ * // # @lsp releaseName: my-release
+ * // # @lsp set: feature.enabled=true
+ * const overrides = parseLspAnnotations(content);
+ * // → { releaseName: 'my-release', set: ['feature.enabled=true'] }
+ */
+export function parseLspAnnotations(content: string): HelmOverrides | undefined {
+  const lines = content.split('\n');
+  const overrides: HelmOverrides = { set: [], values: [] };
+  let found = false;
+
+  const pattern = /^#\s*@lsp\s+(releaseName|namespace|set|values):\s*(.+)$/;
+
+  for (const line of lines) {
+    const match = line.trim().match(pattern);
+    if (!match) continue;
+
+    found = true;
+    const [, key, value] = match;
+    const trimmedValue = value.trim();
+
+    switch (key) {
+      case 'releaseName':
+        overrides.releaseName = trimmedValue;
+        break;
+      case 'namespace':
+        overrides.namespace = trimmedValue;
+        break;
+      case 'set':
+        overrides.set!.push(trimmedValue);
+        break;
+      case 'values':
+        overrides.values!.push(trimmedValue);
+        break;
+    }
+  }
+
+  return found ? overrides : undefined;
+}
+
+/**
  * ワークスペース内のすべてのHelm Chartを検出
  *
  * @param workspaceFolders - ワークスペースフォルダのパス配列
@@ -163,9 +215,11 @@ export async function findHelmCharts(workspaceFolders: string[]): Promise<HelmCh
 
         // Chart.yamlを読み込んで解析
         let metadata: ChartMetadata | undefined;
+        let overrides: HelmOverrides | undefined;
         try {
           const content = await fs.readFile(chartYamlPath, 'utf-8');
           metadata = parseChartYaml(content);
+          overrides = parseLspAnnotations(content);
         } catch {
           // パースエラーは無視
         }
@@ -205,6 +259,7 @@ export async function findHelmCharts(workspaceFolders: string[]): Promise<HelmCh
           templatesDir: templatesDirPath,
           rootDir,
           metadata,
+          overrides,
         };
 
         charts.push(chart);

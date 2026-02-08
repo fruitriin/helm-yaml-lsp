@@ -18,6 +18,9 @@ packages/vscode-client/test-integration/out/
 # Bun
 .bun-cache/
 
+# Copied LICENSE for VSIX packaging
+packages/vscode-client/LICENSE
+
 # Git submodule (managed separately)
 vscode-kubernetes-tools-argo/
 

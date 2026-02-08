@@ -2,8 +2,18 @@
   "name": "helm-yaml-lsp-client",
   "displayName": "Argo Workflows LSP",
   "description": "Language Server Protocol support for Argo Workflows, Helm, and Kubernetes YAML",
-  "version": "0.17.0",
-  "publisher": "your-publisher-name",
+  "version": "0.18.0",
+  "publisher": "fruitriin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fruitriin/helm-yaml-lsp.git",
+    "directory": "packages/vscode-client"
+  },
+  "homepage": "https://github.com/fruitriin/helm-yaml-lsp#readme",
+  "bugs": {
+    "url": "https://github.com/fruitriin/helm-yaml-lsp/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -95,7 +105,7 @@
     "test:integration": "bun run build && bun run build:test && node test-integration/out/runTest.js",
     "lint": "biome lint src",
     "format": "biome format src",
-    "package": "bun run build && vsce package --no-dependencies"
+    "package": "cp ../../LICENSE . && bun run build && vsce package --no-dependencies"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

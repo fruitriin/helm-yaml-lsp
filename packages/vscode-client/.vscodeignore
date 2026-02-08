@@ -1,6 +1,7 @@
 # Source files
 src/**
 test/**
+test-integration/**
 tsconfig.json
 
 # Build configuration

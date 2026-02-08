@@ -77,7 +77,7 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 ### インストール
 
 ```bash
-git clone --recursive https://github.com/yourusername/helm-yaml-lsp.git
+git clone --recursive https://github.com/fruitriin/helm-yaml-lsp.git
 cd helm-yaml-lsp
 bun install
 bun run build

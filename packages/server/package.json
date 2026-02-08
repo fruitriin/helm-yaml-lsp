@@ -1,8 +1,30 @@
 {
   "name": "helm-yaml-lsp-server",
-  "version": "0.17.0",
-  "description": "Argo Workflows Language Server",
+  "version": "0.18.0",
+  "description": "Argo Workflows Language Server for Helm and Kubernetes YAML",
+  "license": "MIT",
   "main": "dist/server.js",
+  "files": [
+    "dist/**"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fruitriin/helm-yaml-lsp.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/fruitriin/helm-yaml-lsp#readme",
+  "bugs": {
+    "url": "https://github.com/fruitriin/helm-yaml-lsp/issues"
+  },
+  "keywords": [
+    "argo",
+    "workflows",
+    "kubernetes",
+    "helm",
+    "yaml",
+    "lsp",
+    "language-server"
+  ],
   "scripts": {
     "build": "bun build src/server.ts --outdir dist --target node --format cjs --sourcemap=external",
     "watch": "bun build src/server.ts --outdir dist --target node --format cjs --sourcemap=external --watch",

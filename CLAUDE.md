@@ -2,7 +2,7 @@
 
 Helm内に書かれたArgo Workflows YAMLに対してLSP機能を提供するプロジェクト。
 
-**テスト**: 841 pass, 1 skip（54ファイル） | **Phase 1〜15 完了**
+**テスト**: 841 pass, 1 skip（54ファイル） | **Phase 1〜15 完了** | 計画・進捗は `plans/` を参照
 
 ## コマンド
 
@@ -39,6 +39,6 @@ type TemplateDefinition = { name: string; range: Range };
 
 ## 参考ドキュメント
 
-- **PHASE{3..23}_PLAN.md** — 各Phase設計計画
-- **progress.md** — 進捗記録
+- **plans/PHASE{3..23}_PLAN.md** — 各Phase設計計画
+- **plans/progress.md** — 進捗記録
 - [LSP仕様](https://microsoft.github.io/language-server-protocol/) / [Argo Workflows](https://argoproj.github.io/argo-workflows/) / [Bun](https://bun.sh/docs) / [Biome](https://biomejs.dev/)

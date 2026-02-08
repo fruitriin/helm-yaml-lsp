@@ -31,8 +31,12 @@ jobs:
       - name: Lint (Biome)
         run: bunx biome check .
 
-      - name: Lint (ESLint for server)
-        run: bun run lint:eslint
+      - name: Check editor independence (no vscode imports in server)
+        run: |
+          if grep -rn "from ['\"]vscode['\"]" packages/server/src/ --include='*.ts'; then
+            echo "::error::VSCode API imports found in server code. Use vscode-languageserver instead."
+            exit 1
+          fi
 
       - name: Run tests
         run: bun run test

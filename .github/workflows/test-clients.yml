@@ -37,13 +37,15 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
-      - name: Check editor independence (ESLint)
+      - name: Check editor independence (no vscode imports in server)
         run: |
-          cd packages/server
-          bun run lint:eslint
+          if grep -rn "from ['\"]vscode['\"]" packages/server/src/ --include='*.ts'; then
+            echo "::error::VSCode API imports found in server code. Use vscode-languageserver instead."
+            exit 1
+          fi
 
       - name: Lint and format with Biome
-        run: bun run check
+        run: bunx biome check .
 
   test-neovim-client:
     name: Test Neovim Client

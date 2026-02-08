@@ -32,8 +32,6 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "biome lint src",
-    "lint:eslint": "eslint src/**/*.ts",
-    "lint:all": "bun run lint && bun run lint:eslint",
     "format": "biome format src"
   },
   "dependencies": {
@@ -45,9 +43,6 @@
     "vscode-languageserver-types": "^3.17.5"
   },
   "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
-    "@typescript-eslint/eslint-plugin": "^8.53.1",
-    "@typescript-eslint/parser": "^8.53.1",
-    "eslint": "^9.39.2"
+    "@types/js-yaml": "^4.0.9"
   }
 }

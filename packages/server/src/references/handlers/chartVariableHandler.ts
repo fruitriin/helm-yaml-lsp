@@ -85,7 +85,7 @@ export function createChartVariableHandler(helmChartIndex: HelmChartIndex): Refe
       return {
         detected,
         definitionLocation,
-        hoverMarkdown: parts.join('\n'),
+        hoverMarkdown: parts.join('  \n'),
         diagnosticMessage: null,
         exists: null,
       };

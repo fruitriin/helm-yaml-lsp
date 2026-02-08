@@ -129,7 +129,7 @@ function resolveNameReference(
       `**Keys**: ${keyCount} key${keyCount !== 1 ? 's' : ''} defined`,
       '',
       keyList || '*(no keys)*',
-    ].join('\n');
+    ].join('  \n');
 
     return {
       detected,
@@ -193,7 +193,7 @@ function resolveKeyReference(
       `**Key**: \`${details.keyName}\``,
       `**${details.resourceKind}**: \`${details.name}\``,
       `**Value**: ${valueDisplay}`,
-    ].join('\n');
+    ].join('  \n');
 
     return {
       detected,

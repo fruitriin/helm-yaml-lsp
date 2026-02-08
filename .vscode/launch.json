@@ -7,7 +7,7 @@
       "request": "launch",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-client",
-        "${workspaceFolder}/.work/remotehost"
+        "${workspaceFolder}/samples"
       ],
       "outFiles": [
         "${workspaceFolder}/packages/vscode-client/dist/**/*.js",

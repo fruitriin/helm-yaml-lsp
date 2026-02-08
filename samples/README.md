@@ -1,6 +1,8 @@
 # Argo Workflows サンプルファイル
 
-このディレクトリには、VSCode Kubernetes Tools拡張機能のArgo Workflows統合機能をテストするためのサンプルファイルが含まれています。
+このディレクトリには、Helm YAML LSPの全機能をテストするためのサンプルファイルが含まれています。
+
+**対応Phase**: Phase 1〜11 完了
 
 ## ディレクトリ構成
 
@@ -10,10 +12,11 @@ samples/
 │   ├── workflow-*.yaml # 機能別Workflowファイル
 │   ├── workflow-template.yaml
 │   ├── cluster-workflow-template.yaml
-│   └── cron-workflow.yaml
+│   ├── cron-workflow.yaml
+│   └── demo-workflow*.yaml
 └── helm/               # Helm版のサンプル
     ├── templates/      # Helmテンプレート
-    │   ├── workflow-*.yaml  # 機能別Workflowファイル（Helm構文含む）
+    │   ├── workflow-*.yaml
     │   ├── workflow-template.yaml
     │   ├── cron-workflow.yaml
     │   └── configmap-helm.yaml
@@ -27,81 +30,92 @@ samples/
 
 ### 基本構文
 
-| ファイル名 | 内容 | テスト機能 |
-|-----------|------|----------|
-| [workflow-basic.yaml](argo/workflow-basic.yaml) | ローカルテンプレート、steps構造 | template参照のジャンプ機能 |
-| [workflow-templateref.yaml](argo/workflow-templateref.yaml) | WorkflowTemplate/ClusterWorkflowTemplate参照 | templateRef解決、クラスタスコープ |
-| [workflow-dag.yaml](argo/workflow-dag.yaml) | DAG構造、並列実行 | 依存関係、tasks参照 |
+| ファイル名 | Phase | 内容 | テスト機能 |
+|-----------|-------|------|----------|
+| [workflow-basic.yaml](argo/workflow-basic.yaml) | 2 | ローカルテンプレート、steps構造 | template参照のジャンプ機能 |
+| [workflow-templateref.yaml](argo/workflow-templateref.yaml) | 2 | WorkflowTemplate/ClusterWorkflowTemplate参照 | templateRef解決、クラスタスコープ |
+| [workflow-dag.yaml](argo/workflow-dag.yaml) | 2 | DAG構造、並列実行 | 依存関係、tasks参照 |
 
 ### データフロー
 
-| ファイル名 | 内容 | テスト機能 |
-|-----------|------|----------|
-| [workflow-parameters.yaml](argo/workflow-parameters.yaml) | inputs/outputs.parameters | steps/tasks参照、クオートパターン |
-| [workflow-artifacts.yaml](argo/workflow-artifacts.yaml) | inputs/outputs.artifacts | steps/tasks artifacts参照 |
-| [workflow-result.yaml](argo/workflow-result.yaml) | outputs.result（スクリプト結果） | steps/tasks result参照 |
+| ファイル名 | Phase | 内容 | テスト機能 |
+|-----------|-------|------|----------|
+| [workflow-parameters.yaml](argo/workflow-parameters.yaml) | 3 | inputs/outputs.parameters | steps/tasks参照、クオートパターン |
+| [workflow-artifacts.yaml](argo/workflow-artifacts.yaml) | 8 | inputs/outputs.artifacts | steps/tasks artifacts参照 |
+| [workflow-result.yaml](argo/workflow-result.yaml) | 9 | outputs.result（スクリプト結果） | steps/tasks result参照 |
 
 ### 変数
 
-| ファイル名 | 内容 | テスト機能 |
-|-----------|------|----------|
-| [workflow-variables.yaml](argo/workflow-variables.yaml) | workflow.*変数全種類 | workflow.name, parameters, status等 |
-| [workflow-item.yaml](argo/workflow-item.yaml) | item変数（withItems/withParam） | スカラー、オブジェクト、配列 |
+| ファイル名 | Phase | 内容 | テスト機能 |
+|-----------|-------|------|----------|
+| [workflow-variables.yaml](argo/workflow-variables.yaml) | 3 | workflow.*変数全種類 | workflow.name, parameters, status等 |
+| [workflow-item.yaml](argo/workflow-item.yaml) | 10 | item変数（withItems/withParam） | スカラー、オブジェクト、配列 |
 
 ### リソース定義
 
-| ファイル名 | 内容 | テスト機能 |
-|-----------|------|----------|
-| [workflow-template.yaml](argo/workflow-template.yaml) | WorkflowTemplate定義 | templateRefのジャンプ先 |
-| [cluster-workflow-template.yaml](argo/cluster-workflow-template.yaml) | ClusterWorkflowTemplate定義 | クラスタスコープtemplateRefのジャンプ先 |
-| [cron-workflow.yaml](argo/cron-workflow.yaml) | CronWorkflow定義 | スケジュール実行、workflow.scheduledTime |
+| ファイル名 | Phase | 内容 | テスト機能 |
+|-----------|-------|------|----------|
+| [workflow-template.yaml](argo/workflow-template.yaml) | 2 | WorkflowTemplate定義 | templateRefのジャンプ先 |
+| [cluster-workflow-template.yaml](argo/cluster-workflow-template.yaml) | 2 | ClusterWorkflowTemplate定義 | クラスタスコープtemplateRefのジャンプ先 |
+| [cron-workflow.yaml](argo/cron-workflow.yaml) | 2 | CronWorkflow定義 | スケジュール実行、workflow.scheduledTime |
+| [configmap-data.yaml](argo/configmap-data.yaml) | 5 | ConfigMap/Secret定義 | ConfigMap/Secret参照のジャンプ先 |
 
 ### 統合サンプル
 
-| ファイル名 | 内容 | テスト機能 |
-|-----------|------|----------|
-| [comprehensive-workflow.yaml](argo/comprehensive-workflow.yaml) | すべての主要機能を含む包括的なサンプル | ローカルテンプレート参照、パラメータ（inputs/outputs）、Workflow変数、コメント付き定義 |
-| **[demo-workflow.yaml](argo/demo-workflow.yaml)** | **Phase 5完了版・全機能デモ** | **Argo Workflows全機能 + ConfigMap/Secret参照を上から順に確認できる包括的デモ** |
-| **[demo-workflow-valid.yaml](argo/demo-workflow-valid.yaml)** | **リグレッションテスト用・正常動作版** | **診断エラー0件が期待されるファイル。全ての参照が正しく解決される** |
-| **[demo-workflow-invalid.yaml](argo/demo-workflow-invalid.yaml)** | **リグレッションテスト用・エラー検出版** | **意図的にエラーを含むファイル。診断機能が正しくエラーを検出することを確認** |
+| ファイル名 | Phase | 内容 | テスト機能 |
+|-----------|-------|------|----------|
+| [comprehensive-workflow.yaml](argo/comprehensive-workflow.yaml) | 3 | 主要機能を含む包括的サンプル | ローカルテンプレート参照、パラメータ、Workflow変数 |
+| **[demo-workflow.yaml](argo/demo-workflow.yaml)** | **11** | **全機能デモ（Phase 11対応）** | **Argo全機能 + ConfigMap/Secret + Artifact + Result + Item変数を順に確認** |
+| [demo-workflow-invalid.yaml](argo/demo-workflow-invalid.yaml) | 5 | エラー検出テスト用 | 意図的エラーを含むファイル。診断機能の検証用 |
+| [workflow-configmap.yaml](argo/workflow-configmap.yaml) | 5 | ConfigMap/Secret参照 | configMapKeyRef/secretKeyRef解決 |
 
-**注意**: テストフィクスチャー版（`packages/server/test/fixtures/comprehensive-workflow.yaml`）には意図的なエラーケースが含まれています。正常なサンプルを参照する場合は上記のファイルを使用してください。
-
-### リグレッションテスト用ファイル
-
-**テスト目的**: LSPサーバーの診断機能が正しく動作することを確認します。
-
-| ファイル名 | 目的 | 期待される診断結果 |
-|-----------|------|------------------|
-| [demo-workflow-valid.yaml](argo/demo-workflow-valid.yaml) | 正常動作の確認 | `diagnostics: []` (エラー0件) |
-| [demo-workflow-invalid.yaml](argo/demo-workflow-invalid.yaml) | エラー検出の確認 | 8個程度のエラー検出（ConfigMap/Secret/Template not found） |
-
-**使用方法**:
-1. Extension Development Hostでファイルを開く
-2. IDE Diagnostics API (`mcp__ide__getDiagnostics`) で診断実行
-3. 診断結果が期待通りであることを確認
-
-詳細は [regression_plan.md](../regression_plan.md) を参照してください。
-
-### 推奨デモファイル ⭐
+### 推奨デモファイル
 
 **最初に試すべきファイル**: [demo-workflow.yaml](argo/demo-workflow.yaml)
 
-Phase 5完了時点での全機能を、セクション別に段階的に確認できる包括的なデモファイルです：
-- Section 1: ConfigMap/Secret定義
-- Section 2: WorkflowTemplate定義（ConfigMap/Secret参照含む）
+Phase 11完了時点での全機能を、セクション別に段階的に確認できる包括的なデモファイルです：
+- Section 1: ConfigMap/Secret定義（Phase 5）
+- Section 2: WorkflowTemplate定義（Phase 2, ConfigMap/Secret参照含む）
 - Section 3: メインワークフロー（全機能統合）
+  - 3.1-3.4: パラメータ、templateRef、ConfigMap/Secret（Phase 2-5）
+  - 3.5: Artifact受け渡し（Phase 8）
+  - 3.6: Script Result（Phase 9）
+  - 3.7: Item変数ループ（Phase 10）
 - チェックリスト付き: すべての機能の動作確認手順を記載
+
+### 統合テスト（sample-fixtures.test.ts）
+
+`packages/server/test/integration/sample-fixtures.test.ts` で以下のクラスタがテストされています：
+
+| クラスタ | ファイル | テスト内容 |
+|---------|--------|----------|
+| A. Self-contained | workflow-basic.yaml | 診断0件 |
+| B. TemplateRef | workflow-template + cluster-workflow-template + workflow-templateref | 診断0件 |
+| C. ConfigMap | configmap-data + workflow-configmap | 診断0件、ConfigMap/Secret検出 |
+| D. DAG | workflow-template + workflow-dag | 診断0件 |
+| E. CronWorkflow | workflow-template + cron-workflow | 診断0件 |
+| F. Demo Workflow | demo-workflow.yaml | ConfigMap/Secret/Template検出、診断0件 |
+| G. Error: workflow | workflow.yaml | テンプレートエラー検出 |
+| H. Error: invalid | demo-workflow-invalid.yaml | 意図的エラー7件以上 |
+| J. Artifacts | workflow-artifacts.yaml | 診断0件（Phase 8） |
+| K. Result | workflow-result.yaml | 診断0件（Phase 9） |
+| L. Item | workflow-item.yaml | 診断0件（Phase 10） |
+
+Hover/Definitionテスト:
+- workflow-variables.yaml: workflow変数のhover/definition（20+テスト）
+- workflow-artifacts.yaml: artifact参照のhover/definition
+- workflow-result.yaml: result参照のhover/definition
+- workflow-item.yaml: item変数のhover
 
 ## Helm版 (`samples/helm/templates/`)
 
 Helmテンプレート形式のArgo Workflowsサンプルファイル。Plain版と同じArgo構文を提供しつつ、Helm機能も含みます。
 
-### 推奨デモファイル ⭐
+### 推奨デモファイル
 
 **Helm版で最初に試すべきファイル**: [demo-workflow.yaml](helm/templates/demo-workflow.yaml)
 
-Phase 5完了時点での全機能（Argo + Helm）を、セクション別に段階的に確認できる包括的なデモファイルです：
+Phase 11完了時点での全機能（Argo + Helm）を、セクション別に段階的に確認できる包括的なデモファイルです：
 - Section 1: ConfigMap定義（.Values参照、Helm組み込み関数、.Chart/.Release変数）
 - Section 2: Secret定義（b64enc関数等）
 - Section 3: WorkflowTemplate定義（ConfigMap/Secret参照、include関数）
@@ -166,8 +180,11 @@ F5キーで Extension Development Host を起動します。
 - ✅ **パラメータ参照**: `{{inputs.parameters.xxx}}` で定義にジャンプ
 - ✅ **アーティファクト参照**: `{{inputs.artifacts.xxx}}` で定義にジャンプ
 - ✅ **steps/tasks出力参照**: `{{steps.xxx.outputs.parameters.yyy}}` で定義にジャンプ
+- ✅ **Script Result参照**: `{{steps.xxx.outputs.result}}` でscriptテンプレートにジャンプ
 - ✅ **workflow変数ホバー**: `{{workflow.name}}` で説明表示
 - ✅ **item変数ホバー**: `{{item}}`, `{{item.xxx}}` で説明表示
+- ✅ **DocumentSymbol**: YAMLのアウトライン表示
+- ✅ **DocumentHighlight**: Helmブロック（if/range/with等）の対応マッチ
 - ✅ **Helm include/templateジャンプ**: `{{ include "xxx" . }}` で `_helpers.tpl` の定義にジャンプ
 - ✅ **.Release変数ホバー**: `{{ .Release.Name }}` で説明表示
 

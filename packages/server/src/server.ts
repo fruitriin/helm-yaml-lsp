@@ -247,7 +247,7 @@ let _globalSettings: ServerSettings = defaultSettings;
 
 connection.onDidChangeConfiguration(async change => {
   if (hasConfigurationCapability) {
-    _globalSettings = change.settings.argoWorkflowsLSP || defaultSettings;
+    _globalSettings = change.settings?.argoWorkflowsLSP || defaultSettings;
   }
 
   if (_globalSettings.enableTemplateRendering && !helmNotificationShown) {

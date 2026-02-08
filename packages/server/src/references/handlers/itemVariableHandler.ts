@@ -99,7 +99,7 @@ export function createItemVariableHandler(): ReferenceHandler {
       return {
         detected,
         definitionLocation,
-        hoverMarkdown: hoverParts.join('\n'),
+        hoverMarkdown: hoverParts.join('  \n'),
         diagnosticMessage: null,
         exists: true,
       };

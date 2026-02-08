@@ -70,7 +70,7 @@ export function createHelmFunctionHandler(): ReferenceHandler {
       return {
         detected,
         definitionLocation: null,
-        hoverMarkdown: parts.join('\n'),
+        hoverMarkdown: parts.join('  \n'),
         diagnosticMessage: null,
         exists: null,
       };

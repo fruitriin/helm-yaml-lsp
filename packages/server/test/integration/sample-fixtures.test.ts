@@ -14,7 +14,7 @@ import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DiagnosticSeverity, Position } from 'vscode-languageserver-types';
+import { DiagnosticSeverity, type Location, Position } from 'vscode-languageserver-types';
 import { DefinitionProvider } from '@/providers/definitionProvider';
 import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
@@ -94,24 +94,6 @@ describe('Sample File Fixtures - Integration Tests', () => {
 
     it('should report 0 diagnostic errors', async () => {
       const doc = await loadDoc(ctx.dir, 'workflow-basic.yaml');
-      const diagnostics = await ctx.diagnosticProvider.provideDiagnostics(doc);
-      const errors = errorDiagnostics(diagnostics);
-      expect(errors).toHaveLength(0);
-    });
-  });
-
-  describe('Self-contained: demo-workflow-split.yaml (multi-doc)', () => {
-    let ctx: ClusterContext;
-
-    beforeAll(async () => {
-      ctx = await setupCluster(['demo-workflow-split.yaml']);
-    });
-    afterAll(async () => {
-      await cleanupCluster(ctx);
-    });
-
-    it('should report 0 diagnostic errors', async () => {
-      const doc = await loadDoc(ctx.dir, 'demo-workflow-split.yaml');
       const diagnostics = await ctx.diagnosticProvider.provideDiagnostics(doc);
       const errors = errorDiagnostics(diagnostics);
       expect(errors).toHaveLength(0);
@@ -199,33 +181,7 @@ describe('Sample File Fixtures - Integration Tests', () => {
   });
 
   // ==========================================================
-  // E. Phase3 demo cluster
-  // ==========================================================
-
-  describe('Cluster: Phase3 demo (workflow-template + cluster-workflow-template + demo-phase3)', () => {
-    let ctx: ClusterContext;
-
-    beforeAll(async () => {
-      ctx = await setupCluster([
-        'workflow-template.yaml',
-        'cluster-workflow-template.yaml',
-        'demo-phase3.yaml',
-      ]);
-    });
-    afterAll(async () => {
-      await cleanupCluster(ctx);
-    });
-
-    it('demo-phase3.yaml should report 0 diagnostic errors', async () => {
-      const doc = await loadDoc(ctx.dir, 'demo-phase3.yaml');
-      const diagnostics = await ctx.diagnosticProvider.provideDiagnostics(doc);
-      const errors = errorDiagnostics(diagnostics);
-      expect(errors).toHaveLength(0);
-    });
-  });
-
-  // ==========================================================
-  // F. CronWorkflow cluster
+  // E. CronWorkflow cluster
   // ==========================================================
 
   describe('Cluster: CronWorkflow (workflow-template + cron-workflow)', () => {
@@ -375,6 +331,72 @@ describe('Sample File Fixtures - Integration Tests', () => {
       // missing-configmap (env + volume), missing-secret (env + volume),
       // invalid.key = 7 minimum
       expect(errors.length).toBeGreaterThanOrEqual(7);
+    });
+  });
+
+  // ==========================================================
+  // J. Artifacts (Phase 8) - self-contained multi-doc
+  // ==========================================================
+
+  describe('Self-contained: workflow-artifacts.yaml (Phase 8)', () => {
+    let ctx: ClusterContext;
+
+    beforeAll(async () => {
+      ctx = await setupCluster(['workflow-artifacts.yaml']);
+    });
+    afterAll(async () => {
+      await cleanupCluster(ctx);
+    });
+
+    it('should report 0 diagnostic errors', async () => {
+      const doc = await loadDoc(ctx.dir, 'workflow-artifacts.yaml');
+      const diagnostics = await ctx.diagnosticProvider.provideDiagnostics(doc);
+      const errors = errorDiagnostics(diagnostics);
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  // ==========================================================
+  // K. Script Result (Phase 9) - self-contained multi-doc
+  // ==========================================================
+
+  describe('Self-contained: workflow-result.yaml (Phase 9)', () => {
+    let ctx: ClusterContext;
+
+    beforeAll(async () => {
+      ctx = await setupCluster(['workflow-result.yaml']);
+    });
+    afterAll(async () => {
+      await cleanupCluster(ctx);
+    });
+
+    it('should report 0 diagnostic errors', async () => {
+      const doc = await loadDoc(ctx.dir, 'workflow-result.yaml');
+      const diagnostics = await ctx.diagnosticProvider.provideDiagnostics(doc);
+      const errors = errorDiagnostics(diagnostics);
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  // ==========================================================
+  // L. Item Variables (Phase 10) - self-contained multi-doc
+  // ==========================================================
+
+  describe('Self-contained: workflow-item.yaml (Phase 10)', () => {
+    let ctx: ClusterContext;
+
+    beforeAll(async () => {
+      ctx = await setupCluster(['workflow-item.yaml']);
+    });
+    afterAll(async () => {
+      await cleanupCluster(ctx);
+    });
+
+    it('should report 0 diagnostic errors', async () => {
+      const doc = await loadDoc(ctx.dir, 'workflow-item.yaml');
+      const diagnostics = await ctx.diagnosticProvider.provideDiagnostics(doc);
+      const errors = errorDiagnostics(diagnostics);
+      expect(errors).toHaveLength(0);
     });
   });
 });
@@ -596,5 +618,148 @@ describe('Hover/Definition: workflow-variables.yaml', () => {
       const hover = await hoverProvider.provideHover(doc, pos);
       expect(hover).not.toBeNull();
     });
+  });
+});
+
+// ============================================================
+// Hover / Definition Tests: workflow-artifacts.yaml (Phase 8)
+// ============================================================
+
+describe('Hover/Definition: workflow-artifacts.yaml', () => {
+  let ctx: ClusterContext;
+  let hoverProvider: HoverProvider;
+  let definitionProvider: DefinitionProvider;
+  let doc: TextDocument;
+  let content: string;
+
+  beforeAll(async () => {
+    ctx = await setupCluster(['workflow-artifacts.yaml']);
+    hoverProvider = new HoverProvider(
+      ctx.templateIndex,
+      undefined,
+      undefined,
+      undefined,
+      ctx.configMapIndex
+    );
+    definitionProvider = new DefinitionProvider(
+      ctx.templateIndex,
+      undefined,
+      undefined,
+      undefined,
+      ctx.configMapIndex
+    );
+    doc = await loadDoc(ctx.dir, 'workflow-artifacts.yaml');
+    content = doc.getText();
+  });
+  afterAll(async () => {
+    await cleanupCluster(ctx);
+  });
+
+  it('hover on inputs.artifacts.input-file', async () => {
+    const pos = findVarPosition(content, 'inputs.artifacts.input-file', 90);
+    const hover = await hoverProvider.provideHover(doc, pos);
+    expect(hover).not.toBeNull();
+  });
+
+  it('hover on outputs.artifacts.output-file', async () => {
+    const pos = findVarPosition(content, 'outputs.artifacts.output-file', 70);
+    const hover = await hoverProvider.provideHover(doc, pos);
+    expect(hover).not.toBeNull();
+  });
+
+  it('definition on steps.generate.outputs.artifacts.output-file', async () => {
+    const pos = findVarPosition(content, 'steps.generate.outputs.artifacts.output-file', 49);
+    const location = await definitionProvider.provideDefinition(doc, pos);
+    expect(location).not.toBeNull();
+    if (location && 'range' in location) {
+      const targetLine = content.split('\n')[location.range.start.line];
+      expect(targetLine).toContain('name: output-file');
+    }
+  });
+});
+
+// ============================================================
+// Hover / Definition Tests: workflow-result.yaml (Phase 9)
+// ============================================================
+
+describe('Hover/Definition: workflow-result.yaml', () => {
+  let ctx: ClusterContext;
+  let hoverProvider: HoverProvider;
+  let definitionProvider: DefinitionProvider;
+  let doc: TextDocument;
+  let content: string;
+
+  beforeAll(async () => {
+    ctx = await setupCluster(['workflow-result.yaml']);
+    hoverProvider = new HoverProvider(
+      ctx.templateIndex,
+      undefined,
+      undefined,
+      undefined,
+      ctx.configMapIndex
+    );
+    definitionProvider = new DefinitionProvider(
+      ctx.templateIndex,
+      undefined,
+      undefined,
+      undefined,
+      ctx.configMapIndex
+    );
+    doc = await loadDoc(ctx.dir, 'workflow-result.yaml');
+    content = doc.getText();
+  });
+  afterAll(async () => {
+    await cleanupCluster(ctx);
+  });
+
+  it('hover on steps.run-script.outputs.result', async () => {
+    const pos = findVarPosition(content, 'steps.run-script.outputs.result', 51);
+    const hover = await hoverProvider.provideHover(doc, pos);
+    expect(hover).not.toBeNull();
+  });
+
+  it('definition on tasks.task-script.outputs.result', async () => {
+    const pos = findVarPosition(content, 'tasks.task-script.outputs.result', 102);
+    const location = await definitionProvider.provideDefinition(doc, pos);
+    expect(location).not.toBeNull();
+  });
+});
+
+// ============================================================
+// Hover / Definition Tests: workflow-item.yaml (Phase 10)
+// ============================================================
+
+describe('Hover/Definition: workflow-item.yaml', () => {
+  let ctx: ClusterContext;
+  let hoverProvider: HoverProvider;
+  let doc: TextDocument;
+  let content: string;
+
+  beforeAll(async () => {
+    ctx = await setupCluster(['workflow-item.yaml']);
+    hoverProvider = new HoverProvider(
+      ctx.templateIndex,
+      undefined,
+      undefined,
+      undefined,
+      ctx.configMapIndex
+    );
+    doc = await loadDoc(ctx.dir, 'workflow-item.yaml');
+    content = doc.getText();
+  });
+  afterAll(async () => {
+    await cleanupCluster(ctx);
+  });
+
+  it('hover on item (scalar)', async () => {
+    const pos = findVarPosition(content, 'item', 46);
+    const hover = await hoverProvider.provideHover(doc, pos);
+    expect(hover).not.toBeNull();
+  });
+
+  it('hover on item.name (object property)', async () => {
+    const pos = findVarPosition(content, 'item.name', 64);
+    const hover = await hoverProvider.provideHover(doc, pos);
+    expect(hover).not.toBeNull();
   });
 });

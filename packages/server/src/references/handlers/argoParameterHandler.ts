@@ -213,7 +213,7 @@ function resolveInputOutputParameter(
     return {
       detected,
       definitionLocation: { uri: doc.uri, range: parameter.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: null,
       exists: true,
     };
@@ -305,7 +305,7 @@ function resolveWorkflowParameter(
               Position.create(i, nameStart + details.parameterName.length)
             ),
           },
-          hoverMarkdown: hoverParts.join('\n'),
+          hoverMarkdown: hoverParts.join('  \n'),
           diagnosticMessage: null,
           exists: true,
         };
@@ -385,7 +385,7 @@ function resolveStepOutputParameter(
     return {
       detected,
       definitionLocation: { uri: doc.uri, range: parameter.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: null,
       exists: true,
     };
@@ -462,7 +462,7 @@ function resolveTaskOutputParameter(
     return {
       detected,
       definitionLocation: { uri: doc.uri, range: parameter.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: null,
       exists: true,
     };
@@ -500,7 +500,7 @@ function resolveInputOutputArtifact(
     return {
       detected,
       definitionLocation: { uri: doc.uri, range: artifact.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: null,
       exists: true,
     };
@@ -562,7 +562,7 @@ function resolveStepOutputArtifact(
     return {
       detected,
       definitionLocation: { uri: doc.uri, range: artifact.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: null,
       exists: true,
     };
@@ -623,7 +623,7 @@ function resolveTaskOutputArtifact(
     return {
       detected,
       definitionLocation: { uri: doc.uri, range: artifact.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: null,
       exists: true,
     };
@@ -710,7 +710,7 @@ function resolveStepOutputResult(
   return {
     detected,
     definitionLocation,
-    hoverMarkdown: hoverParts.join('\n'),
+    hoverMarkdown: hoverParts.join('  \n'),
     diagnosticMessage: null,
     exists: scriptDef ? true : null,
   };
@@ -788,7 +788,7 @@ function resolveTaskOutputResult(
   return {
     detected,
     definitionLocation,
-    hoverMarkdown: hoverParts.join('\n'),
+    hoverMarkdown: hoverParts.join('  \n'),
     diagnosticMessage: null,
     exists: scriptDef ? true : null,
   };

@@ -77,7 +77,7 @@ export function createHelmValuesHandler(
         return {
           detected,
           definitionLocation: { uri: valueDef.uri, range: valueDef.range },
-          hoverMarkdown: parts.join('\n'),
+          hoverMarkdown: parts.join('  \n'),
           diagnosticMessage: null,
           exists: true,
         };

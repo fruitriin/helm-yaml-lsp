@@ -22,7 +22,7 @@ function extractTemplateComments(
   for (let i = lineNum - 1; i >= 0; i--) {
     const trimmed = lines[i].trim();
     if (trimmed.startsWith('#')) {
-      aboveComments.unshift(trimmed.substring(1).trim());
+      aboveComments.unshift(trimmed.replace(/^#+\s*/, ''));
     } else if (trimmed === '') {
     } else {
       break; // コメント以外が出現したら終了
@@ -218,14 +218,19 @@ export function findTemplateReferenceAtPosition(
   }
 
   // パターン2: templateRef 内のフィールド
-  // templateRefブロックの検出（カーソル位置から逆方向に探索）
+  // templateRefブロックの検出（カーソル位置から最も近い templateRef: を逆方向に探索）
   const textBeforeCursor = text.substring(0, offset);
-  const templateRefMatch = /templateRef:\s*$/m.exec(textBeforeCursor);
+  // 最後の templateRef: を探す（最初のものではなく、カーソルに最も近いもの）
+  let lastTemplateRefIdx = -1;
+  const templateRefRegex = /templateRef:\s*$/gm;
+  let execResult: RegExpExecArray | null;
+  while ((execResult = templateRefRegex.exec(textBeforeCursor)) !== null) {
+    lastTemplateRefIdx = execResult.index;
+  }
 
-  if (templateRefMatch) {
+  if (lastTemplateRefIdx !== -1) {
     // templateRefブロック内を探索
-    const templateRefStart = templateRefMatch.index;
-    const templateRefLine = (textBeforeCursor.substring(0, templateRefStart).match(/\n/g) || [])
+    const templateRefLine = (textBeforeCursor.substring(0, lastTemplateRefIdx).match(/\n/g) || [])
       .length;
     const templateRefIndent = lines[templateRefLine].match(/^(\s*)/)?.[1].length ?? 0;
 
@@ -233,6 +238,7 @@ export function findTemplateReferenceAtPosition(
     let workflowTemplateName: string | undefined;
     let templateName: string | undefined;
     let clusterScope = false;
+    let blockEndLine = templateRefLine;
 
     for (let i = templateRefLine + 1; i < lines.length; i++) {
       const currentLine = lines[i];
@@ -246,6 +252,8 @@ export function findTemplateReferenceAtPosition(
       ) {
         break;
       }
+
+      blockEndLine = i;
 
       // name: フィールド
       const nameMatch = currentLine.match(/^\s*name:\s*['"]?([\w-]+)['"]?/);
@@ -266,7 +274,13 @@ export function findTemplateReferenceAtPosition(
       }
     }
 
-    if (workflowTemplateName && templateName) {
+    // カーソルがtemplateRefブロック内にある場合のみマッチ
+    if (
+      position.line >= templateRefLine &&
+      position.line <= blockEndLine &&
+      workflowTemplateName &&
+      templateName
+    ) {
       return {
         type: 'templateRef',
         templateName,

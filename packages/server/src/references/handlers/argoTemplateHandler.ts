@@ -113,7 +113,7 @@ function resolveDirectTemplate(
     return {
       detected,
       definitionLocation: { uri: doc.uri, range: template.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: `Template '${details.templateName}' not found in this ${details.workflowKind || 'Workflow'}`,
       exists: true,
     };
@@ -166,7 +166,7 @@ async function resolveTemplateRef(
     return {
       detected,
       definitionLocation: { uri: template.uri, range: template.range },
-      hoverMarkdown: hoverParts.join('\n'),
+      hoverMarkdown: hoverParts.join('  \n'),
       diagnosticMessage: null,
       exists: true,
     };

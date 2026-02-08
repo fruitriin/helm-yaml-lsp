@@ -126,7 +126,7 @@ export class HoverProvider {
       return {
         contents: {
           kind: MarkupKind.Markdown,
-          value: parts.join('\n'),
+          value: parts.join('  \n'),
         },
       };
     }
@@ -148,7 +148,7 @@ export class HoverProvider {
       return {
         contents: {
           kind: MarkupKind.Markdown,
-          value: parts.join('\n'),
+          value: parts.join('  \n'),
         },
       };
     }

@@ -6,6 +6,8 @@
 
 /**
  * コメントから説明文を構築
+ *
+ * 行頭の `#` をエスケープしてMarkdown見出しとして解釈されるのを防止
  */
 export function buildDescription(
   aboveComment?: string,
@@ -14,5 +16,10 @@ export function buildDescription(
   const comments: string[] = [];
   if (aboveComment) comments.push(aboveComment);
   if (inlineComment) comments.push(inlineComment);
-  return comments.length > 0 ? comments.join('\n\n') : undefined;
+  if (comments.length === 0) return undefined;
+  return comments
+    .join('\n\n')
+    .split('\n')
+    .map(line => line.replace(/^(#+)/, '\\$1'))
+    .join('\n');
 }

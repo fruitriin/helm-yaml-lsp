@@ -190,20 +190,25 @@ export class DocumentSymbolProvider {
   /** YamlNodeツリーをDocumentSymbol[]に変換 */
   private nodesToSymbols(
     nodes: YamlNode[],
-    _lines: string[],
-    _baseLineOffset: number
+    lines: string[],
+    baseLineOffset: number
   ): DocumentSymbol[] {
     return nodes.map(node => {
       const symbolKind = this.determineSymbolKind(node);
       const displayName = node.value ? `${node.key}: ${node.value}` : node.key;
-      const range = Range.create(Position.create(node.line, 0), Position.create(node.endLine, 0));
+      const endLineIdx = node.endLine - baseLineOffset;
+      const endChar = endLineIdx >= 0 && endLineIdx < lines.length ? lines[endLineIdx].length : 0;
+      const range = Range.create(
+        Position.create(node.line, 0),
+        Position.create(node.endLine, endChar)
+      );
       const selectionRange = Range.create(
         Position.create(node.line, node.indent),
         Position.create(node.line, node.indent + node.key.length)
       );
       const children =
         node.children.length > 0
-          ? this.nodesToSymbols(node.children, _lines, _baseLineOffset)
+          ? this.nodesToSymbols(node.children, lines, baseLineOffset)
           : undefined;
 
       return DocumentSymbol.create(

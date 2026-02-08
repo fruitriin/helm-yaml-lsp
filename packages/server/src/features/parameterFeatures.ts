@@ -22,7 +22,7 @@ function extractParameterComments(
   for (let i = lineNum - 1; i >= 0; i--) {
     const trimmed = lines[i].trim();
     if (trimmed.startsWith('#')) {
-      aboveComments.unshift(trimmed.substring(1).trim());
+      aboveComments.unshift(trimmed.replace(/^#+\s*/, ''));
     } else if (trimmed !== '') {
       break; // コメント以外が出現したら終了
     }

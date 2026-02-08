@@ -130,10 +130,10 @@ function buildWorkflowVariableHover(doc: TextDocument, details: WorkflowVariable
 
   // workflow.outputs.parameters.xxx / workflow.outputs.artifacts.xxx
   if (details.subPropertyType === 'outputs.parameters' && details.subProperty) {
-    return `**Workflow Output Parameter**: \`${details.subProperty}\`\n\n**Type**: Workflow Output\n\nReferenced from workflow-level \`outputs.parameters\``;
+    return `**Workflow Output Parameter**: \`${details.subProperty}\`  \n  \n**Type**: Workflow Output  \n  \nReferenced from workflow-level \`outputs.parameters\``;
   }
   if (details.subPropertyType === 'outputs.artifacts' && details.subProperty) {
-    return `**Workflow Output Artifact**: \`${details.subProperty}\`\n\n**Type**: Workflow Output\n\nReferenced from workflow-level \`outputs.artifacts\``;
+    return `**Workflow Output Artifact**: \`${details.subProperty}\`  \n  \n**Type**: Workflow Output  \n  \nReferenced from workflow-level \`outputs.artifacts\``;
   }
 
   const parts: string[] = [];
@@ -144,7 +144,7 @@ function buildWorkflowVariableHover(doc: TextDocument, details: WorkflowVariable
     parts.push('');
     parts.push(`**Example**: \`${details.example}\``);
   }
-  return parts.join('\n');
+  return parts.join('  \n');
 }
 
 /**
@@ -211,13 +211,13 @@ function buildWorkflowParameterHover(doc: TextDocument, parameterName: string): 
         parts.push('**Type**: Workflow Argument');
         if (value) parts.push(`**Value**: \`${value}\``);
         if (description) parts.push(`**Description**: ${description}`);
-        return parts.join('\n');
+        return parts.join('  \n');
       }
     }
   }
 
   // Fallback
-  return `**Workflow Parameter**: \`${parameterName}\`\n\n**Type**: Workflow Argument`;
+  return `**Workflow Parameter**: \`${parameterName}\`  \n  \n**Type**: Workflow Argument`;
 }
 
 /**

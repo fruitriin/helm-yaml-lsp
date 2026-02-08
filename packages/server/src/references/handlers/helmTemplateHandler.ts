@@ -86,7 +86,7 @@ export function createHelmTemplateHandler(
         return {
           detected,
           definitionLocation: { uri: templateDef.uri, range: templateDef.range },
-          hoverMarkdown: parts.join('\n'),
+          hoverMarkdown: parts.join('  \n'),
           diagnosticMessage: null,
           exists: true,
         };

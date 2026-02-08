@@ -189,10 +189,12 @@ export class RenderedArgoIndexCache {
 
     for (const doc of renderResult.documents) {
       const uri = `file:///rendered/${doc.sourceTemplatePath}`;
-      argoIndex.indexDocument(uri, doc.content);
+      // Phase 18: TextDocument を 1 回だけ作成し、argoIndex とキャッシュで共有
+      const textDocument = TextDocument.create(uri, 'yaml', 1, doc.content);
+      argoIndex.indexDocument(textDocument);
       templates.set(doc.sourceTemplatePath, {
         contentHash: simpleHash(doc.content),
-        textDocument: TextDocument.create(uri, 'yaml', 1, doc.content),
+        textDocument,
       });
     }
 
@@ -210,36 +212,29 @@ export class RenderedArgoIndexCache {
 
   /**
    * dirty テンプレートを差分レンダリングで更新
+   *
+   * Phase 18: registry の再構築は不要 — ハンドラーは同一 argoIndex インスタンスを
+   * クロージャ参照しているため、in-place 変更が自動的に反映される。
+   * また、各テンプレートのレンダリングを並列実行する。
    */
   private async refreshDirtyTemplates(cached: CachedChart, chartDir: string): Promise<void> {
     const dirtyList = [...cached.dirtyTemplates];
     cached.dirtyTemplates.clear();
 
-    let changed = false;
-
-    for (const templatePath of dirtyList) {
-      const didChange = await this.refreshSingleTemplate(cached, chartDir, templatePath);
-      if (didChange) {
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      // argoIndex が更新されたので registry を再構築
-      cached.registry = createArgoOnlyRegistry(cached.argoIndex, this.configMapIndex);
-    }
+    // Phase 18: 並列レンダリング（JS シングルスレッドなので Map 操作は安全）
+    await Promise.all(
+      dirtyList.map(templatePath => this.refreshSingleTemplate(cached, chartDir, templatePath))
+    );
   }
 
   /**
    * 単一テンプレートを再レンダリングして ArgoTemplateIndex を部分更新
-   *
-   * @returns true if content changed
    */
   private async refreshSingleTemplate(
     cached: CachedChart,
     chartDir: string,
     templatePath: string
-  ): Promise<boolean> {
+  ): Promise<void> {
     // dirty set からこのテンプレートを除去
     cached.dirtyTemplates.delete(templatePath);
 
@@ -256,9 +251,8 @@ export class RenderedArgoIndexCache {
         const renderedUri = `file:///rendered/${templatePath}`;
         cached.argoIndex.removeFile(renderedUri);
         cached.templates.delete(templatePath);
-        return true;
       }
-      return false;
+      return;
     }
 
     const newContent = result.documents[0].content;
@@ -267,7 +261,7 @@ export class RenderedArgoIndexCache {
 
     // ハッシュが同じなら変更なし
     if (oldEntry && oldEntry.contentHash === newHash) {
-      return false;
+      return;
     }
 
     const renderedUri = `file:///rendered/${templatePath}`;
@@ -277,13 +271,12 @@ export class RenderedArgoIndexCache {
       cached.argoIndex.removeFile(renderedUri);
     }
 
-    // 新しい内容でインデックス
-    cached.argoIndex.indexDocument(renderedUri, newContent);
+    // Phase 18: TextDocument を 1 回だけ作成し、argoIndex とキャッシュで共有
+    const textDocument = TextDocument.create(renderedUri, 'yaml', 1, newContent);
+    cached.argoIndex.indexDocument(textDocument);
     cached.templates.set(templatePath, {
       contentHash: newHash,
-      textDocument: TextDocument.create(renderedUri, 'yaml', 1, newContent),
+      textDocument,
     });
-
-    return true;
   }
 }

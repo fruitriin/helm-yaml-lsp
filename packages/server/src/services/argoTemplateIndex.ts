@@ -9,7 +9,7 @@ import { isArgoWorkflowDocument } from '@/features/documentDetection';
 import { findTemplateDefinitions } from '@/features/templateFeatures';
 import type { ArgoWorkflowKind, IndexedWorkflowTemplate, TemplateDefinition } from '@/types/argo';
 import { findFiles, readFile } from '@/utils/fileSystem';
-import { isSameUri } from '@/utils/uriUtils';
+import { normalizeUri } from '@/utils/uriUtils';
 
 /**
  * Argoテンプレートインデックスサービス
@@ -19,6 +19,8 @@ import { isSameUri } from '@/utils/uriUtils';
  */
 export class ArgoTemplateIndex {
   private index = new Map<string, IndexedWorkflowTemplate>();
+  /** 逆引きインデックス: normalizedUri → index キーの集合（O(1) removeFile 用） */
+  private uriToKeys = new Map<string, Set<string>>();
   private workspaceFolders: string[] = [];
   private initialized = false;
 
@@ -66,7 +68,7 @@ export class ArgoTemplateIndex {
   async indexFile(uri: string): Promise<void> {
     try {
       const content = await readFile(uri);
-      this.indexDocumentContent(uri, content);
+      this.indexDocument(uri, content);
     } catch (err) {
       console.error(`[ArgoTemplateIndex] Failed to index file: ${uri}`, err);
     }
@@ -76,25 +78,30 @@ export class ArgoTemplateIndex {
    * ドキュメント内容を直接インデックスに追加（ファイルI/O不要）
    *
    * レンダリング済み YAML など、メモリ上のコンテンツをインデックスする場合に使用。
-   *
-   * @param uri - ドキュメントURI
-   * @param content - YAML コンテンツ
+   * TextDocument を渡すと TextDocument の再作成を省略できる。
    */
-  indexDocument(uri: string, content: string): void {
-    this.indexDocumentContent(uri, content);
+  indexDocument(uri: string, content: string): void;
+  indexDocument(document: TextDocument): void;
+  indexDocument(uriOrDoc: string | TextDocument, content?: string): void {
+    if (typeof uriOrDoc === 'string') {
+      const doc = TextDocument.create(uriOrDoc, 'yaml', 1, content!);
+      this.indexTextDocument(doc);
+    } else {
+      this.indexTextDocument(uriOrDoc);
+    }
   }
 
   /**
-   * ドキュメント内容をインデックスに追加（内部共通メソッド）
+   * TextDocument をインデックスに追加（内部共通メソッド）
    */
-  private indexDocumentContent(uri: string, content: string): void {
-    const document = TextDocument.create(uri, 'yaml', 1, content);
-
+  private indexTextDocument(document: TextDocument): void {
     if (!isArgoWorkflowDocument(document)) {
       return;
     }
 
     const definitions = findTemplateDefinitions(document);
+    const uri = document.uri;
+    const normalizedUri = normalizeUri(uri);
 
     // WorkflowTemplate/ClusterWorkflowTemplate のみインデックス
     for (const def of definitions) {
@@ -120,6 +127,14 @@ export class ArgoTemplateIndex {
       }
 
       indexed.templates.set(def.name, def);
+
+      // 逆引きインデックスを更新
+      let keys = this.uriToKeys.get(normalizedUri);
+      if (!keys) {
+        keys = new Set();
+        this.uriToKeys.set(normalizedUri, keys);
+      }
+      keys.add(key);
     }
   }
 
@@ -136,24 +151,23 @@ export class ArgoTemplateIndex {
   /**
    * ファイルをインデックスから削除
    *
+   * 逆引きインデックスにより O(1) で該当キーを特定する。
+   *
    * @param uri - ファイルURI
    */
   removeFile(uri: string): void {
-    const keysToDelete: string[] = [];
-
-    for (const [key, indexed] of this.index.entries()) {
-      if (isSameUri(indexed.uri, uri)) {
-        keysToDelete.push(key);
-      }
+    const normalized = normalizeUri(uri);
+    const keys = this.uriToKeys.get(normalized);
+    if (!keys || keys.size === 0) {
+      return;
     }
 
-    for (const key of keysToDelete) {
+    for (const key of keys) {
       this.index.delete(key);
     }
 
-    if (keysToDelete.length > 0) {
-      console.error(`[ArgoTemplateIndex] Removed ${keysToDelete.length} templates from ${uri}`);
-    }
+    console.error(`[ArgoTemplateIndex] Removed ${keys.size} templates from ${uri}`);
+    this.uriToKeys.delete(normalized);
   }
 
   /**
@@ -261,6 +275,7 @@ export class ArgoTemplateIndex {
    */
   clear(): void {
     this.index.clear();
+    this.uriToKeys.clear();
     this.initialized = false;
     console.error('[ArgoTemplateIndex] Cleared index');
   }

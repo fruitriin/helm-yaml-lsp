@@ -71,7 +71,12 @@ describe('Helm + Argo Workflows Integration Tests', () => {
       valuesIndex,
       helmTemplateIndex
     );
-    completionProvider = new CompletionProvider(helmChartIndex, valuesIndex, helmTemplateIndex);
+    completionProvider = new CompletionProvider(
+      argoTemplateIndex,
+      helmChartIndex,
+      valuesIndex,
+      helmTemplateIndex
+    );
     diagnosticProvider = new DiagnosticProvider(
       argoTemplateIndex,
       helmChartIndex,

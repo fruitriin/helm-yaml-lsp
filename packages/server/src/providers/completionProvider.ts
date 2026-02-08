@@ -9,7 +9,7 @@ import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { CompletionList, Position } from 'vscode-languageserver-types';
 import type { ReferenceRegistry } from '@/references/registry';
 import { createReferenceRegistry } from '@/references/setup';
-import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
@@ -25,18 +25,18 @@ export class CompletionProvider {
   private registry: ReferenceRegistry;
 
   constructor(
+    argoTemplateIndex: ArgoTemplateIndex,
     helmChartIndex?: HelmChartIndex,
     valuesIndex?: ValuesIndex,
     helmTemplateIndex?: HelmTemplateIndex,
     configMapIndex?: ConfigMapIndex,
     registry?: ReferenceRegistry
   ) {
-    // CompletionProvider の旧コンストラクタは ArgoTemplateIndex を受け取らない。
-    // registry がない場合はダミーの ArgoTemplateIndex で registry を構築する。
+    // Phase 18: ダミー ArgoTemplateIndex を排除 — 実インスタンスを外部から受け取る
     this.registry =
       registry ??
       createReferenceRegistry(
-        new ArgoTemplateIndex(),
+        argoTemplateIndex,
         helmChartIndex,
         valuesIndex,
         helmTemplateIndex,

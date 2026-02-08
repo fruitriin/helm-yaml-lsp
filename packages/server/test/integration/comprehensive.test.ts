@@ -34,7 +34,7 @@ describe('Comprehensive Integration Tests', () => {
     templateIndex = new ArgoTemplateIndex();
     definitionProvider = new DefinitionProvider(templateIndex);
     hoverProvider = new HoverProvider(templateIndex);
-    completionProvider = new CompletionProvider();
+    completionProvider = new CompletionProvider(templateIndex);
     diagnosticProvider = new DiagnosticProvider(templateIndex);
   });
 

@@ -374,6 +374,7 @@ describe('Demo Workflow Integration Tests (Multi-Document YAML)', () => {
       validConfigMapIndex
     );
     completionProvider = new CompletionProvider(
+      validTemplateIndex,
       undefined,
       undefined,
       undefined,

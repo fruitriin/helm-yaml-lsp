@@ -93,6 +93,7 @@ const hoverProvider = new HoverProvider(
   renderedArgoIndexCache
 );
 const completionProvider = new CompletionProvider(
+  argoTemplateIndex,
   helmChartIndex,
   valuesIndex,
   helmTemplateIndex,

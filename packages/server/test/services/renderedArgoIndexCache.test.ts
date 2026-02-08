@@ -380,4 +380,116 @@ spec:
       expect(docA).not.toBeNull();
     });
   });
+
+  // Phase 18: registry 再構築排除 + 並列レンダリング
+  describe('Phase 18: optimizations', () => {
+    it('dirty refresh should resolve cross-document refs without registry rebuild', async () => {
+      const wftContent = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cross-wft
+spec:
+  templates:
+    - name: greet
+      container:
+        image: alpine`;
+
+      const workflowContent = `apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            templateRef:
+              name: cross-wft
+              template: greet`;
+
+      const executor = createMockExecutor(true, [
+        { path: 'templates/wft.yaml', content: wftContent },
+        { path: 'templates/workflow.yaml', content: workflowContent },
+      ]);
+      const cache = new RenderedArgoIndexCache(executor);
+
+      // 初回: フルレンダリング
+      const registry1 = await cache.getRegistry('/charts/test');
+      expect(registry1).not.toBeNull();
+
+      // dirty マーク + refresh
+      cache.markDirty('/charts/test', 'templates/wft.yaml');
+      const registry2 = await cache.getRegistry('/charts/test');
+
+      // Phase 18: registry は再構築されないので同一参照
+      expect(registry2).toBe(registry1);
+
+      // cross-document 解決が動作することを確認
+      const doc = await cache.getRenderedDocument('/charts/test', 'templates/workflow.yaml');
+      expect(doc).not.toBeNull();
+      const resolved = await registry2!.detectAndResolve(doc!, { line: 11, character: 20 });
+      expect(resolved).not.toBeNull();
+      expect(resolved?.definitionLocation?.uri).toContain('rendered/templates/wft.yaml');
+    });
+
+    it('parallel dirty rendering should produce correct results', async () => {
+      const wftA = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: wft-a
+spec:
+  templates:
+    - name: alpha
+      container:
+        image: alpine`;
+
+      const wftB = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: wft-b
+spec:
+  templates:
+    - name: beta
+      container:
+        image: busybox`;
+
+      const wftC = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: wft-c
+spec:
+  templates:
+    - name: gamma
+      container:
+        image: ubuntu`;
+
+      const executor = createMockExecutor(true, [
+        { path: 'templates/a.yaml', content: wftA },
+        { path: 'templates/b.yaml', content: wftB },
+        { path: 'templates/c.yaml', content: wftC },
+      ]);
+      const cache = new RenderedArgoIndexCache(executor);
+
+      // 初回: フルレンダリング
+      await cache.getRegistry('/charts/test');
+
+      // 全テンプレートを dirty にマーク
+      cache.markAllDirty('/charts/test');
+
+      // refresh（並列実行される）
+      await cache.getRegistry('/charts/test');
+
+      // 3テンプレートすべてが正しく更新されているか確認
+      const docA = await cache.getRenderedDocument('/charts/test', 'templates/a.yaml');
+      const docB = await cache.getRenderedDocument('/charts/test', 'templates/b.yaml');
+      const docC = await cache.getRenderedDocument('/charts/test', 'templates/c.yaml');
+      expect(docA).not.toBeNull();
+      expect(docB).not.toBeNull();
+      expect(docC).not.toBeNull();
+      expect(docA?.getText()).toContain('wft-a');
+      expect(docB?.getText()).toContain('wft-b');
+      expect(docC?.getText()).toContain('wft-c');
+    });
+  });
 });

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ArgoTemplateIndex } from '../../src/services/argoTemplateIndex';
 import { filePathToUri } from '../../src/utils/uriUtils';
 
@@ -344,6 +345,111 @@ spec:
       expect(template).toBeDefined();
       expect(template?.name).toBe('unique-template-name');
       expect(template?.workflowName).toBe('any-workflow');
+    });
+  });
+
+  describe('Phase 18: indexDocument with TextDocument', () => {
+    it('should index from TextDocument directly (avoid double TextDocument creation)', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: text-doc-wft
+spec:
+  templates:
+    - name: greeting
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///rendered/templates/wft.yaml', 'yaml', 1, content);
+      index.indexDocument(doc);
+
+      expect(index.size()).toBe(1);
+    });
+
+    it('should produce same results whether indexing from string or TextDocument', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: compare-wft
+spec:
+  templates:
+    - name: alpha
+      container:
+        image: alpine
+    - name: beta
+      container:
+        image: busybox
+`;
+      const uri = 'file:///test/compare.yaml';
+
+      // Index from string
+      const indexA = new ArgoTemplateIndex();
+      indexA.indexDocument(uri, content);
+
+      // Index from TextDocument
+      const indexB = new ArgoTemplateIndex();
+      const doc = TextDocument.create(uri, 'yaml', 1, content);
+      indexB.indexDocument(doc);
+
+      expect(indexA.size()).toBe(indexB.size());
+    });
+  });
+
+  describe('Phase 18: reverse URI index', () => {
+    it('removeFile should be O(1) via reverse index', async () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: reverse-wft
+spec:
+  templates:
+    - name: task1
+      container:
+        image: alpine
+`;
+      const filePath = path.join(testDir, 'reverse.yaml');
+      await fs.writeFile(filePath, content);
+      const uri = filePathToUri(filePath);
+
+      await index.indexFile(uri);
+      expect(index.size()).toBe(1);
+
+      // removeFile should work correctly
+      index.removeFile(uri);
+      expect(index.size()).toBe(0);
+
+      // Second removeFile should be a no-op
+      index.removeFile(uri);
+      expect(index.size()).toBe(0);
+    });
+
+    it('removeFile should handle multiple WorkflowTemplates from same file', () => {
+      const content = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: wft-a
+spec:
+  templates:
+    - name: t1
+      container:
+        image: alpine
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: wft-b
+spec:
+  templates:
+    - name: t2
+      container:
+        image: busybox
+`;
+      const uri = 'file:///test/multi-doc.yaml';
+      index.indexDocument(uri, content);
+      expect(index.size()).toBe(2);
+
+      index.removeFile(uri);
+      expect(index.size()).toBe(0);
     });
   });
 

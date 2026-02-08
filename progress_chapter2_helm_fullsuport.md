@@ -79,6 +79,42 @@ DiagnosticProvider.provideDiagnostics(helmTemplateDoc)
 
 ---
 
+## Phase 14: `.tpl` ファイルサポート + language-configuration 改善 + Go template Hover/Completion ✅
+
+**完了日**: 2026-02-08
+
+### 概要
+
+Helm チャートの `.tpl` ファイルを LSP のフルサポート対象に追加。
+Go テンプレート制御構文（`if`, `range`, `with`, `define`, `block`, `end` 等）に Hover / Completion を提供。
+`helm-language-configuration.json` を全面改善し、ブロックコメントや `{{-`/`-}}` ブラケットを追加。
+
+### 変更ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `vscode-client/package.json` | `extensions: [".tpl"]` 追加 |
+| `vscode-client/src/extension.ts` | fileEvents に `.tpl` 追加 |
+| `vscode-client/helm-language-configuration.json` | blockComment, `{{-`/`-}}` ブラケット4バリエーション, backtick 等を全面改善 |
+| `features/goTemplateKeywords.ts` | **新規** — 9キーワードカタログ（if, else, else if, range, with, define, template, block, end） |
+| `features/goTemplateKeywordFeatures.ts` | **新規** — カーソル位置のキーワード検出ロジック |
+| `references/types.ts` | `ReferenceKind` に `goTemplateKeyword` 追加、`GoTemplateKeywordDetails` 型追加 |
+| `references/handlers/goTemplateKeywordHandler.ts` | **新規** — Hover / Completion ハンドラー |
+| `references/setup.ts` | Helm ガードの最低優先順位に goTemplateKeywordHandler 登録 |
+
+### 新規テスト
+
+| ファイル | テスト数 | 内容 |
+|---------|---------|------|
+| `test/features/goTemplateKeywords.test.ts` | 5 | カタログ網羅性・検索テスト |
+| `test/references/goTemplateKeywordHandler.test.ts` | 13 | detect / resolve / complete テスト |
+
+### テスト結果
+
+**788 pass, 1 skip, 0 fail**（51ファイル）
+
+---
+
 ## 現在の LSP 機能カバレッジ
 
 | 機能 | Plain Argo YAML | Helm テンプレート（生） | Helm テンプレート（レンダリング経由） |
@@ -96,7 +132,7 @@ DiagnosticProvider.provideDiagnostics(helmTemplateDoc)
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| **14** | `.tpl` ファイルサポート + Go template Hover/Completion | 計画済み |
+| **14** | `.tpl` ファイルサポート + Go template Hover/Completion | **✅ 完了** |
 | **14B** | Semantic Tokens（エディタ非依存構文ハイライト） | 計画済み |
 | 15 | レンダリング済み YAML の Definition/Hover を argoRegistry 経由に統合 | - |
 | 16 | 差分レンダリング（変更テンプレートのみ再レンダリング） | - |

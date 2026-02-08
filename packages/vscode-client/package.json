@@ -27,7 +27,13 @@
     "languages": [
       {
         "id": "helm",
-        "aliases": ["Helm Template", "helm"],
+        "aliases": [
+          "Helm Template",
+          "helm"
+        ],
+        "extensions": [
+          ".tpl"
+        ],
         "configuration": "./helm-language-configuration.json"
       }
     ],

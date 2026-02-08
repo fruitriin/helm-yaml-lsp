@@ -16,6 +16,7 @@ import { createArgoParameterHandler } from './handlers/argoParameterHandler';
 import { createArgoTemplateHandler } from './handlers/argoTemplateHandler';
 import { createChartVariableHandler } from './handlers/chartVariableHandler';
 import { createConfigMapHandler } from './handlers/configMapHandler';
+import { createGoTemplateKeywordHandler } from './handlers/goTemplateKeywordHandler';
 import { createHelmFunctionHandler } from './handlers/helmFunctionHandler';
 import { createHelmTemplateHandler } from './handlers/helmTemplateHandler';
 import { createHelmValuesHandler } from './handlers/helmValuesHandler';
@@ -54,6 +55,7 @@ export function createReferenceRegistry(
     helmHandlers.push(createHelmFunctionHandler());
     helmHandlers.push(createChartVariableHandler(_helmChartIndex));
     helmHandlers.push(createReleaseCapabilitiesHandler());
+    helmHandlers.push(createGoTemplateKeywordHandler());
 
     registry.addGuard({
       name: 'helm',

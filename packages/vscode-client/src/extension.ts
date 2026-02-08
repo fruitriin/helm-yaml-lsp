@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { type ExtensionContext, type TextDocument, languages, window, workspace } from 'vscode';
+import { type ExtensionContext, languages, type TextDocument, window, workspace } from 'vscode';
 import {
   LanguageClient,
   type LanguageClientOptions,
@@ -106,7 +106,7 @@ export async function activate(context: ExtensionContext) {
     ],
     synchronize: {
       // ワークスペース内のYAMLファイルの変更を監視
-      fileEvents: workspace.createFileSystemWatcher('**/*.{yaml,yml}'),
+      fileEvents: workspace.createFileSystemWatcher('**/*.{yaml,yml,tpl}'),
     },
   };
 
@@ -125,7 +125,7 @@ export async function activate(context: ExtensionContext) {
 
   // 新しく開くドキュメントの languageId を切り替え
   context.subscriptions.push(
-    workspace.onDidOpenTextDocument((doc) => {
+    workspace.onDidOpenTextDocument(doc => {
       setHelmLanguageIfNeeded(doc);
     })
   );

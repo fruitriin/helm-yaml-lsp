@@ -19,7 +19,8 @@ export type ReferenceKind =
   | 'helmFunction'
   | 'chartVariable'
   | 'releaseCapabilities'
-  | 'itemVariable';
+  | 'itemVariable'
+  | 'goTemplateKeyword';
 
 /**
  * Argo Template 参照の詳細
@@ -143,6 +144,14 @@ export type ItemVariableDetails = {
 };
 
 /**
+ * Go Template Keyword 参照の詳細
+ */
+export type GoTemplateKeywordDetails = {
+  kind: 'goTemplateKeyword';
+  keywordName: string;
+};
+
+/**
  * 参照詳細の判別共用体
  */
 export type ReferenceDetails =
@@ -155,7 +164,8 @@ export type ReferenceDetails =
   | HelmFunctionDetails
   | ChartVariableDetails
   | ReleaseCapabilitiesDetails
-  | ItemVariableDetails;
+  | ItemVariableDetails
+  | GoTemplateKeywordDetails;
 
 /**
  * 検出された参照

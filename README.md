@@ -54,50 +54,39 @@ code --install-extension helm-yaml-lsp-client-*.vsix
 
 - **Neovim** 0.8以上
 - **Node.js** 18以上
-- **[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig)**
 
 #### インストール手順
 
-1. リポジトリをクローンし、サーバーをビルドします：
+1. npm からサーバーをインストールします：
 
 ```bash
-git clone --recursive https://github.com/fruitriin/helm-yaml-lsp.git
-cd helm-yaml-lsp
-bun install
-bun run build
+npm install -g helm-yaml-lsp-server
 ```
 
 2. `~/.config/nvim/init.lua`（または適切な設定ファイル）に以下を追加します：
 
 ```lua
--- helm-yaml-lsp のパスを環境に合わせて変更してください
-local lsp_root = vim.fn.expand('~/path/to/helm-yaml-lsp')
-local server_path = lsp_root .. '/packages/server/dist/server.js'
-
--- nvim-client をランタイムパスに追加
-vim.opt.runtimepath:append(lsp_root .. '/packages/nvim-client')
-
--- セットアップ
-require('argo-workflows-lsp').setup({
-  server_path = server_path,
-  on_attach = function(client, bufnr)
-    local opts = { buffer = bufnr, noremap = true, silent = true }
-    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
-    vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-    vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'yaml', 'helm' },
+  callback = function()
+    vim.lsp.start({
+      name = 'helm-yaml-lsp',
+      cmd = { 'helm-yaml-lsp-server', '--stdio' },
+      root_dir = vim.fs.root(0, { 'Chart.yaml', '.git' }),
+      settings = {
+        argoWorkflowsLSP = {
+          enableDiagnostics = true,
+          enableHover = true,
+          enableDefinition = true,
+          enableCompletion = true,
+        }
+      }
+    })
   end,
-  settings = {
-    argoWorkflowsLSP = {
-      enableDiagnostics = true,
-      enableHover = true,
-      enableDefinition = true,
-      enableCompletion = true,
-    }
-  }
 })
 ```
 
-3. YAMLファイルを開き、`:LspInfo` で `argo_workflows_lsp` が `attached` と表示されれば成功です。
+3. YAMLファイルを開き、`:checkhealth lsp` で接続を確認できます。
 
 ---
 

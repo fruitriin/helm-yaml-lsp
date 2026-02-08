@@ -1,0 +1,6 @@
+{
+  "name": "release",
+  "description": "最新バージョンのリリースを作成する（バージョンバンプ → ビルド → VSIX → GitHub Release）",
+  "prompt": "prompt.md",
+  "tags": ["release", "packaging", "github"]
+}

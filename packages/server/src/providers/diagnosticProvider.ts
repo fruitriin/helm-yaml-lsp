@@ -9,16 +9,16 @@
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { TextDocument as TextDocumentImpl } from 'vscode-languageserver-textdocument';
 import { type Diagnostic, DiagnosticSeverity } from 'vscode-languageserver-types';
 import { isHelmTemplate } from '@/features/documentDetection';
 import type { ReferenceRegistry } from '@/references/registry';
-import { createArgoOnlyRegistry, createReferenceRegistry } from '@/references/setup';
-import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import { createReferenceRegistry } from '@/references/setup';
+import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { HelmTemplateExecutor } from '@/services/helmTemplateExecutor';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { RenderedArgoIndexCache } from '@/services/renderedArgoIndexCache';
 import type { SymbolMappingIndex } from '@/services/symbolMappingIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 import { uriToFilePath } from '@/utils/uriUtils';
@@ -37,7 +37,7 @@ export class DiagnosticProvider {
   private helmTemplateExecutor?: HelmTemplateExecutor;
   private symbolMappingIndex?: SymbolMappingIndex;
   private helmChartIndex?: HelmChartIndex;
-  private configMapIndex?: ConfigMapIndex;
+  private renderedArgoIndexCache?: RenderedArgoIndexCache;
 
   constructor(
     templateIndex: ArgoTemplateIndex,
@@ -48,7 +48,8 @@ export class DiagnosticProvider {
     registry?: ReferenceRegistry,
     helmTemplateExecutor?: HelmTemplateExecutor,
     symbolMappingIndex?: SymbolMappingIndex,
-    _argoRegistry?: ReferenceRegistry
+    _argoRegistry?: ReferenceRegistry,
+    renderedArgoIndexCache?: RenderedArgoIndexCache
   ) {
     this.registry =
       registry ??
@@ -62,7 +63,7 @@ export class DiagnosticProvider {
     this.helmChartIndex = helmChartIndex;
     this.helmTemplateExecutor = helmTemplateExecutor;
     this.symbolMappingIndex = symbolMappingIndex;
-    this.configMapIndex = configMapIndex;
+    this.renderedArgoIndexCache = renderedArgoIndexCache;
   }
 
   /**
@@ -131,37 +132,23 @@ export class DiagnosticProvider {
     }
     const templatePath = filePath.substring(templatesIdx + 1);
 
-    // Step 4: Chart 全体をレンダリング（templateRef の相互参照解決に必要）
-    const renderResult = await this.helmTemplateExecutor.renderChart(chart.rootDir);
-    if (!renderResult.success || !renderResult.documents || renderResult.documents.length === 0) {
+    // Step 4-5: RenderedArgoIndexCache 経由で registry + renderedDoc を取得
+    let tempArgoRegistry: ReferenceRegistry | null = null;
+    let renderedTextDoc: TextDocument | null = null;
+
+    if (this.renderedArgoIndexCache) {
+      tempArgoRegistry = await this.renderedArgoIndexCache.getRegistry(chart.rootDir);
+      renderedTextDoc = await this.renderedArgoIndexCache.getRenderedDocument(
+        chart.rootDir,
+        templatePath
+      );
+    }
+
+    if (!tempArgoRegistry || !renderedTextDoc) {
       return [];
     }
-
-    // 現在のテンプレートのレンダリング結果を検索
-    const currentRenderedDoc = renderResult.documents.find(
-      d => d.sourceTemplatePath === templatePath
-    );
-    if (!currentRenderedDoc) {
-      return [];
-    }
-
-    // Step 5: レンダリング済み WorkflowTemplate を一時インデックスに登録
-    const tempArgoIndex = new ArgoTemplateIndex();
-    for (const doc of renderResult.documents) {
-      tempArgoIndex.indexDocument(`file:///rendered/${doc.sourceTemplatePath}`, doc.content);
-    }
-
-    // 一時的な argoOnlyRegistry を構築
-    const tempArgoRegistry = createArgoOnlyRegistry(tempArgoIndex, this.configMapIndex);
 
     // Step 6: レンダリング済み YAML で Argo/ConfigMap 診断
-    const renderedTextDoc = TextDocumentImpl.create(
-      'file:///rendered-temp.yaml',
-      'yaml',
-      1,
-      currentRenderedDoc.content
-    );
-
     const failures = await tempArgoRegistry.validateAll(renderedTextDoc);
     const argoFailures = failures.filter(r => r.diagnosticMessage != null);
 

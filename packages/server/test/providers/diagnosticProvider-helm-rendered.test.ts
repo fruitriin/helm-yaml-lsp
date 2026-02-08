@@ -13,6 +13,7 @@ import { ReferenceRegistry } from '../../src/references/registry';
 import { ArgoTemplateIndex } from '../../src/services/argoTemplateIndex';
 import type { HelmChartIndex } from '../../src/services/helmChartIndex';
 import type { HelmTemplateExecutor } from '../../src/services/helmTemplateExecutor';
+import { RenderedArgoIndexCache } from '../../src/services/renderedArgoIndexCache';
 import type { SymbolMappingIndex } from '../../src/services/symbolMappingIndex';
 import type { HelmRenderResult } from '../../src/types/rendering';
 
@@ -122,7 +123,9 @@ spec:
         undefined,
         directRegistry,
         helmExecutor,
-        symbolMapping
+        symbolMapping,
+        undefined,
+        new RenderedArgoIndexCache(helmExecutor)
       );
 
       // isHelmTemplate = true になるように helm languageId を使用
@@ -204,7 +207,9 @@ spec:
         undefined,
         directRegistry,
         helmExecutor,
-        symbolMapping
+        symbolMapping,
+        undefined,
+        new RenderedArgoIndexCache(helmExecutor)
       );
 
       const doc = TextDocument.create(
@@ -326,7 +331,9 @@ spec:
         undefined,
         directRegistry,
         helmExecutor,
-        symbolMapping
+        symbolMapping,
+        undefined,
+        new RenderedArgoIndexCache(helmExecutor)
       );
 
       const doc = TextDocument.create(
@@ -383,7 +390,9 @@ spec:
         undefined,
         directRegistry,
         helmExecutor,
-        symbolMapping
+        symbolMapping,
+        undefined,
+        new RenderedArgoIndexCache(helmExecutor)
       );
 
       const doc = TextDocument.create(

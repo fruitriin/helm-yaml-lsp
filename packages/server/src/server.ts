@@ -35,6 +35,7 @@ import { FileWatcher } from '@/services/fileWatcher';
 import { HelmChartIndex } from '@/services/helmChartIndex';
 import { HelmTemplateExecutor } from '@/services/helmTemplateExecutor';
 import { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import { RenderedArgoIndexCache } from '@/services/renderedArgoIndexCache';
 import { SymbolMappingIndex } from '@/services/symbolMappingIndex';
 import { ValuesIndex } from '@/services/valuesIndex';
 // "@/" エイリアスを使用した型定義のインポート
@@ -59,6 +60,7 @@ const configMapIndex = new ConfigMapIndex();
 const helmTemplateExecutor = new HelmTemplateExecutor();
 const fileCache = new FileCache();
 const symbolMappingIndex = new SymbolMappingIndex(helmTemplateExecutor, fileCache);
+const renderedArgoIndexCache = new RenderedArgoIndexCache(helmTemplateExecutor, configMapIndex);
 const fileWatcher = new FileWatcher(connection);
 const _referenceRegistry = createReferenceRegistry(
   argoTemplateIndex,
@@ -74,7 +76,8 @@ const definitionProvider = new DefinitionProvider(
   helmTemplateIndex,
   configMapIndex,
   _referenceRegistry,
-  symbolMappingIndex
+  symbolMappingIndex,
+  renderedArgoIndexCache
 );
 const hoverProvider = new HoverProvider(
   argoTemplateIndex,
@@ -83,7 +86,8 @@ const hoverProvider = new HoverProvider(
   helmTemplateIndex,
   configMapIndex,
   _referenceRegistry,
-  symbolMappingIndex
+  symbolMappingIndex,
+  renderedArgoIndexCache
 );
 const completionProvider = new CompletionProvider(
   helmChartIndex,
@@ -99,7 +103,9 @@ const diagnosticProvider = new DiagnosticProvider(
   configMapIndex,
   undefined,
   helmTemplateExecutor,
-  symbolMappingIndex
+  symbolMappingIndex,
+  undefined,
+  renderedArgoIndexCache
 );
 const documentSymbolProvider = new DocumentSymbolProvider();
 const documentHighlightProvider = new DocumentHighlightProvider();

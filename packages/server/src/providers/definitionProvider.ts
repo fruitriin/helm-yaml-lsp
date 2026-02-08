@@ -4,6 +4,8 @@
  * テンプレート参照から定義へのジャンプ機能を提供。
  * ReferenceRegistry に処理を委譲する薄い層。
  * Phase 7: レンダリング済みYAMLの元テンプレートへのジャンプ。
+ * Phase 15: レンダリング済みYAMLの Argo 意味解決。
+ * Phase 15B: RenderedArgoIndexCache で cross-document templateRef 解決。
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
@@ -19,6 +21,7 @@ import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { RenderedArgoIndexCache } from '@/services/renderedArgoIndexCache';
 import type { SymbolMappingIndex } from '@/services/symbolMappingIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 import { filePathToUri } from '@/utils/uriUtils';
@@ -39,7 +42,8 @@ export class DefinitionProvider {
     helmTemplateIndex?: HelmTemplateIndex,
     configMapIndex?: ConfigMapIndex,
     registry?: ReferenceRegistry,
-    private symbolMappingIndex?: SymbolMappingIndex
+    private symbolMappingIndex?: SymbolMappingIndex,
+    private renderedArgoIndexCache?: RenderedArgoIndexCache
   ) {
     this.registry =
       registry ??
@@ -59,14 +63,19 @@ export class DefinitionProvider {
     document: TextDocument,
     position: Position
   ): Promise<Location | Location[] | null> {
-    // Phase 15: レンダリング済みYAMLの場合、まず Argo 意味解決を試行
+    // Phase 15/15B: レンダリング済みYAMLの場合、Argo 意味解決を試行
     if (isRenderedYaml(document)) {
-      // Argo registry で意味的な定義解決（テンプレート参照、パラメータ等）
+      // Step 1: 既存 registry でローカル参照解決（Phase 15）
       const resolved = await this.registry.detectAndResolve(document, position);
       if (resolved?.definitionLocation) {
         return Location.create(resolved.definitionLocation.uri, resolved.definitionLocation.range);
       }
-      // フォールバック: symbolMapping による元テンプレートへのジャンプ
+      // Step 2: RenderedArgoIndexCache で cross-document 解決（Phase 15B）
+      const crossDocResult = await this.handleRenderedYamlCrossDocDefinition(document, position);
+      if (crossDocResult) {
+        return crossDocResult;
+      }
+      // Step 3: symbolMapping による元テンプレートへのジャンプ
       if (this.symbolMappingIndex) {
         return this.handleRenderedYamlDefinition(document, position);
       }
@@ -78,6 +87,54 @@ export class DefinitionProvider {
       return Location.create(resolved.definitionLocation.uri, resolved.definitionLocation.range);
     }
     return null;
+  }
+
+  /**
+   * Phase 15B: RenderedArgoIndexCache 経由の cross-document 定義解決
+   *
+   * レンダリング済みチャート全体の ArgoTemplateIndex を使い、
+   * 別テンプレートの WorkflowTemplate への templateRef を解決する。
+   * 仮想 URI (file:///rendered/...) → 実ファイルパスへのマッピング付き。
+   */
+  private async handleRenderedYamlCrossDocDefinition(
+    document: TextDocument,
+    position: Position
+  ): Promise<Location | null> {
+    if (!this.renderedArgoIndexCache || !this.helmChartIndex) {
+      return null;
+    }
+
+    const chartName = extractChartNameFromSource(document);
+    if (!chartName) {
+      return null;
+    }
+
+    const charts = this.helmChartIndex.getAllCharts();
+    const chart = charts.find(c => c.name === chartName);
+    if (!chart) {
+      return null;
+    }
+
+    const registry = await this.renderedArgoIndexCache.getRegistry(chart.rootDir);
+    if (!registry) {
+      return null;
+    }
+
+    const resolved = await registry.detectAndResolve(document, position);
+    if (!resolved?.definitionLocation) {
+      return null;
+    }
+
+    const defUri = resolved.definitionLocation.uri;
+
+    // 仮想 URI (file:///rendered/templates/xxx.yaml) → 実ファイルパスにマッピング
+    if (defUri.startsWith('file:///rendered/')) {
+      const renderedPath = defUri.replace('file:///rendered/', '');
+      const realUri = filePathToUri(`${chart.rootDir}/${renderedPath}`);
+      return Location.create(realUri, resolved.definitionLocation.range);
+    }
+
+    return Location.create(defUri, resolved.definitionLocation.range);
   }
 
   /**

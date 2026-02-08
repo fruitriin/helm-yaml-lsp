@@ -4,6 +4,8 @@
  * テンプレート参照にホバーすると詳細情報を表示。
  * ReferenceRegistry に処理を委譲する薄い層。
  * Phase 7: レンダリング済みYAMLのHelm式情報表示。
+ * Phase 15: レンダリング済みYAMLの Argo 意味解決。
+ * Phase 15B: RenderedArgoIndexCache で cross-document templateRef 解決。
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
@@ -19,6 +21,7 @@ import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
 import type { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import type { RenderedArgoIndexCache } from '@/services/renderedArgoIndexCache';
 import type { SymbolMappingIndex } from '@/services/symbolMappingIndex';
 import type { ValuesIndex } from '@/services/valuesIndex';
 
@@ -38,7 +41,8 @@ export class HoverProvider {
     helmTemplateIndex?: HelmTemplateIndex,
     configMapIndex?: ConfigMapIndex,
     registry?: ReferenceRegistry,
-    private symbolMappingIndex?: SymbolMappingIndex
+    private symbolMappingIndex?: SymbolMappingIndex,
+    private renderedArgoIndexCache?: RenderedArgoIndexCache
   ) {
     this.registry =
       registry ??
@@ -55,9 +59,9 @@ export class HoverProvider {
    * ホバー情報を提供
    */
   async provideHover(document: TextDocument, position: Position): Promise<Hover | null> {
-    // Phase 15: レンダリング済みYAMLの場合、まず Argo 意味解決を試行
+    // Phase 15/15B: レンダリング済みYAMLの場合、Argo 意味解決を試行
     if (isRenderedYaml(document)) {
-      // Argo registry で意味的なホバー情報（テンプレート名、パラメータ型等）
+      // Step 1: 既存 registry でローカル参照解決（Phase 15）
       const resolved = await this.registry.detectAndResolve(document, position);
       if (resolved?.hoverMarkdown) {
         return {
@@ -68,7 +72,12 @@ export class HoverProvider {
           range: resolved.detected.range,
         };
       }
-      // フォールバック: symbolMapping による Helm 式 / ソース位置情報
+      // Step 2: RenderedArgoIndexCache で cross-document 解決（Phase 15B）
+      const crossDocHover = await this.handleRenderedYamlCrossDocHover(document, position);
+      if (crossDocHover) {
+        return crossDocHover;
+      }
+      // Step 3: symbolMapping による Helm 式 / ソース位置情報
       if (this.symbolMappingIndex) {
         const renderedHover = await this.handleRenderedYamlHover(document, position);
         if (renderedHover) {
@@ -79,6 +88,46 @@ export class HoverProvider {
     }
 
     const resolved = await this.registry.detectAndResolve(document, position);
+    if (resolved?.hoverMarkdown) {
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: resolved.hoverMarkdown,
+        },
+        range: resolved.detected.range,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Phase 15B: RenderedArgoIndexCache 経由の cross-document ホバー解決
+   */
+  private async handleRenderedYamlCrossDocHover(
+    document: TextDocument,
+    position: Position
+  ): Promise<Hover | null> {
+    if (!this.renderedArgoIndexCache || !this.helmChartIndex) {
+      return null;
+    }
+
+    const chartName = extractChartNameFromSource(document);
+    if (!chartName) {
+      return null;
+    }
+
+    const charts = this.helmChartIndex.getAllCharts();
+    const chart = charts.find(c => c.name === chartName);
+    if (!chart) {
+      return null;
+    }
+
+    const registry = await this.renderedArgoIndexCache.getRegistry(chart.rootDir);
+    if (!registry) {
+      return null;
+    }
+
+    const resolved = await registry.detectAndResolve(document, position);
     if (resolved?.hoverMarkdown) {
       return {
         contents: {

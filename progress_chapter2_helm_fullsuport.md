@@ -115,6 +115,98 @@ Go テンプレート制御構文（`if`, `range`, `with`, `define`, `block`, `e
 
 ---
 
+## Phase 14B: Semantic Tokens — エディタ非依存構文ハイライト ✅
+
+**完了日**: 2026-02-08
+
+### 概要
+
+LSP の `textDocument/semanticTokens` を実装し、Helm テンプレート内の Go template 式（`{{ }}` 内）をエディタ非依存でハイライト。VSCode・Neovim・Emacs 等すべての LSP クライアントで動作する。TextMate グラマーは VSCode 固有のため不採用。
+
+### トークンタイプ
+
+| Index | tokenType | 対象 | 例 |
+|-------|-----------|------|-----|
+| 0 | `keyword` | Go template 制御構文 | `if`, `range`, `with`, `define`, `block`, `end`, `else`, `template` |
+| 1 | `function` | Sprig/Helm 関数 (+`defaultLibrary`) | `quote`, `default`, `toYaml`, `include` |
+| 2 | `variable` | テンプレート変数 | `$var`, `$key`, `$val` |
+| 3 | `property` | ドットアクセス値 | `.Values.image.tag`, `.Release.Name` |
+| 4 | `string` | 文字列リテラル | `"mychart.labels"` |
+| 5 | `number` | 数値リテラル | `42`, `3.14` |
+| 6 | `comment` | テンプレートコメント | `/* comment */` |
+| 7 | `operator` | 括弧・パイプ・代入 | `{{`, `}}`, `|`, `:=` |
+
+### トークン修飾子
+
+| Bit | modifier | 用途 |
+|-----|----------|------|
+| 0 | `definition` | `{{ define "name" }}` の名前部分（将来拡張用） |
+| 1 | `readonly` | `.Release.*`, `.Capabilities.*` |
+| 2 | `defaultLibrary` | Sprig 組み込み関数 |
+
+### 新規ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `features/goTemplateTokenizer.ts` | `{{ }}` ブロックのトークナイザー（100+ Sprig/Helm 関数対応） |
+| `providers/semanticTokensProvider.ts` | SemanticTokensProvider（full + range 対応） |
+| `test/features/goTemplateTokenizer.test.ts` | トークナイザーテスト（22ケース） |
+| `test/providers/semanticTokensProvider.test.ts` | Provider統合テスト（5ケース） |
+
+### 変更ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `server.ts` | `semanticTokensProvider` capability 登録 + `on` / `onRange` ハンドラー |
+
+### アーキテクチャ
+
+```
+connection.languages.semanticTokens.on(params)
+└─ SemanticTokensProvider.provideDocumentSemanticTokens(doc)
+   ├─ isHelmTemplate(doc) → false → 空トークン返却
+   └─ tokenizeGoTemplateExpressions(doc)
+      ├─ 行ごとに {{ }} ブロック検出（BLOCK_RE）
+      ├─ ブロック内トークン分類（優先順序: コメント→文字列→演算子→変数→プロパティ→キーワード→関数→数値）
+      └─ TokenSpan[] をソートして SemanticTokensBuilder に push
+```
+
+### テスト結果
+
+**820 pass, 1 skip, 0 fail**（53ファイル）
+
+---
+
+## Phase 14C: Helm テンプレート内 Argo パラメータ参照のホバー/定義 ✅
+
+**完了日**: 2026-02-08
+
+### 概要
+
+Helm テンプレート内の backtick-escaped Argo パラメータ参照（`{{` `` ` ``  `{{steps.run-script.outputs.result}}` `` ` `` `}}`）に対して、ホバーと定義ジャンプが動作するよう修正。ハイフン入りステップ名（`run-script` 等）にも対応。
+
+### 原因
+
+`setup.ts` の Helm ガードに Argo パラメータハンドラーが含まれていなかった。Argo ガードは `!isHelmTemplate(doc)` で除外されるため、Helm テンプレート内の Argo 参照がどのハンドラーにも到達しなかった。
+
+### 変更ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `references/setup.ts` | Helm ガードに `argoParameterHandler` + `itemVariableHandler` を最低優先度で追加 |
+
+### 新規テスト
+
+| ファイル | テスト数 | 内容 |
+|---------|---------|------|
+| `test/integration/helm-argo.test.ts` (拡張) | 3 | `{{steps.run-script.outputs.result}}` ホバー・定義、`{{inputs.parameters.output}}` ホバー |
+
+### テスト結果
+
+**823 pass, 1 skip, 0 fail**（53ファイル）
+
+---
+
 ## 現在の LSP 機能カバレッジ
 
 | 機能 | Plain Argo YAML | Helm テンプレート（生） | Helm テンプレート（レンダリング経由） |
@@ -125,6 +217,7 @@ Go テンプレート制御構文（`if`, `range`, `with`, `define`, `block`, `e
 | **Diagnostic** | ✅ | ✅ Helm ハンドラー | **✅ Phase 13** |
 | DocumentSymbol | ✅ | ✅ | - |
 | DocumentHighlight | ✅ | ✅ | - |
+| **SemanticTokens** | - | **✅ Phase 14B** | - |
 
 ---
 
@@ -133,7 +226,7 @@ Go テンプレート制御構文（`if`, `range`, `with`, `define`, `block`, `e
 | Phase | 内容 | 状態 |
 |-------|------|------|
 | **14** | `.tpl` ファイルサポート + Go template Hover/Completion | **✅ 完了** |
-| **14B** | Semantic Tokens（エディタ非依存構文ハイライト） | 計画済み |
+| **14B** | Semantic Tokens（エディタ非依存構文ハイライト） | **✅ 完了** |
 | 15 | レンダリング済み YAML の Definition/Hover を argoRegistry 経由に統合 | - |
 | 16 | 差分レンダリング（変更テンプレートのみ再レンダリング） | - |
 | 17 | values.yaml バリエーション診断（`--set`, `--values`） | - |

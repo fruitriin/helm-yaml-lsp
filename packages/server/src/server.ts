@@ -23,6 +23,11 @@ import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { DocumentHighlightProvider } from '@/providers/documentHighlightProvider';
 import { DocumentSymbolProvider } from '@/providers/documentSymbolProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
+import {
+  SemanticTokensProvider,
+  TOKEN_MODIFIERS,
+  TOKEN_TYPES,
+} from '@/providers/semanticTokensProvider';
 import { createReferenceRegistry } from '@/references/setup';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import { ConfigMapIndex } from '@/services/configMapIndex';
@@ -98,6 +103,7 @@ const diagnosticProvider = new DiagnosticProvider(
 );
 const documentSymbolProvider = new DocumentSymbolProvider();
 const documentHighlightProvider = new DocumentHighlightProvider();
+const semanticTokensProvider = new SemanticTokensProvider();
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -126,6 +132,14 @@ connection.onInitialize((params: InitializeParams) => {
       },
       documentSymbolProvider: true,
       documentHighlightProvider: true,
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: [...TOKEN_TYPES],
+          tokenModifiers: [...TOKEN_MODIFIERS],
+        },
+        full: true,
+        range: true,
+      },
     },
   };
 
@@ -322,6 +336,19 @@ connection.onDocumentHighlight(params => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
   return documentHighlightProvider.provideDocumentHighlights(document, params.position);
+});
+
+// Semantic Tokens機能
+connection.languages.semanticTokens.on(params => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return { data: [] };
+  return semanticTokensProvider.provideDocumentSemanticTokens(document);
+});
+
+connection.languages.semanticTokens.onRange(params => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return { data: [] };
+  return semanticTokensProvider.provideDocumentSemanticTokensRange(document, params.range);
 });
 
 // ドキュメントを開いたときの処理

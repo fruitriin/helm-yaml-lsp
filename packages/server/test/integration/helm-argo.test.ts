@@ -406,6 +406,96 @@ metadata:
     });
   });
 
+  // Helm テンプレート内の Argo パラメータ参照（backtick-escaped）のホバー/定義
+  describe('Argo parameter references in Helm templates', () => {
+    it('should hover on {{steps.run-script.outputs.result}} (hyphenated step name)', async () => {
+      const workflowFile = path.join(helmDir, 'templates/workflow-result.yaml');
+      const uri = filePathToUri(workflowFile);
+      const content = fs.readFileSync(workflowFile, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      // L19: value: "{{`{{steps.run-script.outputs.result}}`}}"
+      // Find the inner {{steps.run-script.outputs.result}}
+      const lines = content.split('\n');
+      let targetLine = -1;
+      let targetChar = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const idx = lines[i].indexOf('steps.run-script.outputs.result');
+        if (idx !== -1) {
+          targetLine = i;
+          targetChar = idx + 6; // inside "run-script"
+          break;
+        }
+      }
+      expect(targetLine).not.toBe(-1);
+
+      const hover = await hoverProvider.provideHover(
+        document,
+        Position.create(targetLine, targetChar)
+      );
+      expect(hover).not.toBeNull();
+      if (hover && typeof hover.contents === 'object' && 'value' in hover.contents) {
+        expect(hover.contents.value).toContain('run-script');
+      }
+    });
+
+    it('should jump to step definition from {{steps.run-script.outputs.result}}', async () => {
+      const workflowFile = path.join(helmDir, 'templates/workflow-result.yaml');
+      const uri = filePathToUri(workflowFile);
+      const content = fs.readFileSync(workflowFile, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      const lines = content.split('\n');
+      let targetLine = -1;
+      let targetChar = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const idx = lines[i].indexOf('steps.run-script.outputs.result');
+        if (idx !== -1) {
+          targetLine = i;
+          targetChar = idx + 6;
+          break;
+        }
+      }
+      expect(targetLine).not.toBe(-1);
+
+      const location = await definitionProvider.provideDefinition(
+        document,
+        Position.create(targetLine, targetChar)
+      );
+      expect(location).not.toBeNull();
+    });
+
+    it('should hover on {{inputs.parameters.output}} in Helm template', async () => {
+      const workflowFile = path.join(helmDir, 'templates/workflow-result.yaml');
+      const uri = filePathToUri(workflowFile);
+      const content = fs.readFileSync(workflowFile, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      // L35: args: ["{{`{{inputs.parameters.output}}`}}"]
+      const lines = content.split('\n');
+      let targetLine = -1;
+      let targetChar = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const idx = lines[i].indexOf('inputs.parameters.output');
+        if (idx !== -1) {
+          targetLine = i;
+          targetChar = idx + 18; // inside "output"
+          break;
+        }
+      }
+      expect(targetLine).not.toBe(-1);
+
+      const hover = await hoverProvider.provideHover(
+        document,
+        Position.create(targetLine, targetChar)
+      );
+      expect(hover).not.toBeNull();
+      if (hover && typeof hover.contents === 'object' && 'value' in hover.contents) {
+        expect(hover.contents.value).toContain('output');
+      }
+    });
+  });
+
   // Phase 13: Helm CLI 不在時のフォールバックテスト
   describe('Helm CLI unavailable fallback (Phase 13)', () => {
     let fallbackDiagnosticProvider: DiagnosticProvider;

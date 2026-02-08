@@ -57,6 +57,11 @@ export function createReferenceRegistry(
     helmHandlers.push(createReleaseCapabilitiesHandler());
     helmHandlers.push(createGoTemplateKeywordHandler());
 
+    // Argo パラメータ参照は Helm テンプレート内でも有効
+    // （backtick-escaped: {{`{{steps.xxx.outputs.result}}`}} 等）
+    helmHandlers.push(createArgoParameterHandler());
+    helmHandlers.push(createItemVariableHandler());
+
     registry.addGuard({
       name: 'helm',
       check: doc => isHelmTemplate(doc) && !!_helmChartIndex,

@@ -207,17 +207,69 @@ Helm テンプレート内の backtick-escaped Argo パラメータ参照（`{{`
 
 ---
 
+## Phase 15: レンダリング済み YAML の Definition/Hover を argoRegistry 経由に統合 ✅
+
+**完了日**: 2026-02-08
+
+### 概要
+
+レンダリング済み YAML（`helm template` 出力）に対する Definition/Hover を、`symbolMappingIndex` による位置マッピングだけでなく、既存の `ReferenceRegistry` の Argo ハンドラーで意味的に解決するよう改善。テンプレート定義ジャンプ、パラメータ型・デフォルト値ホバー等が rendered YAML 上でも動作する。
+
+### 技術的根拠
+
+既存 registry のガードがレンダリング済み YAML にそのままマッチすることを発見:
+- `isHelmTemplate()` → false（languageId='yaml'、`/templates/` 外）
+- `isArgoWorkflowDocument()` → true（Argo apiVersion/kind あり）
+- Argo 式 `{{inputs.parameters.message}}` は `HELM_TEMPLATE_SYNTAX_REGEX` (`/\{\{-?\s/`) にマッチしない（スペースなし）
+
+プロバイダーの短絡処理を変更するだけで、新しいサービスやハンドラーの追加は不要。
+
+### 変更ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `providers/definitionProvider.ts` | Argo registry 試行 + symbolMapping フォールバック |
+| `providers/hoverProvider.ts` | Argo registry 試行 + symbolMapping フォールバック |
+
+### 新規テスト
+
+| ファイル | テスト数 | 内容 |
+|---------|---------|------|
+| `test/providers/definitionProvider.test.ts` (拡張) | 4 | ローカルテンプレート定義、パラメータ定義、templateRef 定義、フォールバック |
+| `test/providers/hoverProvider.test.ts` (拡張) | 5 | テンプレートホバー、パラメータホバー、ワークフロー変数ホバー、templateRef ホバー、フォールバック |
+
+### アーキテクチャ
+
+```
+DefinitionProvider / HoverProvider (rendered YAML)
+├─ Step 1: registry.detectAndResolve() — Argo 意味解決
+│  ├─ argoTemplateHandler → ローカルテンプレート / templateRef 定義
+│  ├─ argoParameterHandler → パラメータ定義
+│  ├─ workflowVariableHandler → ワークフロー変数
+│  └─ itemVariableHandler → Item 変数
+├─ Step 2 (フォールバック): symbolMappingIndex
+│  ├─ findOriginalHelmExpression() → Helm 式情報
+│  └─ findOriginalLocation() → ソース位置マッピング
+└─ Step 3: null
+```
+
+### テスト結果
+
+**832 pass, 1 skip, 0 fail**（53ファイル）
+
+---
+
 ## 現在の LSP 機能カバレッジ
 
-| 機能 | Plain Argo YAML | Helm テンプレート（生） | Helm テンプレート（レンダリング経由） |
+| 機能 | Plain Argo YAML | Helm テンプレート（生） | レンダリング済み YAML |
 |------|:---:|:---:|:---:|
-| Definition | ✅ | ✅ Helm ハンドラー | ✅ SymbolMappingIndex |
-| Hover | ✅ | ✅ Helm ハンドラー | ✅ SymbolMappingIndex |
+| Definition | ✅ | ✅ Helm ハンドラー | **✅ Argo registry + SymbolMapping** |
+| Hover | ✅ | ✅ Helm ハンドラー | **✅ Argo registry + SymbolMapping** |
 | Completion | ✅ | ✅ Helm ハンドラー | - |
-| **Diagnostic** | ✅ | ✅ Helm ハンドラー | **✅ Phase 13** |
+| Diagnostic | ✅ | ✅ Helm ハンドラー | ✅ Phase 13 |
 | DocumentSymbol | ✅ | ✅ | - |
 | DocumentHighlight | ✅ | ✅ | - |
-| **SemanticTokens** | - | **✅ Phase 14B** | - |
+| SemanticTokens | - | ✅ Phase 14B | - |
 
 ---
 
@@ -227,7 +279,8 @@ Helm テンプレート内の backtick-escaped Argo パラメータ参照（`{{`
 |-------|------|------|
 | **14** | `.tpl` ファイルサポート + Go template Hover/Completion | **✅ 完了** |
 | **14B** | Semantic Tokens（エディタ非依存構文ハイライト） | **✅ 完了** |
-| 15 | レンダリング済み YAML の Definition/Hover を argoRegistry 経由に統合 | - |
+| **15** | レンダリング済み YAML の Definition/Hover を argoRegistry 経由に統合 | **✅ 完了** |
+| 15B | RenderedArgoIndexCache — cross-document templateRef 解決の強化 | 計画済み |
 | 16 | 差分レンダリング（変更テンプレートのみ再レンダリング） | - |
 | 17 | values.yaml バリエーション診断（`--set`, `--values`） | - |
 | 18 | 一時 ArgoTemplateIndex のキャッシュ最適化 | - |

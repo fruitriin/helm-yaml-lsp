@@ -55,12 +55,27 @@ export class HoverProvider {
    * ホバー情報を提供
    */
   async provideHover(document: TextDocument, position: Position): Promise<Hover | null> {
-    // Phase 7: レンダリング済みYAMLの場合、元テンプレート情報をホバー表示
-    if (this.symbolMappingIndex && isRenderedYaml(document)) {
-      const renderedHover = await this.handleRenderedYamlHover(document, position);
-      if (renderedHover) {
-        return renderedHover;
+    // Phase 15: レンダリング済みYAMLの場合、まず Argo 意味解決を試行
+    if (isRenderedYaml(document)) {
+      // Argo registry で意味的なホバー情報（テンプレート名、パラメータ型等）
+      const resolved = await this.registry.detectAndResolve(document, position);
+      if (resolved?.hoverMarkdown) {
+        return {
+          contents: {
+            kind: MarkupKind.Markdown,
+            value: resolved.hoverMarkdown,
+          },
+          range: resolved.detected.range,
+        };
       }
+      // フォールバック: symbolMapping による Helm 式 / ソース位置情報
+      if (this.symbolMappingIndex) {
+        const renderedHover = await this.handleRenderedYamlHover(document, position);
+        if (renderedHover) {
+          return renderedHover;
+        }
+      }
+      return null;
     }
 
     const resolved = await this.registry.detectAndResolve(document, position);

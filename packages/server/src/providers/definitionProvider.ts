@@ -59,9 +59,18 @@ export class DefinitionProvider {
     document: TextDocument,
     position: Position
   ): Promise<Location | Location[] | null> {
-    // Phase 7: レンダリング済みYAMLの場合、元テンプレートへジャンプ
-    if (this.symbolMappingIndex && isRenderedYaml(document)) {
-      return this.handleRenderedYamlDefinition(document, position);
+    // Phase 15: レンダリング済みYAMLの場合、まず Argo 意味解決を試行
+    if (isRenderedYaml(document)) {
+      // Argo registry で意味的な定義解決（テンプレート参照、パラメータ等）
+      const resolved = await this.registry.detectAndResolve(document, position);
+      if (resolved?.definitionLocation) {
+        return Location.create(resolved.definitionLocation.uri, resolved.definitionLocation.range);
+      }
+      // フォールバック: symbolMapping による元テンプレートへのジャンプ
+      if (this.symbolMappingIndex) {
+        return this.handleRenderedYamlDefinition(document, position);
+      }
+      return null;
     }
 
     const resolved = await this.registry.detectAndResolve(document, position);

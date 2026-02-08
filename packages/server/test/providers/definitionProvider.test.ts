@@ -444,4 +444,135 @@ spec:
       }
     });
   });
+
+  describe('Rendered YAML - Argo semantic definition (Phase 15)', () => {
+    it('should resolve local template reference in rendered YAML', async () => {
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            template: build
+    - name: build
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "template: build" の "build" 位置
+      const position = Position.create(11, 23);
+
+      const location = await provider.provideDefinition(doc, position);
+      expect(location).not.toBeNull();
+
+      if (location && 'uri' in location) {
+        expect(location.uri).toBe('file:///rendered.yaml');
+        expect(location.range.start.line).toBe(12); // "- name: build" の行
+      }
+    });
+
+    it('should resolve parameter reference in rendered YAML', async () => {
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      inputs:
+        parameters:
+          - name: message
+            value: "Hello"
+      container:
+        image: alpine
+        args: ["echo", "{{inputs.parameters.message}}"]
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "{{inputs.parameters.message}}" の "message" 部分 (L15)
+      const position = Position.create(15, 44);
+
+      const location = await provider.provideDefinition(doc, position);
+      expect(location).not.toBeNull();
+
+      if (location && 'uri' in location) {
+        expect(location.uri).toBe('file:///rendered.yaml');
+        expect(location.range.start.line).toBe(11); // "- name: message" の行
+      }
+    });
+
+    it('should return null for non-Argo position in rendered YAML without symbolMapping', async () => {
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "image: alpine" — Argo参照ではない
+      const position = Position.create(10, 15);
+
+      const location = await provider.provideDefinition(doc, position);
+      expect(location).toBeNull();
+    });
+
+    it('should resolve templateRef in rendered YAML using ArgoTemplateIndex', async () => {
+      // WorkflowTemplateをインデックスに登録
+      const templateContent = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: shared-template
+spec:
+  templates:
+    - name: greet
+      container:
+        image: alpine
+`;
+      const templatePath = path.join(testDir, 'wft.yaml');
+      await fs.writeFile(templatePath, templateContent);
+      await templateIndex.indexFile(filePathToUri(templatePath));
+
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            templateRef:
+              name: shared-template
+              template: greet
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "template: greet" の位置
+      const position = Position.create(14, 25);
+
+      const location = await provider.provideDefinition(doc, position);
+      expect(location).not.toBeNull();
+
+      if (location && 'uri' in location) {
+        expect(location.uri).toContain('wft.yaml');
+      }
+    });
+  });
 });

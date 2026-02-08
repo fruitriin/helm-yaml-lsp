@@ -641,4 +641,197 @@ spec:
       }
     });
   });
+
+  describe('Rendered YAML - Argo semantic hover (Phase 15)', () => {
+    it('should show Argo template info on hover in rendered YAML', async () => {
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            template: build
+    # Build container image
+    - name: build  # Docker build step
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "template: build" の "build" 位置
+      const position = Position.create(11, 23);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
+        expect(hover.contents.kind).toBe(MarkupKind.Markdown);
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Template**: `build`');
+        expect(markdown).toContain('Local template');
+        expect(markdown).toContain('Build container image');
+        expect(markdown).toContain('Docker build step');
+      }
+    });
+
+    it('should show Argo parameter info on hover in rendered YAML', async () => {
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      inputs:
+        parameters:
+          # User greeting message
+          - name: message  # The message param
+            value: "Hello"
+      container:
+        image: alpine
+        args: ["echo", "{{inputs.parameters.message}}"]
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "{{inputs.parameters.message}}" の "message" 部分 (L16)
+      const position = Position.create(16, 44);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Parameter**: `message`');
+        expect(markdown).toContain('**Type**: Input Parameter');
+        expect(markdown).toContain('User greeting message');
+        expect(markdown).toContain('The message param');
+      }
+    });
+
+    it('should show workflow variable info on hover in rendered YAML', async () => {
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: alpine
+        args: ["echo", "Workflow: {{workflow.name}}"]
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "{{workflow.name}}" の位置 (L11)
+      const position = Position.create(11, 45);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Workflow Variable**: `workflow.name`');
+      }
+    });
+
+    it('should return null for non-Argo position in rendered YAML without symbolMapping', async () => {
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: alpine
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "image: alpine" — Argo参照ではない
+      const position = Position.create(10, 15);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).toBeNull();
+    });
+
+    it('should resolve templateRef hover in rendered YAML', async () => {
+      // WorkflowTemplateをインデックスに登録
+      const templateContent = `apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: shared-wft
+spec:
+  templates:
+    # Shared greeting template
+    - name: greet  # Says hello
+      container:
+        image: alpine
+`;
+      const templatePath = path.join(testDir, 'wft.yaml');
+      await fs.writeFile(templatePath, templateContent);
+      await templateIndex.indexFile(filePathToUri(templatePath));
+
+      const renderedContent = `# Source: my-chart/templates/workflow.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step1
+            templateRef:
+              name: shared-wft
+              template: greet
+`;
+      const doc = TextDocument.create('file:///rendered.yaml', 'yaml', 1, renderedContent);
+
+      // "template: greet" の位置
+      const position = Position.create(14, 25);
+
+      const hover = await provider.provideHover(doc, position);
+      expect(hover).not.toBeNull();
+
+      if (
+        hover?.contents &&
+        typeof hover.contents === 'object' &&
+        'kind' in hover.contents &&
+        'value' in hover.contents
+      ) {
+        const markdown = hover.contents.value;
+        expect(markdown).toContain('**Template**: `greet`');
+        expect(markdown).toContain('**WorkflowTemplate**: `shared-wft`');
+        expect(markdown).toContain('Shared greeting template');
+        expect(markdown).toContain('Says hello');
+      }
+    });
+  });
 });

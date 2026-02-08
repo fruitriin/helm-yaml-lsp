@@ -230,6 +230,8 @@ connection.onInitialized(async () => {
         const chartRootDir = filePath.substring(0, filePath.lastIndexOf('/values.yaml'));
         symbolMappingIndex.invalidate(chartRootDir);
         helmTemplateExecutor.clearCache(chartRootDir);
+        // Phase 16: 全テンプレートを dirty マーク（values は全テンプレートに影響）
+        renderedArgoIndexCache.markAllDirty(chartRootDir);
       }
     }
 
@@ -241,14 +243,23 @@ connection.onInitialized(async () => {
       if (changeType === FileChangeType.Created || changeType === FileChangeType.Changed) {
         await helmTemplateIndex.updateTemplateFile(uri);
 
-        // Phase 7: テンプレート変更時はレンダリングキャッシュとマッピングを無効化
+        // Phase 7+16: テンプレート変更時はレンダリングキャッシュとマッピングを差分無効化
         const filePath = uriToFilePath(uri);
         const templatesIdx = filePath.indexOf('/templates/');
         if (templatesIdx !== -1) {
           const chartRootDir = filePath.substring(0, templatesIdx);
           const templatePath = filePath.substring(templatesIdx + 1);
           symbolMappingIndex.invalidate(chartRootDir, templatePath);
-          helmTemplateExecutor.clearCache(chartRootDir);
+
+          if (uri.endsWith('.tpl')) {
+            // .tpl ファイル（_helpers.tpl 等）は全テンプレートに影響
+            helmTemplateExecutor.clearCache(chartRootDir);
+            renderedArgoIndexCache.markAllDirty(chartRootDir);
+          } else {
+            // Phase 16: テンプレート単位のキャッシュ無効化 + dirty マーク
+            helmTemplateExecutor.clearTemplateCache(chartRootDir, templatePath);
+            renderedArgoIndexCache.markDirty(chartRootDir, templatePath);
+          }
         }
       }
     }

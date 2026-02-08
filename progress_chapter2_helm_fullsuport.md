@@ -259,6 +259,74 @@ DefinitionProvider / HoverProvider (rendered YAML)
 
 ---
 
+## Phase 15B: RenderedArgoIndexCache — cross-document templateRef 解決の強化 ✅
+
+**完了日**: 2026-02-08
+
+### 概要
+
+`RenderedArgoIndexCache` を新設し、`helm template` のチャート全体レンダリング結果から `ArgoTemplateIndex` + `ArgoOnlyRegistry` を構築・キャッシュ。DiagnosticProvider / DefinitionProvider / HoverProvider で共有し、cross-document templateRef（別テンプレートの WorkflowTemplate 参照）を解決可能にした。
+
+### テスト結果
+
+**841 pass, 1 skip, 0 fail**（54ファイル）
+
+---
+
+## Phase 16: 差分レンダリング — テンプレート変更時の部分再レンダリング ✅
+
+**完了日**: 2026-02-08
+
+### 概要
+
+テンプレートファイル変更時にチャート全体を再レンダリングしていたのを、変更テンプレートのみ `helm template --show-only` で差分レンダリングする方式に改善。未変更テンプレートのキャッシュを保持し、ArgoTemplateIndex を部分更新する。
+
+### 変更ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `services/helmTemplateExecutor.ts` | `clearTemplateCache()` 追加 — 対象テンプレート+チャート全体キャッシュのみ削除、他テンプレートは保持 |
+| `services/renderedArgoIndexCache.ts` | per-template キャッシュ構造に全面書き換え。`markDirty()` / `markAllDirty()` + 差分レンダリング |
+| `server.ts` | テンプレート変更: `clearTemplateCache` + `markDirty`。`.tpl`/`values.yaml` 変更: `markAllDirty` |
+
+### 新規テスト
+
+| ファイル | テスト数 | 内容 |
+|---------|---------|------|
+| `test/services/helmTemplateExecutor.test.ts` (拡張) | 2 | `clearTemplateCache` — 対象のみクリア、他テンプレート保持 |
+| `test/services/renderedArgoIndexCache.test.ts` (拡張) | 7 | `markDirty` 差分更新、`markAllDirty` 全更新、キャッシュヒット、レンダリング失敗、未変更テンプレート保持 |
+
+### アーキテクチャ
+
+```
+テンプレート A 変更
+  → clearTemplateCache(chart, A)    ... A の個別キャッシュ削除、B/C は保持
+  → markDirty(chart, A)             ... dirty set に A を追加
+
+次の LSP リクエスト
+  → getRegistry(chart)
+    → dirty set に A がある
+    → renderSingleTemplate(chart, A)  ... A のみ再レンダリング
+    → ArgoTemplateIndex: A の旧エントリ削除 → 新内容でインデックス
+    → registry 再構築
+    → B/C はキャッシュヒット（再レンダリングなし）
+```
+
+### 無効化戦略
+
+| 変更対象 | 無効化方式 | 理由 |
+|---------|-----------|------|
+| `.yaml`/`.yml` テンプレート | `clearTemplateCache` + `markDirty` | 変更テンプレートのみ影響 |
+| `.tpl` ファイル（`_helpers.tpl` 等） | `clearCache` + `markAllDirty` | 全テンプレートの `include`/`template` に影響 |
+| `values.yaml` | `clearCache` + `markAllDirty` | 全テンプレートの `.Values` に影響 |
+| `Chart.yaml` | `invalidate` (全クリア) | チャートメタデータ変更 |
+
+### テスト結果
+
+**850 pass, 1 skip, 0 fail**（54ファイル）
+
+---
+
 ## 現在の LSP 機能カバレッジ
 
 | 機能 | Plain Argo YAML | Helm テンプレート（生） | レンダリング済み YAML |
@@ -280,7 +348,7 @@ DefinitionProvider / HoverProvider (rendered YAML)
 | **14** | `.tpl` ファイルサポート + Go template Hover/Completion | **✅ 完了** |
 | **14B** | Semantic Tokens（エディタ非依存構文ハイライト） | **✅ 完了** |
 | **15** | レンダリング済み YAML の Definition/Hover を argoRegistry 経由に統合 | **✅ 完了** |
-| 15B | RenderedArgoIndexCache — cross-document templateRef 解決の強化 | 計画済み |
-| 16 | 差分レンダリング（変更テンプレートのみ再レンダリング） | - |
+| **15B** | RenderedArgoIndexCache — cross-document templateRef 解決の強化 | **✅ 完了** |
+| **16** | 差分レンダリング（変更テンプレートのみ再レンダリング） | **✅ 完了** |
 | 17 | values.yaml バリエーション診断（`--set`, `--values`） | - |
 | 18 | 一時 ArgoTemplateIndex のキャッシュ最適化 | - |

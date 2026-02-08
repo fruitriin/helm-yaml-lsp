@@ -178,6 +178,44 @@ describe('HelmTemplateExecutor', () => {
       expect(result.executionTime).toBe(0);
     });
   });
+
+  describe('clearTemplateCache', () => {
+    it('should clear specific template cache and chart-wide cache', async () => {
+      // Render chart-wide and a specific template
+      await executor.renderChart(SAMPLE_CHART_DIR);
+      await executor.renderSingleTemplate(SAMPLE_CHART_DIR, 'templates/workflow-basic.yaml');
+
+      // Clear only workflow-basic.yaml's cache
+      executor.clearTemplateCache(SAMPLE_CHART_DIR, 'templates/workflow-basic.yaml');
+
+      // Chart-wide cache should be cleared (executionTime > 0)
+      const chartResult = await executor.renderChart(SAMPLE_CHART_DIR);
+      expect(chartResult.executionTime).toBeGreaterThan(0);
+
+      // Target template cache should be cleared
+      const singleResult = await executor.renderSingleTemplate(
+        SAMPLE_CHART_DIR,
+        'templates/workflow-basic.yaml'
+      );
+      expect(singleResult.executionTime).toBeGreaterThan(0);
+    });
+
+    it('should preserve other template caches', async () => {
+      // Render two different templates
+      await executor.renderSingleTemplate(SAMPLE_CHART_DIR, 'templates/workflow-basic.yaml');
+      await executor.renderSingleTemplate(SAMPLE_CHART_DIR, 'templates/workflow-templateref.yaml');
+
+      // Clear only workflow-basic.yaml
+      executor.clearTemplateCache(SAMPLE_CHART_DIR, 'templates/workflow-basic.yaml');
+
+      // The other template cache should still be present
+      const otherResult = await executor.renderSingleTemplate(
+        SAMPLE_CHART_DIR,
+        'templates/workflow-templateref.yaml'
+      );
+      expect(otherResult.executionTime).toBe(0); // Cache hit
+    });
+  });
 });
 
 describe('parseHelmTemplateError', () => {

@@ -166,6 +166,38 @@ export class HelmTemplateExecutor {
   }
 
   /**
+   * 特定テンプレートのキャッシュのみ無効化
+   *
+   * 変更テンプレートの個別キャッシュ (`chartDir::releaseName::templatePath`) と
+   * チャート全体キャッシュ (`chartDir::releaseName`) を削除する。
+   * 他テンプレートの個別キャッシュは保持する。
+   *
+   * @param chartDir - Helmチャートのルートディレクトリ
+   * @param templatePath - テンプレートの相対パス (例: "templates/workflow-basic.yaml")
+   */
+  clearTemplateCache(chartDir: string, templatePath: string): void {
+    const prefix = `${chartDir}::`;
+    const keysToDelete: string[] = [];
+    for (const key of this.cache.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      const rest = key.substring(prefix.length);
+      // チャート全体キャッシュ: `releaseName` のみ（:: が含まれない）
+      // テンプレート個別キャッシュ: `releaseName::templatePath`
+      if (!rest.includes('::')) {
+        // チャート全体キャッシュ → 常に削除（全体出力が変わるため）
+        keysToDelete.push(key);
+      } else if (rest.endsWith(`::${templatePath}`)) {
+        // 変更テンプレートの個別キャッシュ → 削除
+        keysToDelete.push(key);
+      }
+      // 他テンプレートの個別キャッシュ → 保持
+    }
+    for (const key of keysToDelete) {
+      this.cache.delete(key);
+    }
+  }
+
+  /**
    * キャッシュからエントリを取得（TTL超過はスキップ）
    */
   private getCached(key: string): string | null {

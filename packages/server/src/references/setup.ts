@@ -90,3 +90,45 @@ export function createReferenceRegistry(
 
   return registry;
 }
+
+/**
+ * レンダリング済み YAML 専用の Argo/ConfigMap レジストリを作成
+ *
+ * Helm テンプレートを helm template でレンダリングした後の plain YAML に対して
+ * Argo/ConfigMap 診断を走らせるためのレジストリ。
+ * isHelmTemplate チェックは不要（レンダリング済みなのでただの YAML）。
+ */
+export function createArgoOnlyRegistry(
+  _argoTemplateIndex: ArgoTemplateIndex,
+  _configMapIndex?: ConfigMapIndex
+): ReferenceRegistry {
+  const registry = new ReferenceRegistry();
+
+  // ConfigMap guard（レンダリング済み YAML は plain YAML なのでガードチェック不要）
+  if (_configMapIndex) {
+    const configMapHandler = createConfigMapHandler(_configMapIndex);
+    registry.addGuard({
+      name: 'configMap',
+      check: () => true,
+      handlers: [configMapHandler],
+    });
+  }
+
+  // Argo guard（isHelmTemplate チェック不要 — レンダリング済み YAML はただの YAML）
+  const argoTemplateHandler = createArgoTemplateHandler(_argoTemplateIndex);
+  const argoParameterHandler = createArgoParameterHandler();
+  const workflowVariableHandler = createWorkflowVariableHandler();
+  const itemVariableHandler = createItemVariableHandler();
+  registry.addGuard({
+    name: 'argo',
+    check: doc => isArgoWorkflowDocument(doc),
+    handlers: [
+      argoTemplateHandler,
+      argoParameterHandler,
+      workflowVariableHandler,
+      itemVariableHandler,
+    ],
+  });
+
+  return registry;
+}

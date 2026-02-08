@@ -1,6 +1,6 @@
 {
   "name": "helm-yaml-lsp",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Argo Workflows Language Server Protocol implementation for Helm and YAML",
   "private": true,
   "repository": {

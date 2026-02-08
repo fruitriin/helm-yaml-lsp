@@ -91,7 +91,10 @@ const diagnosticProvider = new DiagnosticProvider(
   helmChartIndex,
   valuesIndex,
   helmTemplateIndex,
-  configMapIndex
+  configMapIndex,
+  undefined,
+  helmTemplateExecutor,
+  symbolMappingIndex
 );
 const documentSymbolProvider = new DocumentSymbolProvider();
 const documentHighlightProvider = new DocumentHighlightProvider();

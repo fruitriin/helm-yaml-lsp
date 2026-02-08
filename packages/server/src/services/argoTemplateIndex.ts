@@ -66,41 +66,60 @@ export class ArgoTemplateIndex {
   async indexFile(uri: string): Promise<void> {
     try {
       const content = await readFile(uri);
-      const document = TextDocument.create(uri, 'yaml', 1, content);
-
-      if (!isArgoWorkflowDocument(document)) {
-        return;
-      }
-
-      const definitions = findTemplateDefinitions(document);
-
-      // WorkflowTemplate/ClusterWorkflowTemplate のみインデックス
-      for (const def of definitions) {
-        if (def.kind !== 'WorkflowTemplate' && def.kind !== 'ClusterWorkflowTemplate') {
-          continue;
-        }
-
-        if (!def.workflowName) {
-          continue;
-        }
-
-        const key = this.makeKey(def.workflowName, def.kind);
-
-        let indexed = this.index.get(key);
-        if (!indexed) {
-          indexed = {
-            name: def.workflowName,
-            kind: def.kind,
-            uri: def.uri,
-            templates: new Map(),
-          };
-          this.index.set(key, indexed);
-        }
-
-        indexed.templates.set(def.name, def);
-      }
+      this.indexDocumentContent(uri, content);
     } catch (err) {
       console.error(`[ArgoTemplateIndex] Failed to index file: ${uri}`, err);
+    }
+  }
+
+  /**
+   * ドキュメント内容を直接インデックスに追加（ファイルI/O不要）
+   *
+   * レンダリング済み YAML など、メモリ上のコンテンツをインデックスする場合に使用。
+   *
+   * @param uri - ドキュメントURI
+   * @param content - YAML コンテンツ
+   */
+  indexDocument(uri: string, content: string): void {
+    this.indexDocumentContent(uri, content);
+  }
+
+  /**
+   * ドキュメント内容をインデックスに追加（内部共通メソッド）
+   */
+  private indexDocumentContent(uri: string, content: string): void {
+    const document = TextDocument.create(uri, 'yaml', 1, content);
+
+    if (!isArgoWorkflowDocument(document)) {
+      return;
+    }
+
+    const definitions = findTemplateDefinitions(document);
+
+    // WorkflowTemplate/ClusterWorkflowTemplate のみインデックス
+    for (const def of definitions) {
+      if (def.kind !== 'WorkflowTemplate' && def.kind !== 'ClusterWorkflowTemplate') {
+        continue;
+      }
+
+      if (!def.workflowName) {
+        continue;
+      }
+
+      const key = this.makeKey(def.workflowName, def.kind);
+
+      let indexed = this.index.get(key);
+      if (!indexed) {
+        indexed = {
+          name: def.workflowName,
+          kind: def.kind,
+          uri: def.uri,
+          templates: new Map(),
+        };
+        this.index.set(key, indexed);
+      }
+
+      indexed.templates.set(def.name, def);
     }
   }
 

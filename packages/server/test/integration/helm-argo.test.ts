@@ -6,6 +6,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'bun:test';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver-types';
@@ -14,9 +15,13 @@ import { DefinitionProvider } from '@/providers/definitionProvider';
 import { DiagnosticProvider } from '@/providers/diagnosticProvider';
 import { HoverProvider } from '@/providers/hoverProvider';
 import { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
+import { ConfigMapIndex } from '@/services/configMapIndex';
 import { HelmChartIndex } from '@/services/helmChartIndex';
+import { HelmTemplateExecutor } from '@/services/helmTemplateExecutor';
 import { HelmTemplateIndex } from '@/services/helmTemplateIndex';
+import { SymbolMappingIndex } from '@/services/symbolMappingIndex';
 import { ValuesIndex } from '@/services/valuesIndex';
+import { FileCache } from '@/utils/fileCache';
 import { filePathToUri } from '@/utils/uriUtils';
 
 describe('Helm + Argo Workflows Integration Tests', () => {
@@ -387,7 +392,6 @@ metadata:
       const workflowFile = path.join(helmDir, 'templates/workflow.yaml');
       const uri = filePathToUri(workflowFile);
 
-      const fs = await import('node:fs');
       const content = fs.readFileSync(workflowFile, 'utf-8');
       const document = TextDocument.create(uri, 'yaml', 1, content);
 
@@ -399,6 +403,231 @@ metadata:
 
       // ドキュメントがHelm templateとして認識されていることを確認
       expect(content).toContain('{{');
+    });
+  });
+
+  // Phase 13: Helm CLI 不在時のフォールバックテスト
+  describe('Helm CLI unavailable fallback (Phase 13)', () => {
+    let fallbackDiagnosticProvider: DiagnosticProvider;
+
+    beforeAll(() => {
+      // HelmTemplateExecutor をモック（helm CLI 不在）
+      const mockExecutor = {
+        isHelmAvailable: async () => false,
+        renderSingleTemplate: async () => ({ success: false, executionTime: 0 }),
+        renderChart: async () => ({ success: false, executionTime: 0 }),
+        clearCache: () => {},
+      } as unknown as HelmTemplateExecutor;
+
+      fallbackDiagnosticProvider = new DiagnosticProvider(
+        argoTemplateIndex,
+        helmChartIndex,
+        valuesIndex,
+        helmTemplateIndex,
+        undefined,
+        undefined,
+        mockExecutor
+      );
+    });
+
+    it('should return only Helm handler diagnostics when helm CLI is unavailable', async () => {
+      const workflowFile = path.join(helmDir, 'templates/workflow-basic.yaml');
+      const uri = filePathToUri(workflowFile);
+      const content = fs.readFileSync(workflowFile, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      const diagnostics = await fallbackDiagnosticProvider.provideDiagnostics(document);
+
+      // Argo 診断は走らない（helm CLI 不在）→ Helm ハンドラー診断のみ
+      // Argo テンプレート参照エラーが出ないことを確認
+      const argoErrors = diagnostics.filter(
+        d => d.message.includes("Template '") && d.message.includes('not found')
+      );
+      expect(argoErrors.length).toBe(0);
+    });
+
+    it('should not produce Argo false positives for Helm syntax', async () => {
+      const workflowFile = path.join(helmDir, 'templates/workflow-parameters.yaml');
+      const uri = filePathToUri(workflowFile);
+      const content = fs.readFileSync(workflowFile, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      const diagnostics = await fallbackDiagnosticProvider.provideDiagnostics(document);
+
+      // .Values 関連のエラーが Argo 診断として出ないことを確認
+      const valuesArgoErrors = diagnostics.filter(d => d.message.includes('.Values'));
+      expect(valuesArgoErrors.length).toBe(0);
+    });
+  });
+});
+
+// Phase 13: レンダリング経由の Argo/ConfigMap 診断テスト
+describe('Helm + Argo Rendered Diagnostics (Phase 13)', () => {
+  let helmChartIndex: HelmChartIndex;
+  let valuesIndex: ValuesIndex;
+  let helmTemplateIndex: HelmTemplateIndex;
+  let argoTemplateIndex: ArgoTemplateIndex;
+  let configMapIndex: ConfigMapIndex;
+  let helmTemplateExecutor: HelmTemplateExecutor;
+  let symbolMappingIndex: SymbolMappingIndex;
+  let diagnosticProvider: DiagnosticProvider;
+  let helmAvailable: boolean;
+
+  const samplesDir = path.resolve(__dirname, '../../../../samples');
+  const helmDir = path.join(samplesDir, 'helm');
+
+  beforeAll(async () => {
+    helmChartIndex = new HelmChartIndex();
+    valuesIndex = new ValuesIndex();
+    helmTemplateIndex = new HelmTemplateIndex();
+    argoTemplateIndex = new ArgoTemplateIndex();
+    configMapIndex = new ConfigMapIndex();
+    helmTemplateExecutor = new HelmTemplateExecutor();
+    const fileCache = new FileCache();
+    symbolMappingIndex = new SymbolMappingIndex(helmTemplateExecutor, fileCache);
+
+    // インデックス初期化
+    helmChartIndex.setWorkspaceFolders([helmDir]);
+    await helmChartIndex.initialize();
+    const charts = helmChartIndex.getAllCharts();
+    await valuesIndex.initialize(charts);
+    await helmTemplateIndex.initialize(charts);
+    argoTemplateIndex.setWorkspaceFolders([helmDir]);
+    await argoTemplateIndex.initialize();
+    await configMapIndex.initialize([helmDir]);
+
+    // helm CLI 可用性チェック
+    helmAvailable = await helmTemplateExecutor.isHelmAvailable();
+
+    diagnosticProvider = new DiagnosticProvider(
+      argoTemplateIndex,
+      helmChartIndex,
+      valuesIndex,
+      helmTemplateIndex,
+      configMapIndex,
+      undefined,
+      helmTemplateExecutor,
+      symbolMappingIndex
+    );
+  });
+
+  // テンプレートファイルの一覧（helm CLI がある場合のみテスト）
+  const templateFiles = [
+    'workflow-basic.yaml',
+    'workflow.yaml',
+    'workflow-parameters.yaml',
+    'workflow-template.yaml',
+    'workflow-dag.yaml',
+    'workflow-templateref.yaml',
+    'workflow-artifacts.yaml',
+    'workflow-result.yaml',
+    'workflow-variables.yaml',
+    'workflow-item.yaml',
+    'cron-workflow.yaml',
+  ];
+
+  for (const templateFile of templateFiles) {
+    it(`${templateFile}: 0 total diagnostics with rendering (helm CLI required)`, async () => {
+      if (!helmAvailable) {
+        console.log(`  [skip] helm CLI not available`);
+        return;
+      }
+
+      const filePath = path.join(helmDir, 'templates', templateFile);
+      const uri = filePathToUri(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      const diagnostics = await diagnosticProvider.provideDiagnostics(document);
+
+      if (diagnostics.length > 0) {
+        console.log(`  [${templateFile}] diagnostics:`);
+        for (const d of diagnostics) {
+          console.log(`    L${d.range.start.line}: ${d.message}`);
+        }
+      }
+
+      expect(diagnostics.length).toBe(0);
+    });
+  }
+
+  it('configmap-helm.yaml: 0 Helm diagnostics (helm CLI required)', async () => {
+    if (!helmAvailable) {
+      console.log('  [skip] helm CLI not available');
+      return;
+    }
+
+    const filePath = path.join(helmDir, 'templates/configmap-helm.yaml');
+    const uri = filePathToUri(filePath);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const document = TextDocument.create(uri, 'helm', 1, content);
+
+    const diagnostics = await diagnosticProvider.provideDiagnostics(document);
+
+    if (diagnostics.length > 0) {
+      console.log('  [configmap-helm.yaml] diagnostics:');
+      for (const d of diagnostics) {
+        console.log(`    L${d.range.start.line}: ${d.message}`);
+      }
+    }
+
+    expect(diagnostics.length).toBe(0);
+  });
+
+  // false-positive 検証
+  describe('false-positive prevention', () => {
+    it('Helm {{ .Values.xxx }} should not be misdetected as Argo parameter', async () => {
+      if (!helmAvailable) {
+        console.log('  [skip] helm CLI not available');
+        return;
+      }
+
+      const filePath = path.join(helmDir, 'templates/workflow-basic.yaml');
+      const uri = filePathToUri(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      const diagnostics = await diagnosticProvider.provideDiagnostics(document);
+
+      // .Values 関連エラーが Argo 診断に含まれないこと
+      const valuesErrors = diagnostics.filter(d => d.message.includes('.Values'));
+      expect(valuesErrors.length).toBe(0);
+    });
+
+    it('Helm control flow should not produce diagnostics', async () => {
+      if (!helmAvailable) {
+        console.log('  [skip] helm CLI not available');
+        return;
+      }
+
+      const filePath = path.join(helmDir, 'templates/workflow-parameters.yaml');
+      const uri = filePathToUri(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      const diagnostics = await diagnosticProvider.provideDiagnostics(document);
+
+      // 制御構文行にエラーが出ないこと
+      const ifErrors = diagnostics.filter(d => d.message.includes('if'));
+      expect(ifErrors.length).toBe(0);
+    });
+
+    it('{{ include "..." }} should not be misdetected as Argo template reference', async () => {
+      if (!helmAvailable) {
+        console.log('  [skip] helm CLI not available');
+        return;
+      }
+
+      const filePath = path.join(helmDir, 'templates/workflow-templateref.yaml');
+      const uri = filePathToUri(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const document = TextDocument.create(uri, 'helm', 1, content);
+
+      const diagnostics = await diagnosticProvider.provideDiagnostics(document);
+
+      // include 関連エラーが Argo 診断に含まれないこと
+      const includeErrors = diagnostics.filter(d => d.message.includes('include'));
+      expect(includeErrors.length).toBe(0);
     });
   });
 });

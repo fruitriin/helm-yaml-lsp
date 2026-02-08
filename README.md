@@ -2,8 +2,6 @@
 
 Argo Workflows Language Server Protocol implementation for Helm and YAML files.
 
-**841 tests passed** | Phase 15 完了
-
 ---
 
 ## 概要
@@ -16,6 +14,87 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 - **Neovim** - nvim-lspconfig経由
 - **IntelliJ IDEA / JetBrains** - プラグイン（基本実装完了）
 - **その他** - LSP標準プロトコルに準拠した任意のエディタ
+
+---
+
+## インストール
+
+### VSCode
+
+1. [Releases ページ](https://github.com/fruitriin/helm-yaml-lsp/releases)から最新の `.vsix` ファイルをダウンロードします。
+
+2. VSCodeにインストールします：
+
+```bash
+code --install-extension helm-yaml-lsp-client-*.vsix
+```
+
+または、VSCode上で `Ctrl+Shift+P` → 「Extensions: Install from VSIX...」からダウンロードした `.vsix` ファイルを選択してください。
+
+3. YAMLファイルを開くと自動的にLSPが起動します。
+
+#### 設定
+
+```json
+{
+  "argoWorkflowsLSP.enableDiagnostics": true,
+  "argoWorkflowsLSP.enableHover": true,
+  "argoWorkflowsLSP.enableDefinition": true,
+  "argoWorkflowsLSP.enableCompletion": true,
+  "argoWorkflowsLSP.maxNumberOfProblems": 1000
+}
+```
+
+### Neovim
+
+#### 前提条件
+
+- **Neovim** 0.8以上
+- **Node.js** 18以上
+- **[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig)**
+
+#### インストール手順
+
+1. リポジトリをクローンし、サーバーをビルドします：
+
+```bash
+git clone --recursive https://github.com/fruitriin/helm-yaml-lsp.git
+cd helm-yaml-lsp
+bun install
+bun run build
+```
+
+2. `~/.config/nvim/init.lua`（または適切な設定ファイル）に以下を追加します：
+
+```lua
+-- helm-yaml-lsp のパスを環境に合わせて変更してください
+local lsp_root = vim.fn.expand('~/path/to/helm-yaml-lsp')
+local server_path = lsp_root .. '/packages/server/dist/server.js'
+
+-- nvim-client をランタイムパスに追加
+vim.opt.runtimepath:append(lsp_root .. '/packages/nvim-client')
+
+-- セットアップ
+require('argo-workflows-lsp').setup({
+  server_path = server_path,
+  on_attach = function(client, bufnr)
+    local opts = { buffer = bufnr, noremap = true, silent = true }
+    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+    vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
+    vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+  end,
+  settings = {
+    argoWorkflowsLSP = {
+      enableDiagnostics = true,
+      enableHover = true,
+      enableDefinition = true,
+      enableCompletion = true,
+    }
+  }
+})
+```
+
+3. YAMLファイルを開き、`:LspInfo` で `argo_workflows_lsp` が `attached` と表示されれば成功です。
 
 ---
 
@@ -67,14 +146,14 @@ VSCode拡張機能から独立したLSPサーバーとして、Argo Workflows、
 
 ---
 
-## セットアップ
+## 開発
 
 ### 前提条件
 
 - **Node.js** 18以上
 - **Bun** 1.0以上
 
-### インストール
+### ビルド
 
 ```bash
 git clone --recursive https://github.com/fruitriin/helm-yaml-lsp.git
@@ -82,34 +161,6 @@ cd helm-yaml-lsp
 bun install
 bun run build
 ```
-
-### VSCodeで使用
-
-```bash
-# F5キーでExtension Development Hostを起動
-# または
-bun run package  # VSIXパッケージを作成
-```
-
-### Neovimで使用
-
-```lua
-require('argo-workflows-lsp').setup({
-  server_path = '/path/to/server.js',
-  settings = {
-    argoWorkflowsLSP = {
-      enableDiagnostics = true,
-      enableHover = true,
-      enableDefinition = true,
-      enableCompletion = true,
-    }
-  }
-})
-```
-
----
-
-## 開発
 
 ### コマンド
 
@@ -135,9 +186,7 @@ bun run package             # VSIXパッケージ作成
 
 **Neovim**: `nvim samples/argo/workflow-templateref.yaml` → `gd` で定義ジャンプ
 
----
-
-## プロジェクト構造
+### プロジェクト構造
 
 ```
 helm-yaml-lsp/
@@ -159,34 +208,6 @@ helm-yaml-lsp/
 │   ├── argo/                          # Plain YAML版
 │   └── helm/                          # Helm版
 └── vscode-kubernetes-tools-argo/      # 移行元（git submodule）
-```
-
----
-
-## 設定
-
-### VSCode
-
-```json
-{
-  "argoWorkflowsLSP.enableDiagnostics": true,
-  "argoWorkflowsLSP.enableHover": true,
-  "argoWorkflowsLSP.enableDefinition": true,
-  "argoWorkflowsLSP.enableCompletion": true,
-  "argoWorkflowsLSP.maxNumberOfProblems": 1000
-}
-```
-
-### Neovim
-
-```lua
-require('argo-workflows-lsp').setup({
-  settings = {
-    argoWorkflowsLSP = {
-      enableDiagnostics = true,  -- false でエラー診断を無効化
-    }
-  }
-})
 ```
 
 ---

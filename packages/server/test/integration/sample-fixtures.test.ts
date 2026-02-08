@@ -509,11 +509,31 @@ describe('Hover/Definition: workflow-variables.yaml', () => {
   // Reported issues: missing hover/definition
   // ----------------------------------------------------------
 
-  describe('workflow.mainEntrypoint (L66) - missing variable', () => {
+  describe('workflow.serviceAccountName (L63) - definition', () => {
+    it('should jump from workflow.serviceAccountName to spec.serviceAccountName', async () => {
+      const pos = findVarPosition(content, 'workflow.serviceAccountName', 63);
+      const def = await definitionProvider.provideDefinition(doc, pos);
+      expect(def).not.toBeNull();
+      const loc = def as Location;
+      const targetLine = content.split('\n')[loc.range.start.line];
+      expect(targetLine).toContain('serviceAccountName');
+    });
+  });
+
+  describe('workflow.mainEntrypoint (L66) - definition', () => {
     it('should hover on workflow.mainEntrypoint', async () => {
       const pos = findVarPosition(content, 'workflow.mainEntrypoint', 66);
       const hover = await hoverProvider.provideHover(doc, pos);
       expect(hover).not.toBeNull();
+    });
+
+    it('should jump from workflow.mainEntrypoint to spec.entrypoint', async () => {
+      const pos = findVarPosition(content, 'workflow.mainEntrypoint', 66);
+      const def = await definitionProvider.provideDefinition(doc, pos);
+      expect(def).not.toBeNull();
+      const loc = def as Location;
+      const targetLine = content.split('\n')[loc.range.start.line];
+      expect(targetLine).toContain('entrypoint');
     });
   });
 
@@ -656,19 +676,19 @@ describe('Hover/Definition: workflow-artifacts.yaml', () => {
   });
 
   it('hover on inputs.artifacts.input-file', async () => {
-    const pos = findVarPosition(content, 'inputs.artifacts.input-file', 90);
+    const pos = findVarPosition(content, 'inputs.artifacts.input-file', 126);
     const hover = await hoverProvider.provideHover(doc, pos);
     expect(hover).not.toBeNull();
   });
 
   it('hover on outputs.artifacts.output-file', async () => {
-    const pos = findVarPosition(content, 'outputs.artifacts.output-file', 70);
+    const pos = findVarPosition(content, 'outputs.artifacts.output-file', 94);
     const hover = await hoverProvider.provideHover(doc, pos);
     expect(hover).not.toBeNull();
   });
 
   it('definition on steps.generate.outputs.artifacts.output-file', async () => {
-    const pos = findVarPosition(content, 'steps.generate.outputs.artifacts.output-file', 49);
+    const pos = findVarPosition(content, 'steps.generate.outputs.artifacts.output-file', 70);
     const location = await definitionProvider.provideDefinition(doc, pos);
     expect(location).not.toBeNull();
     if (location && 'range' in location) {
@@ -713,13 +733,13 @@ describe('Hover/Definition: workflow-result.yaml', () => {
   });
 
   it('hover on steps.run-script.outputs.result', async () => {
-    const pos = findVarPosition(content, 'steps.run-script.outputs.result', 51);
+    const pos = findVarPosition(content, 'steps.run-script.outputs.result', 34);
     const hover = await hoverProvider.provideHover(doc, pos);
     expect(hover).not.toBeNull();
   });
 
   it('definition on tasks.task-script.outputs.result', async () => {
-    const pos = findVarPosition(content, 'tasks.task-script.outputs.result', 102);
+    const pos = findVarPosition(content, 'tasks.task-script.outputs.result', 79);
     const location = await definitionProvider.provideDefinition(doc, pos);
     expect(location).not.toBeNull();
   });
@@ -752,13 +772,13 @@ describe('Hover/Definition: workflow-item.yaml', () => {
   });
 
   it('hover on item (scalar)', async () => {
-    const pos = findVarPosition(content, 'item', 46);
+    const pos = findVarPosition(content, 'item', 38);
     const hover = await hoverProvider.provideHover(doc, pos);
     expect(hover).not.toBeNull();
   });
 
   it('hover on item.name (object property)', async () => {
-    const pos = findVarPosition(content, 'item.name', 64);
+    const pos = findVarPosition(content, 'item.name', 50);
     const hover = await hoverProvider.provideHover(doc, pos);
     expect(hover).not.toBeNull();
   });

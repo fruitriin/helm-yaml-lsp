@@ -1,0 +1,163 @@
+# =============================================================================
+# workflow-variables.yaml — Workflow変数の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - {{workflow.*}} 変数のホバー・定義ジャンプ
+#   - 基本変数: name, namespace, uid, serviceAccountName, duration, priority
+#   - mainEntrypoint
+#   - creationTimestamp + サブフォーマット（RFC3339, Y, m, d）
+#   - workflow.parameters.xxx
+#   - workflow.labels.xxx, workflow.annotations.xxx
+#   - workflow.status（Exit handler）
+#   - CronWorkflow: workflow.scheduledTime, workflow.creationTimestamp
+#
+# テスト分類: Self-contained（multi-doc: Workflow + CronWorkflow）
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: variables-workflow-
+  # --- Labels/Annotations: ジャンプ先の定義 ---
+  labels:
+    team: platform
+    version: "1.0"
+    component: workflow
+    tier: backend
+    managed-by: argo
+    environment: production
+    release: stable
+    category: demo
+    status: active
+    app: variable-demo
+  annotations:
+    description: "Workflow variable demonstration"
+spec:
+  entrypoint: main
+  serviceAccountName: argo-workflow-sa
+  # --- Workflow引数（workflow.parameters のジャンプ先）---
+  arguments:
+    parameters:
+      # --- workflow.parameters.xxx のジャンプ先 ---
+      # --- message, count, environment ---
+      # ---
+      - name: message
+        value: "Hello"
+        description: "メッセージパラメータ"
+      - name: count
+        value: "5"
+        description: "カウントパラメータ"
+      - name: environment
+        value: "production"
+  templates:
+    - name: main
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "name={{workflow.name}}"
+            echo "namespace={{workflow.namespace}}"
+            echo "uid={{workflow.uid}}"
+            echo "serviceAccountName={{workflow.serviceAccountName}}"
+            echo "duration={{workflow.duration}}"
+            echo "priority={{workflow.priority}}"
+            echo "mainEntrypoint={{workflow.mainEntrypoint}}"
+            # --- Timestamp variables ---
+            # creationTimestamp とサブフォーマット
+            #
+            echo "creationTimestamp={{workflow.creationTimestamp}}"
+            echo "RFC3339={{workflow.creationTimestamp.RFC3339}}"
+            echo "Y={{workflow.creationTimestamp.Y}}"
+            echo "m={{workflow.creationTimestamp.m}}"
+            echo "d={{workflow.creationTimestamp.d}}"
+            # --- Parameters ---
+            # workflow.parameters のジャンプ先は L45
+            #
+            echo "message={{workflow.parameters.message}}"
+            echo "count={{workflow.parameters.count}}"
+            echo "environment={{workflow.parameters.environment}}"
+            # --- Labels / Annotations ---
+            # workflow.labels / workflow.annotations のジャンプ先は L33/L35
+            #
+            echo "label.app={{workflow.labels.app}}"
+            echo "annotation.description={{workflow.annotations.description}}"
+
+    # --- 追加テンプレート ---
+
+    - name: show-params
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["params"]
+
+    - name: show-labels-tpl
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["labels"]
+
+    - name: show-timestamps-tpl
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["timestamps"]
+
+    - name: show-items-tpl
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["items"]
+
+    - name: show-configmap-tpl
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["configmap"]
+
+    # --- Exit handler: workflow.status ---
+    - name: exit-handler
+      container:
+        image: alpine:latest
+        command: [echo, "status={{workflow.status}}"]
+
+---
+# --- CronWorkflow Document ---
+
+# =============================================================================
+# CronWorkflow — scheduledTime, creationTimestamp の確認
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: variables-cron-workflow
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Replace
+  workflowSpec:
+    entrypoint: main
+    # --- CronWorkflow固有変数 ---
+    # workflow.scheduledTime: スケジュール実行時刻
+    # workflow.creationTimestamp: 作成時刻
+    # ---
+    # CronWorkflowでは以下の追加変数が利用可能:
+    # - workflow.scheduledTime: cronスケジュールに基づく実行予定時刻
+    # - workflow.creationTimestamp: 実際のWorkflowリソース作成時刻
+    templates:
+      - name: main
+        container:
+          image: alpine:latest
+          command: [sh, -c]
+          args:
+            - |
+              echo "CronWorkflow variables"
+              echo "---"
+              # CronWorkflow固有変数の表示
+              # scheduledTime: cronスケジュールによるトリガー時刻
+              # creationTimestamp: Workflowリソースの作成時刻
+              echo "---"
+              echo "CronWorkflow variable test"
+              echo "scheduled={{workflow.scheduledTime}}"
+              echo "created={{workflow.creationTimestamp}}"

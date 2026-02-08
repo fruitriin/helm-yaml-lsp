@@ -1,0 +1,69 @@
+# =============================================================================
+# workflow-configmap.yaml — ConfigMap/Secret参照の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - valueFrom.configMapKeyRef のジャンプ・ホバー
+#   - valueFrom.secretKeyRef のジャンプ・ホバー
+#   - envFrom.configMapRef のジャンプ・ホバー
+#   - envFrom.secretRef のジャンプ・ホバー
+#   - volumes[].configMap のジャンプ・ホバー
+#   - volumes[].secret のジャンプ・ホバー
+#
+# テスト分類: Cluster（依存: configmap-data.yaml）
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: configmap-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step-configmap
+            template: use-configmap
+
+    - name: use-configmap
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["env && cat /config/database-host"]
+        # --- configMapKeyRef ---
+        env:
+          - name: DB_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: database-host
+          - name: DB_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: database-port
+          # --- secretKeyRef ---
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: database-password
+          - name: API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: api-key
+        # --- envFrom ---
+        envFrom:
+          - configMapRef:
+              name: app-config
+          - secretRef:
+              name: app-secrets
+      # --- volumes ---
+      volumes:
+        - name: config-volume
+          configMap:
+            name: app-config
+        - name: secret-volume
+          secret:
+            secretName: app-secrets

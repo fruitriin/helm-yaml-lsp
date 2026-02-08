@@ -1,0 +1,36 @@
+# =============================================================================
+# cron-workflow.yaml — CronWorkflow定義の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - CronWorkflow固有の構文（schedule, concurrencyPolicy）
+#   - workflowSpec 内での templateRef 参照
+#
+# テスト分類: Cluster（依存: workflow-template.yaml）
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: scheduled-workflow
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Replace
+  startingDeadlineSeconds: 0
+  workflowSpec:
+    entrypoint: main
+    templates:
+      - name: main
+        steps:
+          - - name: call-hello
+              templateRef:
+                name: shared-templates
+                template: hello
+          - - name: call-whalesay
+              templateRef:
+                name: shared-templates
+                template: whalesay
+              arguments:
+                parameters:
+                  - name: message
+                    value: "Scheduled run at {{workflow.creationTimestamp}}"

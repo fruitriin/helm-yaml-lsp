@@ -1,0 +1,35 @@
+{{- if .Values.workflow.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.name" . }}-dag-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: task-a
+            template: step-a
+          - name: task-b
+            template: step-b
+            dependencies: [task-a]
+          - name: task-c
+            templateRef:
+              name: {{ include "argo-workflow-sample.fullname" . }}-templates
+              template: hello
+            dependencies: [task-a]
+
+    - name: step-a
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["Step A"]
+
+    - name: step-b
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["Step B"]
+{{- end }}

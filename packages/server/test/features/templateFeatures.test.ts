@@ -73,7 +73,9 @@ spec:
       const document = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
       const lines = content.split('\n');
       // Find the line with {{inputs.parameters.record-count}}
-      const targetLineIdx = lines.findIndex(l => l.includes('COUNT={{inputs.parameters.record-count}}'));
+      const targetLineIdx = lines.findIndex(l =>
+        l.includes('COUNT={{inputs.parameters.record-count}}')
+      );
       expect(targetLineIdx).toBeGreaterThan(0);
 
       // Cursor on the parameter reference - should NOT be detected as templateRef

@@ -1,0 +1,44 @@
+{{- if .Values.workflow.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.name" . }}-params-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+      - name: global-message
+        value: "Hello World"
+  templates:
+    - name: main
+      steps:
+        - - name: generate
+            template: generate-output
+        - - name: consume
+            template: print-message
+            arguments:
+              parameters:
+                - name: message
+                  value: "{{`{{steps.generate.outputs.parameters.result-message}}`}}"
+
+    - name: generate-output
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [sh, -c]
+        args: ["echo 'generated' > /tmp/result.txt"]
+      outputs:
+        parameters:
+          - name: result-message
+            valueFrom:
+              path: /tmp/result.txt
+
+    - name: print-message
+      inputs:
+        parameters:
+          - name: message
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["{{`{{inputs.parameters.message}}`}}"]
+{{- end }}

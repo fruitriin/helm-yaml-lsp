@@ -1,0 +1,30 @@
+# =============================================================================
+# cluster-workflow-template.yaml — ClusterWorkflowTemplate定義
+# =============================================================================
+#
+# 確認できること:
+#   - クラスタスコープのテンプレート定義
+#   - clusterScope: true での参照先
+#
+# テスト分類: 他ファイルの依存先
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: cluster-shared-templates
+spec:
+  templates:
+    # --- cluster-hello テンプレート ---
+    - name: cluster-hello
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Hello from ClusterWorkflowTemplate!"]
+
+    # --- cluster-job テンプレート ---
+    - name: cluster-job
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'Running cluster job' && sleep 1"]

@@ -1,0 +1,33 @@
+# =============================================================================
+# configmap-data.yaml — ConfigMap/Secret定義
+# =============================================================================
+#
+# 確認できること:
+#   - ConfigMapリソースの定義（他ファイルからの参照先）
+#   - Secretリソースの定義（他ファイルからの参照先）
+#
+# テスト分類: 他ファイルの依存先
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  database-host: "postgres.default.svc.cluster.local"
+  database-port: "5432"
+  log-level: "info"
+  max-retries: "3"
+  api-endpoint: "https://api.example.com"
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+data:
+  database-password: cGFzc3dvcmQxMjM=
+  api-key: YXBpLWtleS1zZWNyZXQ=
+  jwt-secret: and0LXNlY3JldC1rZXk=

@@ -1,0 +1,36 @@
+{{- if .Values.workflow.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.name" . }}-result-
+  namespace: {{ .Values.namespace }}
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: run-script
+            template: python-script
+        - - name: use-result
+            template: print-result
+            arguments:
+              parameters:
+                - name: output
+                  value: "{{`{{steps.run-script.outputs.result}}`}}"
+
+    - name: python-script
+      script:
+        image: python:3.11-alpine
+        command: [python]
+        source: |
+          print("script result")
+
+    - name: print-result
+      inputs:
+        parameters:
+          - name: output
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["{{`{{inputs.parameters.output}}`}}"]
+{{- end }}

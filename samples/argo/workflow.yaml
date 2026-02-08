@@ -1,0 +1,22 @@
+# =============================================================================
+# workflow.yaml — テンプレートエラー検出テスト
+# =============================================================================
+#
+# 確認できること:
+#   - 存在しないテンプレート参照の診断
+#
+# テスト分類: Self-contained
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: error-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        # --- test-template は未定義 → エラー検出 ---
+        - - name: step-error
+            template: test-template

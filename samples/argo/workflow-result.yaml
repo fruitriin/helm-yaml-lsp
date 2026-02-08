@@ -1,0 +1,97 @@
+# =============================================================================
+# workflow-result.yaml — Script Result参照の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - outputs.result のジャンプ・ホバー（言語検出）
+#   - Steps構造: {{steps.run-script.outputs.result}}
+#   - DAG構造: {{tasks.task-script.outputs.result}}
+#   - script定義（image, command, source）— Python/Bash
+#
+# テスト分類: Self-contained（multi-doc）
+# =============================================================================
+
+# --- Workflow: Steps構造でのScript Result ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: result-steps-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        # --- script実行ステップ ---
+        - - name: run-script
+            template: python-script
+        # --- result参照ステップ ---
+        - - name: use-result
+            template: print-result
+            arguments:
+              parameters:
+                - name: script-output
+                  value: "{{steps.run-script.outputs.result}}"
+
+    # --- Python script テンプレート ---
+    - name: python-script
+      script:
+        image: python:3.11-alpine
+        command: [python]
+        source: |
+          import json
+          result = {"status": "success", "count": 42}
+          print(json.dumps(result))
+
+    # --- 結果表示テンプレート ---
+    - name: print-result
+      inputs:
+        parameters:
+          - name: script-output
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.script-output}}"]
+
+---
+# --- Workflow: DAG構造でのScript Result ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: result-dag-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      dag:
+        tasks:
+          # --- script実行タスク ---
+          - name: task-script
+            template: bash-script
+          # --- result参照タスク ---
+          - name: task-use-result
+            template: print-dag-result
+            dependencies: [task-script]
+            arguments:
+              parameters:
+                - name: script-output
+                  value: "{{tasks.task-script.outputs.result}}"
+
+    # --- Bash script テンプレート ---
+    - name: bash-script
+      script:
+        image: alpine:latest
+        command: [sh]
+        source: |
+          echo "DAG script result: $(date)"
+
+    # --- DAG結果表示テンプレート ---
+    - name: print-dag-result
+      inputs:
+        parameters:
+          - name: script-output
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.script-output}}"]

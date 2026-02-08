@@ -1,0 +1,24 @@
+# Default values for argo-workflow-sample
+
+namespace: argo
+
+workflow:
+  enabled: true
+  image:
+    repository: alpine
+    tag: latest
+  schedule: "0 * * * *"
+  concurrencyPolicy: Replace
+  serviceAccountName: argo-workflow-sa
+
+workflowTemplate:
+  enabled: true
+
+configMap:
+  databaseHost: "postgres.default.svc.cluster.local"
+  databasePort: "5432"
+  logLevel: "info"
+
+secret:
+  databasePassword: "password123"
+  apiKey: "api-key-secret"

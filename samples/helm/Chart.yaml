@@ -1,0 +1,5 @@
+apiVersion: v2
+name: argo-workflow-sample
+version: 0.1.0
+appVersion: "1.0.0"
+description: Argo Workflows sample Helm chart for LSP testing

@@ -1,0 +1,30 @@
+{{- if .Values.workflow.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.name" . }}-basic-
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "argo-workflow-sample.labels" . | nindent 4 }}
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step-hello
+            template: say-hello
+        - - name: step-goodbye
+            template: say-goodbye
+
+    - name: say-hello
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["Hello from Helm basic workflow!"]
+
+    - name: say-goodbye
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [echo]
+        args: ["Goodbye from Helm basic workflow!"]
+{{- end }}

@@ -1,0 +1,144 @@
+# =============================================================================
+# demo-workflow.yaml — 全機能統合デモ
+# =============================================================================
+#
+# 確認できること:
+#   - Phase 2〜10 の全機能を1ファイルで段階的に確認
+#   - ConfigMap/Secret + WorkflowTemplate + Workflow の統合
+#
+# テスト分類: Self-contained（multi-doc: ConfigMap + Secret + WorkflowTemplate + Workflow）
+# =============================================================================
+
+# --- Section 1: ConfigMap（5キー）---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  database-host: "postgres.default.svc.cluster.local"
+  database-port: "5432"
+  log-level: "info"
+  max-retries: "3"
+  api-endpoint: "https://api.example.com"
+
+---
+# --- Section 1: Secret（3キー）---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+data:
+  database-password: cGFzc3dvcmQxMjM=
+  api-key: YXBpLWtleS1zZWNyZXQ=
+  jwt-secret: and0LXNlY3JldC1rZXk=
+
+---
+# --- Section 2: WorkflowTemplate ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: demo-templates
+spec:
+  templates:
+    - name: greet
+      inputs:
+        parameters:
+          - name: message
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.message}}"]
+
+    - name: process
+      inputs:
+        parameters:
+          - name: data
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo Processing: {{inputs.parameters.data}}"]
+
+    - name: notify
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Notification sent"]
+
+---
+# --- Section 3: メインワークフロー ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: demo-workflow-
+  labels:
+    app: demo
+  annotations:
+    description: "Full feature demo workflow"
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+      - name: greeting
+        value: "Hello Demo"
+      - name: environment
+        value: "staging"
+  templates:
+    - name: main
+      steps:
+        # --- templateRef 参照 ---
+        - - name: step-greet
+            templateRef:
+              name: demo-templates
+              template: greet
+            arguments:
+              parameters:
+                - name: message
+                  value: "{{workflow.parameters.greeting}}"
+        # --- ローカルテンプレート参照 ---
+        - - name: step-local
+            template: local-task
+        # --- ConfigMap参照テンプレート ---
+        - - name: step-config
+            template: use-config
+        # --- パラメータ受け渡し ---
+        - - name: step-process
+            templateRef:
+              name: demo-templates
+              template: process
+            arguments:
+              parameters:
+                - name: data
+                  value: "{{workflow.parameters.environment}}"
+
+    # --- ローカルテンプレート ---
+    - name: local-task
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Local task executed"]
+
+    # --- ConfigMap/Secret参照テンプレート ---
+    - name: use-config
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo $DB_HOST"]
+        env:
+          - name: DB_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: database-host
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: database-password
+        envFrom:
+          - configMapRef:
+              name: app-config

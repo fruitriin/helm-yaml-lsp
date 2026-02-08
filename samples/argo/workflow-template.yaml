@@ -1,0 +1,53 @@
+# =============================================================================
+# workflow-template.yaml — WorkflowTemplate定義（再利用可能テンプレート）
+# =============================================================================
+#
+# 確認できること:
+#   - WorkflowTemplateリソースの定義
+#   - 他ファイル（workflow-templateref.yaml等）からの参照先
+#   - inputs.parametersを持つテンプレート
+#
+# テスト分類: 他ファイルの依存先
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: shared-templates
+spec:
+  templates:
+    # --- hello テンプレート ---
+    - name: hello
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Hello from WorkflowTemplate!"]
+
+    # --- goodbye テンプレート ---
+    - name: goodbye
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Goodbye from WorkflowTemplate!"]
+
+    # --- whalesay テンプレート（パラメータ付き） ---
+    - name: whalesay
+      inputs:
+        parameters:
+          - name: message
+            description: "表示するメッセージ"
+      container:
+        image: docker/whalesay:latest
+        command: [cowsay]
+        args: ["{{inputs.parameters.message}}"]
+
+    # --- echo テンプレート（パラメータ付き） ---
+    - name: echo
+      inputs:
+        parameters:
+          - name: text
+            description: "エコーするテキスト"
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.text}}"]

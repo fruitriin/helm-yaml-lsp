@@ -255,6 +255,12 @@ function findWorkflowVariableDefinition(
   if (details.variableName === 'workflow.namespace') {
     return findMetadataField(doc, 'namespace');
   }
+  if (details.variableName === 'workflow.serviceAccountName') {
+    return findSpecField(doc, 'serviceAccountName');
+  }
+  if (details.variableName === 'workflow.mainEntrypoint') {
+    return findSpecField(doc, 'entrypoint');
+  }
 
   return null;
 }
@@ -293,6 +299,53 @@ function findMetadataField(
       const fieldRegex = new RegExp(`^\\s*${fieldName}:\\s*(\\S.*)`);
       const match = line.match(fieldRegex);
       if (match && currentIndent === metadataIndent + 2) {
+        const valueStr = match[1].trim().replace(/^["']|["']$/g, '');
+        const valueStart = line.indexOf(valueStr, line.indexOf(':') + 1);
+        return {
+          uri: doc.uri,
+          range: Rng.create(Pos.create(i, valueStart), Pos.create(i, valueStart + valueStr.length)),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * spec 直下のフィールド（entrypoint, serviceAccountName等）を検索
+ */
+function findSpecField(
+  doc: TextDocument,
+  fieldName: string
+): { uri: string; range: Range } | null {
+  const text = doc.getText();
+  const lines = text.split('\n');
+
+  let inSpec = false;
+  let specIndent = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+    const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+
+    if (/^\s*spec:/.test(line)) {
+      inSpec = true;
+      specIndent = currentIndent;
+      continue;
+    }
+
+    if (inSpec && currentIndent <= specIndent && !trimmed.startsWith('#')) {
+      inSpec = false;
+    }
+
+    if (inSpec) {
+      const fieldRegex = new RegExp(`^\\s*${fieldName}:\\s*(\\S.*)`);
+      const match = line.match(fieldRegex);
+      if (match && currentIndent === specIndent + 2) {
         const valueStr = match[1].trim().replace(/^["']|["']$/g, '');
         const valueStart = line.indexOf(valueStr, line.indexOf(':') + 1);
         return {

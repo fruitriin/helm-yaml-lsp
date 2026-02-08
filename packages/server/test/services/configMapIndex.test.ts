@@ -71,16 +71,16 @@ describe('ConfigMapIndex', () => {
     });
 
     it('should find key in ConfigMap', () => {
-      const key = index.findKey('app-config', 'database-url', 'ConfigMap');
+      const key = index.findKey('app-config', 'database-host', 'ConfigMap');
       expect(key).toBeDefined();
-      expect(key?.keyName).toBe('database-url');
+      expect(key?.keyName).toBe('database-host');
       expect(key?.configMapName).toBe('app-config');
     });
 
     it('should find key in Secret', () => {
-      const key = index.findKey('app-secrets', 'db-password', 'Secret');
+      const key = index.findKey('app-secrets', 'database-password', 'Secret');
       expect(key).toBeDefined();
-      expect(key?.keyName).toBe('db-password');
+      expect(key?.keyName).toBe('database-password');
     });
 
     it('should return undefined for non-existent key', () => {
@@ -102,7 +102,7 @@ describe('ConfigMapIndex', () => {
     it('should return all keys from ConfigMap', () => {
       const keys = index.getKeys('app-config', 'ConfigMap');
       expect(keys.length).toBeGreaterThan(0);
-      expect(keys).toContain('database-url');
+      expect(keys).toContain('database-host');
       expect(keys).toContain('api-endpoint');
     });
 

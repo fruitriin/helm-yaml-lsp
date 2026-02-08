@@ -1,0 +1,127 @@
+# =============================================================================
+# workflow-artifacts.yaml — アーティファクト参照の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - inputs.artifacts 定義（name, path）
+#   - outputs.artifacts 定義（name, path）
+#   - {{steps.generate.outputs.artifacts.output-file}} 参照のジャンプ
+#   - {{inputs.artifacts.input-file}} 参照のホバー
+#   - {{outputs.artifacts.output-file}} 参照のホバー
+#
+# テスト分類: Self-contained（multi-doc）
+# =============================================================================
+
+# --- WorkflowTemplate: アーティファクト定義 ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: artifact-templates
+spec:
+  templates:
+    # --- generate テンプレート: アーティファクト出力 ---
+    - name: generate
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'generated data' > /tmp/output.txt"]
+      outputs:
+        artifacts:
+          - name: output-file
+            path: /tmp/output.txt
+
+    # --- process テンプレート: アーティファクト入出力 ---
+    - name: process
+      inputs:
+        artifacts:
+          - name: input-file
+            path: /tmp/input.txt
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["cat /tmp/input.txt > /tmp/processed.txt"]
+      outputs:
+        artifacts:
+          - name: output-file
+            path: /tmp/processed.txt
+
+---
+# --- Workflow: Steps構造でアーティファクト受け渡し ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: artifacts-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        # --- generate ステップ ---
+        - - name: generate
+            template: generate-data
+        # --- consume ステップ: {{steps.generate.outputs.artifacts.output-file}} でジャンプ ---
+        - - name: consume
+            template: process-data
+            arguments:
+              artifacts:
+                - name: input-file
+                  from: "{{steps.generate.outputs.artifacts.output-file}}"
+
+    # --- generate-data テンプレート ---
+    - name: generate-data
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'step generated data' > /tmp/output.txt"]
+      outputs:
+        artifacts:
+          - name: output-file
+            path: /tmp/output.txt
+
+    # --- process-data テンプレート: outputs.artifacts 参照 ---
+    - name: process-data
+      inputs:
+        artifacts:
+          - name: input-file
+            path: /tmp/input.txt
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "output={{outputs.artifacts.output-file}}"
+            cat /tmp/input.txt
+      outputs:
+        artifacts:
+          - name: output-file
+            path: /tmp/output.txt
+
+---
+# --- Workflow: アーティファクト参照テスト ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: artifacts-ref-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: step-process
+            template: use-artifacts
+
+    - name: use-artifacts
+      inputs:
+        artifacts:
+          - name: input-file
+            path: /tmp/input.txt
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "input={{inputs.artifacts.input-file}}"
+            cat /tmp/input.txt

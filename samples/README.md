@@ -2,7 +2,7 @@
 
 このディレクトリには、Helm YAML LSPの全機能をテストするためのサンプルファイルが含まれています。
 
-**対応Phase**: Phase 1〜11 完了
+**対応Phase**: Phase 1〜12 完了
 
 ## ディレクトリ構成
 
@@ -64,8 +64,7 @@ samples/
 
 | ファイル名 | Phase | 内容 | テスト機能 |
 |-----------|-------|------|----------|
-| [comprehensive-workflow.yaml](argo/comprehensive-workflow.yaml) | 3 | 主要機能を含む包括的サンプル | ローカルテンプレート参照、パラメータ、Workflow変数 |
-| **[demo-workflow.yaml](argo/demo-workflow.yaml)** | **11** | **全機能デモ（Phase 11対応）** | **Argo全機能 + ConfigMap/Secret + Artifact + Result + Item変数を順に確認** |
+| **[demo-workflow.yaml](argo/demo-workflow.yaml)** | **12** | **全機能デモ** | **Argo全機能 + ConfigMap/Secret 統合** |
 | [demo-workflow-invalid.yaml](argo/demo-workflow-invalid.yaml) | 5 | エラー検出テスト用 | 意図的エラーを含むファイル。診断機能の検証用 |
 | [workflow-configmap.yaml](argo/workflow-configmap.yaml) | 5 | ConfigMap/Secret参照 | configMapKeyRef/secretKeyRef解決 |
 
@@ -113,14 +112,9 @@ Helmテンプレート形式のArgo Workflowsサンプルファイル。Plain版
 
 ### 推奨デモファイル
 
-**Helm版で最初に試すべきファイル**: [demo-workflow.yaml](helm/templates/demo-workflow.yaml)
+**Helm版で最初に試すべきファイル**: [configmap-helm.yaml](helm/templates/configmap-helm.yaml)
 
-Phase 11完了時点での全機能（Argo + Helm）を、セクション別に段階的に確認できる包括的なデモファイルです：
-- Section 1: ConfigMap定義（.Values参照、Helm組み込み関数、.Chart/.Release変数）
-- Section 2: Secret定義（b64enc関数等）
-- Section 3: WorkflowTemplate定義（ConfigMap/Secret参照、include関数）
-- Section 4: メインワークフロー（Argo + Helm全機能統合）
-- チェックリスト付き: すべての機能の動作確認手順を記載
+Helm専用機能（.Values参照、include/template、.Release/.Chart変数、組み込み関数）を網羅的にテストできます。
 
 ### 基本構文（Helm版）
 

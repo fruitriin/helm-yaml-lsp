@@ -1,0 +1,108 @@
+# =============================================================================
+# workflow-parameters.yaml — パラメータ参照の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - inputs.parameters 定義（name, default, description）
+#   - outputs.parameters 定義（valueFrom.path）
+#   - {{steps.xxx.outputs.parameters.yyy}} 参照のジャンプ
+#   - {{tasks.xxx.outputs.parameters.yyy}} 参照のジャンプ
+#   - {{inputs.parameters.xxx}} の展開
+#   - 各種クオートパターン（ダブル・シングル・なし）
+#
+# テスト分類: Self-contained
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: parameters-workflow-
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+      - name: global-message
+        value: "Hello World"
+      - name: global-count
+        value: "3"
+  templates:
+    # --- メインテンプレート: steps構造 ---
+    - name: main
+      steps:
+        - - name: generate
+            template: generate-output
+        # --- {{steps.generate.outputs.parameters.result-message}} でジャンプ ---
+        - - name: consume
+            template: print-message
+            arguments:
+              parameters:
+                - name: message
+                  value: "{{steps.generate.outputs.parameters.result-message}}"
+
+    # --- パラメータ出力テンプレート ---
+    - name: generate-output
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'generated value' > /tmp/result.txt"]
+      outputs:
+        parameters:
+          - name: result-message
+            valueFrom:
+              path: /tmp/result.txt
+
+    # --- パラメータ入力テンプレート ---
+    - name: print-message
+      inputs:
+        parameters:
+          - name: message
+            description: "表示するメッセージ"
+      container:
+        image: alpine:latest
+        command: [echo]
+        # --- ダブルクオート内 ---
+        args: ["{{inputs.parameters.message}}"]
+
+---
+# --- DAG構造でのパラメータ参照 ---
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: parameters-dag-workflow-
+spec:
+  entrypoint: main-dag
+  templates:
+    - name: main-dag
+      dag:
+        tasks:
+          - name: task-generate
+            template: generate-value
+          # --- {{tasks.task-generate.outputs.parameters.output-value}} でジャンプ ---
+          - name: task-consume
+            template: use-value
+            dependencies: [task-generate]
+            arguments:
+              parameters:
+                - name: input-value
+                  value: "{{tasks.task-generate.outputs.parameters.output-value}}"
+
+    - name: generate-value
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo 'dag-value' > /tmp/output.txt"]
+      outputs:
+        parameters:
+          - name: output-value
+            valueFrom:
+              path: /tmp/output.txt
+
+    - name: use-value
+      inputs:
+        parameters:
+          - name: input-value
+      container:
+        image: alpine:latest
+        command: [echo]
+        # --- シングルクオート内 ---
+        args: ['{{inputs.parameters.input-value}}']

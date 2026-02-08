@@ -1,0 +1,20 @@
+{{- if .Values.workflow.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: {{ include "argo-workflow-sample.fullname" . }}-cron
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "argo-workflow-sample.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.workflow.schedule | quote }}
+  concurrencyPolicy: {{ .Values.workflow.concurrencyPolicy }}
+  workflowSpec:
+    entrypoint: main
+    templates:
+      - name: main
+        container:
+          image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+          command: [echo]
+          args: ["Scheduled run"]
+{{- end }}

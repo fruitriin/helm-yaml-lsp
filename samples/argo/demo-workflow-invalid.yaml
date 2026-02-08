@@ -1,0 +1,81 @@
+# =============================================================================
+# demo-workflow-invalid.yaml — 意図的エラー集
+# =============================================================================
+#
+# 確認できること:
+#   - LSP診断機能のエラー検出
+#   - 各種エラータイプの検出（7件以上）
+#
+# テスト分類: Self-contained
+# =============================================================================
+
+# --- 参照先となる有効なConfigMap ---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valid-config
+data:
+  valid-key: "valid-value"
+  another-key: "another-value"
+
+---
+# --- 意図的エラーを含むWorkflow ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: invalid-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        # --- エラー1: 存在しないローカルテンプレート参照 ---
+        - - name: step-nonexistent
+            template: non-existent-template
+
+        # --- エラー2: templateRef内の存在しないテンプレート ---
+        - - name: step-missing-tpl
+            templateRef:
+              name: nonexistent-wt
+              template: missing-template
+
+        # --- ConfigMap/Secret参照エラー ---
+        - - name: step-config-errors
+            template: config-errors
+
+    # --- ConfigMap/Secret参照エラーテンプレート ---
+    - name: config-errors
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo errors"]
+        env:
+          # --- エラー3: 存在しないConfigMap参照（env） ---
+          - name: MISSING_CM
+            valueFrom:
+              configMapKeyRef:
+                name: missing-configmap
+                key: some-key
+          # --- エラー4: 存在しないSecret参照（env） ---
+          - name: MISSING_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: missing-secret
+                key: some-key
+          # --- エラー5: 有効なConfigMap内の存在しないキー ---
+          - name: INVALID_KEY
+            valueFrom:
+              configMapKeyRef:
+                name: valid-config
+                key: invalid.key
+      # --- エラー6: 存在しないConfigMap参照（volume） ---
+      volumes:
+        - name: missing-cm-volume
+          configMap:
+            name: missing-configmap
+        # --- エラー7: 存在しないSecret参照（volume） ---
+        - name: missing-secret-volume
+          secret:
+            secretName: missing-secret

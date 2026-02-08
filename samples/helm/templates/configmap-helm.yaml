@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "argo-workflow-sample.fullname" . }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "argo-workflow-sample.labels" . | nindent 4 }}
+data:
+  database-host: {{ .Values.configMap.databaseHost | quote }}
+  database-port: {{ .Values.configMap.databasePort | quote }}
+  log-level: {{ .Values.configMap.logLevel | quote }}
+  release-name: {{ .Release.Name }}
+  release-namespace: {{ .Release.Namespace }}
+  release-service: {{ .Release.Service }}
+  release-revision: {{ .Release.Revision | quote }}
+  chart-name: {{ .Chart.Name }}
+  chart-version: {{ .Chart.Version }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "argo-workflow-sample.fullname" . }}-secrets
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "argo-workflow-sample.labels" . | nindent 4 }}
+type: Opaque
+data:
+  database-password: {{ .Values.secret.databasePassword | b64enc | quote }}
+  api-key: {{ .Values.secret.apiKey | b64enc | quote }}

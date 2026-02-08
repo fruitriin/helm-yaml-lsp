@@ -1,0 +1,42 @@
+# =============================================================================
+# workflow-basic.yaml — ローカルテンプレート参照の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - template: xxx でローカルテンプレート定義にジャンプ（F12）
+#   - steps構造での順次実行
+#   - container定義（image, command, args）
+#
+# テスト分類: Self-contained
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: basic-workflow-
+spec:
+  entrypoint: main
+  templates:
+    # --- メインテンプレート: steps構造で順次実行 ---
+    - name: main
+      steps:
+        # --- template: にカーソルを置いて F12 → say-hello にジャンプ ---
+        - - name: step-hello
+            template: say-hello
+        # --- template: にカーソルを置いて F12 → say-goodbye にジャンプ ---
+        - - name: step-goodbye
+            template: say-goodbye
+
+    # --- テンプレート定義: say-hello ---
+    - name: say-hello
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Hello from basic workflow!"]
+
+    # --- テンプレート定義: say-goodbye ---
+    - name: say-goodbye
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["Goodbye from basic workflow!"]

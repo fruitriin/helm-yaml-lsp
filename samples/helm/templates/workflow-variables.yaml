@@ -1,0 +1,22 @@
+{{- if .Values.workflow.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: {{ include "argo-workflow-sample.name" . }}-vars-
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "argo-workflow-sample.labels" . | nindent 4 }}
+spec:
+  entrypoint: main
+  serviceAccountName: {{ .Values.workflow.serviceAccountName }}
+  templates:
+    - name: main
+      container:
+        image: {{ .Values.workflow.image.repository }}:{{ .Values.workflow.image.tag }}
+        command: [sh, -c]
+        args:
+          - |
+            echo "name={{`{{workflow.name}}`}}"
+            echo "namespace={{`{{workflow.namespace}}`}}"
+            echo "uid={{`{{workflow.uid}}`}}"
+{{- end }}

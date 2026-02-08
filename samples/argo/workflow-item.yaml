@@ -1,0 +1,140 @@
+# =============================================================================
+# workflow-item.yaml — Item変数の動作確認
+# =============================================================================
+#
+# 確認できること:
+#   - {{item}} のホバー・定義ジャンプ（スカラー配列）
+#   - {{item.name}}, {{item.value}} のホバー（オブジェクト配列）
+#   - withItems スカラー配列
+#   - withItems オブジェクト配列
+#   - withParam 参照
+#   - DAGでの withItems
+#   - 数値配列
+#
+# テスト分類: Self-contained（multi-doc）
+# =============================================================================
+
+# --- Workflow: Steps構造での withItems ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: item-steps-workflow-
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+      - name: items-json
+        value: '["x", "y", "z"]'
+  templates:
+    - name: main
+      steps:
+        # --- withItems スカラー配列 ---
+        - - name: scalar-loop
+            template: print-scalar
+            arguments:
+              parameters:
+                - name: value
+                  value: "{{item}}"
+            withItems:
+              - apple
+              - banana
+              - cherry
+
+        # --- withItems オブジェクト配列 ---
+        - - name: object-loop
+            template: print-object
+            arguments:
+              parameters:
+                - name: obj-name
+                  value: "{{item.name}}"
+                - name: obj-value
+                  value: "{{item.value}}"
+            withItems:
+              - { name: "first", value: "100" }
+              - { name: "second", value: "200" }
+              - { name: "third", value: "300" }
+
+        # --- withParam 参照（workflow.parameters） ---
+        - - name: param-loop
+            template: print-scalar
+            arguments:
+              parameters:
+                - name: value
+                  value: "{{item}}"
+            withParam: "{{workflow.parameters.items-json}}"
+
+        # --- withItems 数値配列 ---
+        - - name: number-loop
+            template: print-scalar
+            arguments:
+              parameters:
+                - name: value
+                  value: "{{item}}"
+            withItems: [1, 2, 3, 4, 5]
+
+    # --- スカラー表示テンプレート ---
+    - name: print-scalar
+      inputs:
+        parameters:
+          - name: value
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.value}}"]
+
+    # --- オブジェクト表示テンプレート ---
+    - name: print-object
+      inputs:
+        parameters:
+          - name: obj-name
+          - name: obj-value
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo '{{inputs.parameters.obj-name}}={{inputs.parameters.obj-value}}'"]
+
+---
+# --- Workflow: DAG構造での withItems ---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: item-dag-workflow-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      dag:
+        tasks:
+          # --- DAG withItems スカラー ---
+          - name: dag-scalar-loop
+            template: dag-print
+            arguments:
+              parameters:
+                - name: value
+                  value: "{{item}}"
+            withItems:
+              - red
+              - green
+              - blue
+
+          # --- DAG withItems オブジェクト ---
+          - name: dag-object-loop
+            template: dag-print
+            arguments:
+              parameters:
+                - name: value
+                  value: "{{item.name}}"
+            withItems:
+              - { name: "alpha" }
+              - { name: "beta" }
+
+    - name: dag-print
+      inputs:
+        parameters:
+          - name: value
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.value}}"]

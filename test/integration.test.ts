@@ -102,17 +102,17 @@ describe('Integration Tests', () => {
     expect(allDeps['vscode-languageserver-textdocument']).toBeDefined();
   });
 
-  test('all packages should have correct type module', async () => {
+  test('all packages should have correct configuration', async () => {
     const serverPackageJson = await Bun.file(
       join(__dirname, '..', 'packages', 'server', 'package.json')
     ).json();
 
-    // サーバーはESモジュールとして設定されている
-    expect(serverPackageJson.type).toBe('module');
+    // サーバーはCJS形式でビルドされる（type: "module" は不要）
+    expect(serverPackageJson.main).toBe('dist/server.js');
   });
 
   test('sample files should exist', async () => {
-    const sampleFiles = ['samples/test-workflow.yaml', 'packages/nvim-client/test.yaml'];
+    const sampleFiles = ['samples/argo/workflow.yaml', 'packages/nvim-client/test.yaml'];
 
     for (const sampleFile of sampleFiles) {
       const filePath = join(__dirname, '..', sampleFile);

@@ -1,5 +1,8 @@
 # Helm YAML LSP
 
+[![CI](https://github.com/fruitriin/helm-yaml-lsp/actions/workflows/ci.yml/badge.svg)](https://github.com/fruitriin/helm-yaml-lsp/actions/workflows/ci.yml)
+[![Test LSP Clients](https://github.com/fruitriin/helm-yaml-lsp/actions/workflows/test-clients.yml/badge.svg)](https://github.com/fruitriin/helm-yaml-lsp/actions/workflows/test-clients.yml)
+
 Argo Workflows Language Server Protocol implementation for Helm and YAML files.
 
 ---

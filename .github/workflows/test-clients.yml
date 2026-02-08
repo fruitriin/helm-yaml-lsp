@@ -117,7 +117,7 @@ jobs:
         run: bun run build
 
       - name: Run integration tests
-        run: bun test
+        run: bun run test
 
   test-multiple-os:
     name: Test on ${{ matrix.os }}

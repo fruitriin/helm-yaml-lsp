@@ -29,7 +29,7 @@ jobs:
         run: bun run typecheck
 
       - name: Lint (Biome)
-        run: biome check .
+        run: bunx biome check .
 
       - name: Lint (ESLint for server)
         run: bun run lint:eslint

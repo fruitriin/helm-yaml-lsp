@@ -5,8 +5,7 @@
  * ガードとハンドラーの登録順序を一元管理する。
  */
 
-import { isArgoWorkflowDocument } from '@/features/documentDetection';
-import { isHelmTemplate } from '@/features/valuesReferenceFeatures';
+import { isArgoWorkflowDocument, isHelmTemplate } from '@/features/documentDetection';
 import type { ArgoTemplateIndex } from '@/services/argoTemplateIndex';
 import type { ConfigMapIndex } from '@/services/configMapIndex';
 import type { HelmChartIndex } from '@/services/helmChartIndex';
@@ -63,24 +62,24 @@ export function createReferenceRegistry(
     });
   }
 
-  // Phase 2: ConfigMap guard (always active)
+  // Phase 2: ConfigMap guard (active for non-Helm files)
   if (_configMapIndex) {
     const configMapHandler = createConfigMapHandler(_configMapIndex);
     registry.addGuard({
       name: 'configMap',
-      check: () => true,
+      check: doc => !isHelmTemplate(doc),
       handlers: [configMapHandler],
     });
   }
 
-  // Phase 3: Argo guard
+  // Phase 3: Argo guard (active for non-Helm files)
   const argoTemplateHandler = createArgoTemplateHandler(_argoTemplateIndex);
   const argoParameterHandler = createArgoParameterHandler();
   const workflowVariableHandler = createWorkflowVariableHandler();
   const itemVariableHandler = createItemVariableHandler();
   registry.addGuard({
     name: 'argo',
-    check: doc => isArgoWorkflowDocument(doc),
+    check: doc => isArgoWorkflowDocument(doc) && !isHelmTemplate(doc),
     handlers: [
       argoTemplateHandler,
       argoParameterHandler,

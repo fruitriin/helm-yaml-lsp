@@ -159,36 +159,6 @@ function extractFullExpression(line: string, startPos: number): string {
 }
 
 /**
- * Checks if a document is a Helm template
- *
- * Heuristic: contains Helm-specific patterns like:
- * - {{ .Values, {{ .Release, {{ .Chart
- * - {{ include "...", {{ template "..."
- * - {{ define "..."
- *
- * @param document - Text document
- * @returns true if likely a Helm template
- */
-export function isHelmTemplate(document: TextDocument): boolean {
-  const text = document.getText();
-
-  return (
-    text.includes('{{ .Values') ||
-    text.includes('{{- .Values') ||
-    text.includes('{{ .Release') ||
-    text.includes('{{- .Release') ||
-    text.includes('{{ .Chart') ||
-    text.includes('{{- .Chart') ||
-    text.includes('{{ include ') ||
-    text.includes('{{- include ') ||
-    text.includes('{{ template ') ||
-    text.includes('{{- template ') ||
-    text.includes('{{ define ') ||
-    text.includes('{{- define ')
-  );
-}
-
-/**
  * Extracts the value path from a cursor position in a .Values reference
  *
  * Handles partial references like ".Values.image.|" for completion

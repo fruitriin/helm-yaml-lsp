@@ -315,10 +315,7 @@ function findMetadataField(
 /**
  * spec 直下のフィールド（entrypoint, serviceAccountName等）を検索
  */
-function findSpecField(
-  doc: TextDocument,
-  fieldName: string
-): { uri: string; range: Range } | null {
+function findSpecField(doc: TextDocument, fieldName: string): { uri: string; range: Range } | null {
   const text = doc.getText();
   const lines = text.split('\n');
 

@@ -5,40 +5,9 @@ import {
   extractValuePathForCompletion,
   findAllValuesReferences,
   findValuesReference,
-  isHelmTemplate,
 } from '@/features/valuesReferenceFeatures';
 
 describe('Values Reference Features', () => {
-  describe('isHelmTemplate', () => {
-    it('should detect Helm template with .Values', () => {
-      const content = 'image: {{ .Values.image.repository }}';
-      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-
-      expect(isHelmTemplate(doc)).toBe(true);
-    });
-
-    it('should detect Helm template with .Release', () => {
-      const content = 'name: {{ .Release.Name }}';
-      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-
-      expect(isHelmTemplate(doc)).toBe(true);
-    });
-
-    it('should detect Helm template with {{-', () => {
-      const content = 'image: {{- .Values.image.repository }}';
-      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-
-      expect(isHelmTemplate(doc)).toBe(true);
-    });
-
-    it('should not detect plain YAML', () => {
-      const content = 'image: nginx:latest';
-      const doc = TextDocument.create('file:///test.yaml', 'yaml', 1, content);
-
-      expect(isHelmTemplate(doc)).toBe(false);
-    });
-  });
-
   describe('findValuesReference', () => {
     it('should find simple .Values reference', () => {
       const content = 'image: {{ .Values.image.repository }}';

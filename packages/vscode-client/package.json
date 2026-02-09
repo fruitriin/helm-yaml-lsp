@@ -96,7 +96,10 @@
     }
   },
   "scripts": {
-    "build": "bun build src/extension.ts --outdir dist --target node --format cjs --external vscode --sourcemap=external",
+    "build": "bun run build:server && bun run build:client && bun run copy:server",
+    "build:server": "cd ../server && bun run build",
+    "build:client": "bun build src/extension.ts --outdir dist --target node --format cjs --external vscode --sourcemap=external",
+    "copy:server": "mkdir -p dist/server && cp ../server/dist/server.js dist/server/ && cp ../server/dist/server.js.map dist/server/",
     "build:test": "tsc -p test-integration/tsconfig.json",
     "watch": "bun build src/extension.ts --outdir dist --target node --format cjs --external vscode --sourcemap=external --watch",
     "clean": "rm -rf dist test-integration/out",

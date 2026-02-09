@@ -26,3 +26,6 @@ CHANGELOG.md
 
 # Bun
 bun.lockb
+
+# VSIXファイル
+*.vsix

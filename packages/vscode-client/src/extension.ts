@@ -76,8 +76,8 @@ async function setHelmLanguageIfNeeded(doc: TextDocument): Promise<void> {
 export async function activate(context: ExtensionContext) {
   console.log('Argo Workflows LSP Extension is now activating...');
 
-  // サーバーモジュールのパス
-  const serverModule = context.asAbsolutePath(path.join('..', 'server', 'dist', 'server.js'));
+  // サーバーモジュールのパス (VSIXパッケージ内では dist/server/server.js に配置)
+  const serverModule = context.asAbsolutePath(path.join('dist', 'server', 'server.js'));
 
   // デバッグポート（環境変数から取得、デフォルトは6009）
   const debugPort = process.env.LSP_DEBUG_PORT || '6009';

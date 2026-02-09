@@ -2,6 +2,13 @@
 
 Helm YAML LSP の開発履歴。各バージョンは Phase に対応。
 
+## [0.18.1] - VSCode拡張機能ビルド修正
+
+- VSCode拡張機能のビルド修正
+- CI/CDパイプラインの修正
+- リリース手順の改善
+- 計画ファイルの整理（plans/ディレクトリへ移動）
+
 ## [0.18.0] - Phase 18: ArgoTemplateIndex キャッシュ最適化
 
 - RenderedArgoIndexCache の差分更新パスの計算量・アロケーション削減

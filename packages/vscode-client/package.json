@@ -2,7 +2,7 @@
   "name": "helm-yaml-lsp-client",
   "displayName": "Argo Workflows LSP",
   "description": "Language Server Protocol support for Argo Workflows, Helm, and Kubernetes YAML",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "publisher": "fruitriin",
   "license": "MIT",
   "repository": {
